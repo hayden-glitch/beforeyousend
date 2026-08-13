@@ -53,6 +53,11 @@ export type AnalyticsEvent =
   | "sortpile_started"        // meta: { n }               — sort job started
   | "sortpile_purchase"       // meta: { plan }            — Sort My Pile confirmed
   | "attorney_prep_pack_purchase" // meta: { plan }        — Attorney Prep Pack confirmed
+  | "record_review_purchase"  // meta: { plan }            — Record Review confirmed
+  | "record_review_started"   // meta: { plan }            — Record Review generate tapped (client)
+  | "record_review_generated" // SERVER event — meta: { plan, fallback } — report generated + persisted
+  | "record_review_failed"    // meta: { plan }            — generate/persist errored
+  | "record_review_downloaded" // meta: { plan }           — report file downloaded
   | "sortpile_extract_start"   // meta: { n }                — client-side text extraction began (on-device)
   | "sortpile_extract_done"    // meta: { n, chars }         — client-side text extraction finished
   | "sortpile_extract_blocked" // meta: { reason }           — a paper couldn't be read (oversize/corrupt/unknown)

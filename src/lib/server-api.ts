@@ -3,8 +3,9 @@
 import Stripe from "stripe";
 import * as crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
-import { readUsers, writeUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, insertConsultation, insertAttorneyPack, attorneyPacksForUser, getTrial, startTrial, clearMetrics, customerMetrics } from "./storage";
+import { readUsers, writeUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, insertConsultation, insertAttorneyPack, attorneyPacksForUser, recordReviewsForUser, saveRecordReviewReport, latestRecordReviewReport, deleteRecordReviewBySession, getTrial, startTrial, clearMetrics, customerMetrics } from "./storage";
 import { computeImpactScore } from "./impactScore";
+import { buildRecordReview } from "./recordReview";
 import { TAXONOMY, folderBySlug } from "./taxonomy";
 // Shared rule classifier (landing "Sort one thing free" demo + Organizer
 // fallback + Sort My Pile rule path) — single source of truth, see ruleClassify.ts.
@@ -70,6 +71,31 @@ function organizerEnabled(user) {
 function attorneyPrepEntitled(user) {
   if (userTier(user) === "ultimate") return true;
   return user?.profile?.attorneyPrep === true;
+}
+// Record Review (one-time $29.50, 2026-08-13, Stage 1 money path): entitlement =
+// (a) a durable purchased grant (kind='purchase' row — permanent) OR (b) Ultimate
+// tier with an unused annual allowance (no redemption row in the rolling 365-day
+// window — Ultimate gets 1 per year). Every confirm/redeem writes a durable row
+// (bys_record_reviews, session_id UNIQUE, kind purchase|redemption) so the
+// 1/year window is enforced server-side by created_at. Read failure degrades to
+// not-entitled (Buy button) — the pricing card never shows a false unlock.
+// Shape: { entitled, kind: 'ultimate'|'purchased'|'none', nextAvailableAt? }.
+async function recordReviewEntitlement(user) {
+  let rows = [];
+  try {
+    rows = await recordReviewsForUser(user.id);
+  } catch (err) {
+    console.warn("[record-review] entitlement read failed:", err);
+  }
+  if (rows.some((r) => r.kind === "purchase")) return { entitled: true, kind: "purchased" };
+  if (userTier(user) === "ultimate") {
+    const DAY = 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - 365 * DAY;
+    const inWindow = rows.map((r) => new Date(r.createdAt).getTime()).filter((t) => t > cutoff).sort((a, b) => a - b);
+    if (inWindow.length === 0) return { entitled: true, kind: "ultimate" };
+    return { entitled: false, kind: "none", nextAvailableAt: new Date(inWindow[0] + 365 * DAY).toISOString() };
+  }
+  return { entitled: false, kind: "none" };
 }
 // Gift-code alphabet: 32 chars (no I/L/O/0/1) -> 8 chars ~ 1.1e12 combos.
 // Single-use + auth'd redeem makes brute force infeasible.
@@ -1859,7 +1885,13 @@ async function authMe(req) {
       // Attorney Prep Pack: Ultimate tier OR a durable paid grant. Server-side
       // authority (never trust the client); the pricing card reads this to show
       // "Already included in Ultimate" / "unlocked" instead of a Buy button.
-      attorneyPrep: attorneyPrepEntitled(u)
+      attorneyPrep: attorneyPrepEntitled(u),
+// Record Review (2026-08-13): purchased grant (permanent) OR Ultimate
+      // 1/year allowance. Server-side authority (never trust the client); the
+      // pricing card reads this to show "Record Review unlocked" / "Already
+      // included in Ultimate" instead of a Buy button. Read failure degrades
+      // to not-entitled (Buy button) — never a false unlock.
+      recordReview: await recordReviewEntitlement(u).catch(() => ({ entitled: false, kind: "none" }))
     }
   }, 200, { "Set-Cookie": sessionCookies(req, s.token, 2592000) });
 }
@@ -3815,12 +3847,14 @@ async function handleActionCenter(req, method) {
 }
 
 var SUBSCRIPTION_PLANS = ["steady", "command", "ultimate"];
-var PLAN_LABELS2 = { steady: "Steady", command: "Command Center", ultimate: "Ultimate Co-Parent", consultation: "Consultation", topup: "Review Top-Up", gift: "Gift a month of Steady", sortpile: "Sort My Pile", attorney_prep_pack: "Attorney Prep Pack" };
+var PLAN_LABELS2 = { steady: "Steady", command: "Command Center", ultimate: "Ultimate Co-Parent", consultation: "Consultation", topup: "Review Top-Up", gift: "Gift a month of Steady", sortpile: "Sort My Pile", attorney_prep_pack: "Attorney Prep Pack", record_review: "Record Review" };
 function planCents(plan, interval) {
   if (plan === "consultation")
     return Number(process.env.PRICE_CONSULTATION_USD_CENTS || 3950);
   if (plan === "attorney_prep_pack")
     return Number(process.env.PRICE_ATTORNEY_PREP_USD_CENTS || 2450);
+  if (plan === "record_review")
+    return Number(process.env.PRICE_RECORD_REVIEW_USD_CENTS || 2950);
   if (plan === "subscription")
     plan = "command";
   const byPlan = {
@@ -3843,7 +3877,7 @@ async function resolveStripePrice(stripe, plan, interval, opts = {}) {
   if (!cents)
     throw new Error(`No price configured for plan ${plan}/${interval}.`);
   const name = opts.productName || `Before You Send ${PLAN_LABELS2[plan] || plan}`;
-  const isOneTime = plan === "consultation" || plan === "topup" || plan === "gift" || plan === "sortpile" || plan === "attorney_prep_pack";
+  const isOneTime = plan === "consultation" || plan === "topup" || plan === "gift" || plan === "sortpile" || plan === "attorney_prep_pack" || plan === "record_review";
   const products = await stripe.products.list({ active: true, limit: 100 });
   const product = products.data.find((p2) => p2.name === name);
   if (product) {
@@ -3929,6 +3963,20 @@ async function handleCheckout(req) {
     const sessionUser5 = getSession(req);
     const appSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: appPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser5 ? sessionUser5.userId : undefined, metadata: { plan: "attorney_prep_pack", ...sessionUser5 ? { user_id: sessionUser5.userId } : {} }, success_url: `${origin5}/pricing?checkout=success&plan=attorney_prep_pack&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin5}/pricing?checkout=cancelled` });
     return json3({ url: appSession.url, plan: "attorney_prep_pack", interval: "month" });
+  }
+  if (plan === "record_review") {
+    // Record Review — one-time $29.50 (2950c). On verified paid confirm a
+    // durable grant is written (bys_record_reviews row kind='purchase' +
+    // profile.recordReview stamp). Ultimate members redeem their 1/year
+    // allowance instead — that path writes a kind='redemption' row (amount 0)
+    // when the review runs (Stage 2); the window is enforced by created_at.
+    // Stamped with the buyer's user id so a lost session cookie on the success
+    // return can still link.
+    const rrPrice = await resolveStripePrice(stripe, "record_review", "month");
+    const origin6 = new URL(req.url).origin;
+    const sessionUser6 = getSession(req);
+    const rrSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: rrPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser6 ? sessionUser6.userId : undefined, metadata: { plan: "record_review", ...sessionUser6 ? { user_id: sessionUser6.userId } : {} }, success_url: `${origin6}/pricing?checkout=success&plan=record_review&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin6}/pricing?checkout=cancelled` });
+    return json3({ url: rrSession.url, plan: "record_review", interval: "month" });
   }
   if (plan !== "consultation" && !SUBSCRIPTION_PLANS.includes(plan))
     return json3({ error: "Choose a valid plan." }, 400);
@@ -4126,6 +4174,26 @@ async function handleCheckoutConfirm(req) {
       }).catch((err) => console.warn("[attorney-prep] insert failed:", err));
       addEvent({ vid: visitorVid(req) || "server", name: "attorney_prep_pack_purchase", plan: "attorney_prep_pack", meta: { sessionId } }).catch((err) => console.warn("[attorney-prep] event failed:", err));
       return json3({ ok: true, kind: "attorney_prep_pack" });
+    }
+    if (session.metadata?.plan === "record_review") {
+      // Record Review (2026-08-13, Stage 1 money path): durable grant on verified
+      // paid confirm. profile.recordReview is the sync stamp; the
+      // bys_record_reviews row (kind='purchase') is the canonical durable record —
+      // ON CONFLICT (session_id) makes a double-confirm safe, and processedSessions
+      // guards the stamp. Ultimate members' 1/year allowance is a separate path:
+      // their redemption writes a kind='redemption' row (amount 0) when the review
+      // runs (Stage 2) — same table, same 365-day window.
+      u.profile = { ...u.profile || {}, recordReview: true, processedSessions: [...processed, sessionId] };
+      await writeUsers(users);
+      insertRecordReview({
+        userId: u.id,
+        email: u.email || "",
+        kind: "purchase",
+        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
+        sessionId
+      }).catch((err) => console.warn("[record-review] insert failed:", err));
+      addEvent({ vid: visitorVid(req) || "server", name: "record_review_purchase", plan: "record_review", meta: { sessionId } }).catch((err) => console.warn("[record-review] event failed:", err));
+      return json3({ ok: true, kind: "record_review" });
     }
     u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
     await writeUsers(users);
@@ -4775,6 +4843,85 @@ async function handleTikTokPublish(req) {
   }
   return json3({ ok: true, publish_id: publishId, status: pubStatus }, 201);
 }
+// ---- Record Review (one-time $29.50 + Ultimate 1/year — Stage 2, 2026-08-13)
+// GET  /api/record-review — re-view the account's LATEST generated report
+//   (works even after an Ultimate allowance is spent — the report is his own;
+//   re-viewing never regenerates). Session-gated; returns { report|null }.
+// POST /api/record-review — generate a NEW report. Entitlement-gated (Stage 1
+//   recordReviewEntitlement): the purchased grant is permanent (unlimited
+//   regenerations); Ultimate redeems the 1/year allowance ONLY when a report is
+//   actually generated — the kind='redemption' insert IS the Stage 1 hook, and
+//   it is rolled back if persisting the report fails so a failed generate never
+//   silently burns the allowance. Sections are deterministic from the dad's own
+//   record (always complete); LLM polish rides on top when the provider is
+//   healthy. The report persists on the anchor bys_record_reviews row.
+var RECORD_REVIEW_402 = "Record Review is a one-time purchase, or included once a year with Ultimate.";
+async function handleRecordReview(req, method) {
+  var s = getSession(req);
+  if (!s) return json3({ error: "Sign in to your account to run a Record Review." }, 401);
+  var users = await readUsers(), u = users.find(function (x) { return x.id === s.userId; });
+  if (!u) return json3({ error: "Account not found." }, 404);
+  if (method === "GET") {
+    var latest = null;
+    try { latest = await latestRecordReviewReport(u.id); } catch (err) { console.warn("[record-review] latest read failed:", err); }
+    return json3({ report: latest && latest.reportHtml ? { html: latest.reportHtml, generatedAt: latest.reportGeneratedAt, fallback: !!latest.reportFallback } : null });
+  }
+  var tier0 = userTier(u);
+  addEvent({ vid: visitorVid(req) || "server", name: "record_review_started", plan: tier0 }).catch(function (err) { console.warn("[record-review] event failed:", err); });
+  var ent = await recordReviewEntitlement(u);
+  if (!ent.entitled) {
+    var msg = ent.nextAvailableAt
+      ? "Your one Record Review for this year is already used. You can buy another, or the allowance resets " + expDate(ent.nextAvailableAt) + "."
+      : RECORD_REVIEW_402;
+    return json3({ error: msg, nextAvailableAt: ent.nextAvailableAt || null }, 402);
+  }
+  var reviews, log, timeline, files, cs;
+  try {
+    reviews = (await readReviewsForUser(u.id)).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+    log = await readLogForUser(u.id);
+    timeline = await readTimelineForUser(u.id);
+    files = await readOrganizerFilesMeta(u.id);
+    cs = await readCaseSummary(u.id);
+  } catch (err) {
+    console.warn("[record-review] record gather failed:", err);
+    return json3({ error: "We couldn't read your record right now — give it a minute and try again." }, 502);
+  }
+  var built;
+  try {
+    built = await buildRecordReview({ user: u, reviews: reviews, log: log, timeline: timeline, files: files, caseSummary: cs }, llm);
+  } catch (err) {
+    console.warn("[record-review] build failed:", err);
+    addEvent({ vid: visitorVid(req) || "server", name: "record_review_failed", plan: tier0 }).catch(function () {});
+    return json3({ error: "We couldn't prepare your Record Review right now — please try again in a minute." }, 500);
+  }
+  // Anchor + persist: purchased → the purchase row; ultimate → a NEW redemption
+  // row (the Stage 1 hook — consumed only now that a report generated).
+  var anchorSession = null, createdRedemption = false;
+  try {
+    if (ent.kind === "purchased") {
+      var rows = await recordReviewsForUser(u.id);
+      var purchaseRow = rows.find(function (r) { return r.kind === "purchase"; });
+      anchorSession = purchaseRow && purchaseRow.sessionId ? purchaseRow.sessionId : null;
+      if (!anchorSession) console.warn("[record-review] purchased user without a purchase row — report returned unpersisted:", u.id);
+    } else {
+      var token = "rr-" + String(u.id).slice(0, 8) + "-" + crypto.randomUUID();
+      var red = await insertRecordReview({ userId: u.id, email: u.email, kind: "redemption", amountCents: 0, sessionId: token });
+      anchorSession = red && red.sessionId ? red.sessionId : token;
+      createdRedemption = true;
+    }
+    if (anchorSession) await saveRecordReviewReport(anchorSession, built.html, built.fallback);
+  } catch (err) {
+    console.warn("[record-review] persist failed:", err);
+    if (createdRedemption && anchorSession) {
+      try { await deleteRecordReviewBySession(anchorSession); } catch (err2) { console.warn("[record-review] rollback failed:", err2); }
+    }
+    addEvent({ vid: visitorVid(req) || "server", name: "record_review_failed", plan: tier0 }).catch(function () {});
+    return json3({ error: "We couldn't save your Record Review right now — please try again in a minute." }, 500);
+  }
+  addEvent({ vid: visitorVid(req) || "server", name: "record_review_generated", plan: tier0, meta: { fallback: built.fallback } }).catch(function (err) { console.warn("[record-review] event failed:", err); });
+  var ent2 = await recordReviewEntitlement(u).catch(function () { return ent; });
+  return json3({ ok: true, report: { html: built.html, generatedAt: built.generatedAt, fallback: built.fallback }, entitlement: ent2 });
+}
 export async function handleApiRequest(req: Request): Promise<Response | null> {
   const url = new URL(req.url), { pathname } = url, method = req.method;
   // Hydrate the in-memory session cache from the durable DB first, so a login
@@ -4886,6 +5033,8 @@ export async function handleApiRequest(req: Request): Promise<Response | null> {
     return handleTikTokStatus();
   if (pathname === "/api/tiktok/publish" && method === "POST")
     return handleTikTokPublish(req);
+  if (pathname === "/api/record-review" && (method === "GET" || method === "POST"))
+    return handleRecordReview(req, method);
   return null;
 }
 

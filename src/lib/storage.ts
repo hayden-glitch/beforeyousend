@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 const base = "/home/team/shared";
-const files = { users: `${base}/bys-users.json`, reviews: `${base}/bys-reviews.json`, log: `${base}/bys-log.json`, timeline: `${base}/bys-timeline.json`, signups: `${base}/bys-signups.jsonl`, anon: `${base}/bys-anon.json`, sessions: `${base}/bys-sessions.json`, authSessions: `${base}/bys-auth-sessions.json`, confirmTokens: `${base}/bys-confirm-tokens.json`, events: `${base}/bys-events.json`, organizerFiles: `${base}/bys-organizer-files.json`, organizerTrials: `${base}/bys-organizer-trials.json`, caseSummary: `${base}/bys-case-summaries.json`, actionCenter: `${base}/bys-action-center.json`, reviewEvents: `${base}/bys-review-events.json`, sessionPlay: `${base}/bys-session-play.json`, tiktokTokens: `${base}/bys-tiktok-tokens.json`, tiktokPublishes: `${base}/bys-tiktok-publishes.json`, giftCodes: `${base}/bys-gift-codes.json`, consultations: `${base}/bys-consultations.json`, attorneyPacks: `${base}/bys-attorney-packs.json`, organizerUsage: `${base}/bys-organizer-usage.json`, trials: `${base}/bys-trials.json` };
+const files = { users: `${base}/bys-users.json`, reviews: `${base}/bys-reviews.json`, log: `${base}/bys-log.json`, timeline: `${base}/bys-timeline.json`, signups: `${base}/bys-signups.jsonl`, anon: `${base}/bys-anon.json`, sessions: `${base}/bys-sessions.json`, authSessions: `${base}/bys-auth-sessions.json`, confirmTokens: `${base}/bys-confirm-tokens.json`, events: `${base}/bys-events.json`, organizerFiles: `${base}/bys-organizer-files.json`, organizerTrials: `${base}/bys-organizer-trials.json`, caseSummary: `${base}/bys-case-summaries.json`, actionCenter: `${base}/bys-action-center.json`, reviewEvents: `${base}/bys-review-events.json`, sessionPlay: `${base}/bys-session-play.json`, tiktokTokens: `${base}/bys-tiktok-tokens.json`, tiktokPublishes: `${base}/bys-tiktok-publishes.json`, giftCodes: `${base}/bys-gift-codes.json`, consultations: `${base}/bys-consultations.json`, attorneyPacks: `${base}/bys-attorney-packs.json`, recordReviews: `${base}/bys-record-reviews.json`, organizerUsage: `${base}/bys-organizer-usage.json`, trials: `${base}/bys-trials.json` };
 const db = () => process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
 let boot: Promise<void> | null = null;
 async function init(){ const sql=db(); if(!sql)return; await Promise.all([
@@ -25,6 +25,7 @@ async function init(){ const sql=db(); if(!sql)return; await Promise.all([
  sql`CREATE TABLE IF NOT EXISTS bys_consultations (id BIGSERIAL PRIMARY KEY,user_id TEXT NOT NULL,email TEXT,amount_cents INT NOT NULL DEFAULT 0,session_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
  sql`CREATE TABLE IF NOT EXISTS bys_attorney_packs (id BIGSERIAL PRIMARY KEY,user_id TEXT NOT NULL,email TEXT,amount_cents INT NOT NULL DEFAULT 0,session_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
 sql`CREATE TABLE IF NOT EXISTS bys_trials (user_id TEXT PRIMARY KEY,started_at TIMESTAMPTZ NOT NULL DEFAULT now(),expires_at TIMESTAMPTZ NOT NULL,source TEXT)`,
+ sql`CREATE TABLE IF NOT EXISTS bys_record_reviews (id BIGSERIAL PRIMARY KEY,user_id TEXT NOT NULL,email TEXT,kind TEXT NOT NULL DEFAULT 'purchase',amount_cents INT NOT NULL DEFAULT 0,session_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
  sql`CREATE INDEX IF NOT EXISTS bys_events_name_ts ON bys_events(name,ts)`,
  sql`CREATE INDEX IF NOT EXISTS bys_events_vid_ts ON bys_events(vid,ts)`]);
   // Run AFTER the parallel table batch: the index depends on its table, and the
@@ -102,6 +103,15 @@ sql`CREATE TABLE IF NOT EXISTS bys_trials (user_id TEXT PRIMARY KEY,started_at T
   // scan to stay cheap once the table has real volume.
   try { await sql`CREATE INDEX IF NOT EXISTS bys_session_play_vid_ts ON bys_session_play(vid, ts)` } catch (err) { console.warn("[storage] bys_session_play index:", err) }
   try { await sql`CREATE INDEX IF NOT EXISTS bys_tiktok_publishes_publish_id ON bys_tiktok_publishes(publish_id)` } catch (err) { console.warn("[storage] tiktok_publishes index:", err) }
+  // Record Review Stage 2 (2026-08-13): the generated report persists on the
+  // bys_record_reviews row (the purchase/redemption row stays the entitlement
+  // anchor). report_html is the self-contained report document; report_fallback
+  // is true when the deterministic engine had to produce it (LLM down/slow).
+  // All idempotent; after the parallel CREATE TABLE batch (same race rule as
+  // the indexes above).
+  try { await sql`ALTER TABLE bys_record_reviews ADD COLUMN IF NOT EXISTS report_html TEXT` } catch (err) { console.warn("[storage] record_reviews report_html:", err) }
+  try { await sql`ALTER TABLE bys_record_reviews ADD COLUMN IF NOT EXISTS report_generated_at TIMESTAMPTZ` } catch (err) { console.warn("[storage] record_reviews report_generated_at:", err) }
+  try { await sql`ALTER TABLE bys_record_reviews ADD COLUMN IF NOT EXISTS report_fallback BOOLEAN NOT NULL DEFAULT FALSE` } catch (err) { console.warn("[storage] record_reviews report_fallback:", err) }
 }
 function ready(){return boot ||= init().catch(err => { console.warn("[storage] init failed, continuing:", err) })}
 async function fs(){ return await import("node:fs/promises") }
@@ -1175,6 +1185,7 @@ export async function attorneyPacksForUser(userId:string):Promise<any[]>{
   }
   const rows=await json(files.attorneyPacks);
   return rows.filter((x:any)=>x.userId===userId).sort((a:any,b:any)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+}
 // 24-hour free trial (owner 2026-08-13): ONE trial per person, ever. user_id is
 // the PK — a second INSERT for the same person is a no-op (race-safe). Expiry
 // is pure timestamp math (started_at + 24h) compared at read/grant time; no
@@ -1203,6 +1214,79 @@ export async function startTrial(userId:string,source:string):Promise<{row:any,c
   if(existing)return {row:existing,created:false};
   const t={userId,startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+86400000).toISOString(),source};
   rows.push(t);await put(files.trials,rows);return {row:t,created:true};
+}
+// ---- Record Review (one-time $29.50 + Ultimate 1/year allowance) -----------
+// Durable row for BOTH money purchases (kind='purchase') and Ultimate annual
+// allowance redemptions (kind='redemption', amount 0). A fresh Ultimate user
+// with no row in the rolling 365-day window is entitled; every confirm/redeem
+// writes a row so the 1/year window is enforced server-side (the entitlement
+// check counts rows by created_at). session_id UNIQUE keeps double-confirm
+// idempotent; for redemptions (no Stripe session) the caller supplies a unique
+// token. Mirrors bys_consultations/bys_attorney_packs.
+export async function insertRecordReview(row:{userId:string,email?:string,kind?:string,amountCents?:number,sessionId:string}):Promise<any>{
+  await ready();const sql=db();
+  if(sql){
+    await sql`INSERT INTO bys_record_reviews(user_id,email,kind,amount_cents,session_id) VALUES(${row.userId},${row.email||null},${row.kind||'purchase'},${row.amountCents||0},${row.sessionId}) ON CONFLICT (session_id) DO NOTHING`;
+    const r=await sql`SELECT id,user_id AS "userId",email,kind,amount_cents AS "amountCents",session_id AS "sessionId",created_at AS "createdAt" FROM bys_record_reviews WHERE session_id=${row.sessionId}`;
+    return (r as any[])[0] || null;
+  }
+  const rows=await json(files.recordReviews);
+  const existing=rows.find((x:any)=>x.sessionId===row.sessionId);
+  if(!existing){
+    const c={userId:row.userId,email:row.email||null,kind:row.kind||'purchase',amountCents:row.amountCents||0,sessionId:row.sessionId,createdAt:new Date().toISOString()};
+    rows.push(c);await put(files.recordReviews,rows);return c;
+  }
+  return existing;
+}
+export async function recordReviewsForUser(userId:string):Promise<any[]>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`SELECT id,user_id AS "userId",email,kind,amount_cents AS "amountCents",session_id AS "sessionId",created_at AS "createdAt" FROM bys_record_reviews WHERE user_id=${userId} ORDER BY created_at DESC`;
+    return r as any[];
+  }
+  const rows=await json(files.recordReviews);
+  return rows.filter((x:any)=>x.userId===userId).sort((a:any,b:any)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+// Record Review Stage 2 — durable report persistence. The report is stored ON
+// the bys_record_reviews row (anchor = the purchase or redemption row), keyed
+// by the row's UNIQUE session_id so both DB and JSON-fallback paths behave
+// identically. latestRecordReviewReport returns the newest report for the
+// account regardless of which row kind carries it (re-view works even after an
+// Ultimate allowance is spent); regenerating writes a fresh report (new
+// redemption row for Ultimate — the Stage 1 hook — or the purchase row for
+// buyers). deleteRecordReviewBySession rolls back a redemption whose report
+// save failed, keeping the invariant "a redemption row exists <=> its report
+// is anchored" so a failed generate never silently burns the 1/year allowance.
+export async function saveRecordReviewReport(sessionId:string, html:string, fallback:boolean):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    await sql`UPDATE bys_record_reviews SET report_html=${html}, report_generated_at=now(), report_fallback=${fallback} WHERE session_id=${sessionId}`;
+    return;
+  }
+  const rows=await json(files.recordReviews);
+  const r=rows.find((x:any)=>x.sessionId===sessionId);
+  if(r){r.reportHtml=html;r.reportGeneratedAt=new Date().toISOString();r.reportFallback=fallback;await put(files.recordReviews,rows);}
+}
+export async function latestRecordReviewReport(userId:string):Promise<any|null>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`SELECT session_id AS "sessionId",kind,report_html AS "reportHtml",report_generated_at AS "reportGeneratedAt",report_fallback AS "reportFallback" FROM bys_record_reviews WHERE user_id=${userId} AND report_html IS NOT NULL ORDER BY report_generated_at DESC NULLS LAST LIMIT 1`;
+    return (r as any[])[0] || null;
+  }
+  const rows=await json(files.recordReviews);
+  const withReport=rows.filter((x:any)=>x.userId===userId&&x.reportHtml);
+  withReport.sort((a:any,b:any)=>String(b.reportGeneratedAt||"").localeCompare(String(a.reportGeneratedAt||"")));
+  return withReport[0] || null;
+}
+export async function deleteRecordReviewBySession(sessionId:string):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    await sql`DELETE FROM bys_record_reviews WHERE session_id=${sessionId} AND report_html IS NULL AND kind='redemption'`;
+    return;
+  }
+  const rows=await json(files.recordReviews);
+  const idx=rows.findIndex((x:any)=>x.sessionId===sessionId);
+  if(idx>=0&&!rows[idx].reportHtml&&rows[idx].kind==='redemption'){rows.splice(idx,1);await put(files.recordReviews,rows);}
 }
 export async function getGiftCode(code:string):Promise<any|null>{
   await ready();const sql=db();

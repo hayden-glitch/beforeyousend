@@ -38,6 +38,7 @@ const ONETIME: [string, string, string, boolean][] = [
   ["Gift a month of Steady", "$4.99", "One month of Steady for another dad, delivered as a code you can share.", true],
   ["Sort My Pile", "$19.50", "Up to 50 documents filed into your Organizer folders for you — with 30 days of the live Organizer included.", true],
   ["Attorney Prep Pack", "$24.50", "Your record, prepared for your attorney — cover sheet, chronology, evidence index, and more. Generated from your record.", true],
+  ["Record Review", "$29.50", "A calm, thorough read of your whole record — patterns, evidence strengths, and what to document next. Not legal advice.", true],
 ];
 const COMPARE_ROWS: [string, string, string, string, string][] = [
   ["Reviews", "5/mo", "30/mo", "Unlimited", "Unlimited"],
@@ -50,18 +51,30 @@ const COMPARE_ROWS: [string, string, string, string, string][] = [
   ["Export pack", "—", "—", "Included", "Included"],
   ["Attorney Prep Pack", "—", "—", "—", "Included"],
   ["Consultations", "—", "—", "—", "1/year included"],
-  ["Record Review", "—", "—", "—", "1/year (launch)"],
+  ["Record Review", "—", "—", "—", "1/year included"],
   ["Priority support", "—", "—", "—", "Included"],
   ["Early access + kickstart", "—", "—", "—", "Included"],
 ];
 
 function Pricing() {
-  const [tab, setTab] = useState<Tab>("Memberships");
+  // ?tab= deep link (Tools cards send ?tab=One-time so an upsell lands on the
+  // right pricing section; the attorney-prep-pack branch uses the same param).
+  const [tab, setTab] = useState<Tab>(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get("tab");
+      return t === "One-time" || t === "Compare" || t === "FAQ" ? (t as Tab) : "Memberships";
+    } catch {
+      return "Memberships";
+    }
+  });
   const [isAnnual, setAnnual] = useState(false); // Monthly is the default (owner direction)
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [isUltimate, setIsUltimate] = useState(false);
   const [attorneyPrepOwned, setAttorneyPrepOwned] = useState(false);
+  // Record Review entitlement shape from /api/auth/me: { entitled, kind:
+  // 'ultimate'|'purchased'|'none', nextAvailableAt? } — server-side authority.
+  const [recordReview, setRecordReview] = useState<{ entitled?: boolean; kind?: string } | null>(null);
   const [purchased, setPurchased] = useState(false);
   const [needLogin, setNeedLogin] = useState(false);
   const [checkinActive, setCheckinActive] = useState(false); // ?checkin=50 (Co-Parent Check-In offer)
@@ -77,7 +90,7 @@ function Pricing() {
     track("pricing_viewed", {});
     fetch("/api/auth/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : { user: null }))
-      .then((j) => { setIsUltimate(j.user?.profile?.tier === "ultimate"); setMyTier(j.quota?.tier || j.user?.profile?.tier || "free"); setAttorneyPrepOwned(!!j.entitlements?.attorneyPrep); })
+      .then((j) => { setIsUltimate(j.user?.profile?.tier === "ultimate"); setMyTier(j.quota?.tier || j.user?.profile?.tier || "free"); setAttorneyPrepOwned(!!j.entitlements?.attorneyPrep); setRecordReview(j.entitlements?.recordReview || { entitled: false, kind: "none" }); })
       .catch(() => {});
     const q = new URLSearchParams(window.location.search);
     setCheckinActive(q.get("checkin") === "50");
@@ -121,6 +134,11 @@ function Pricing() {
               track("attorney_prep_pack_purchase", { plan: "attorney_prep_pack" });
               setAttorneyPrepOwned(true);
               setPurchased(true);
+            } else if (j.kind === "record_review") {
+              setMsg("Record Review unlocked — it's saved to your account.");
+              track("record_review_purchase", { plan: "record_review" });
+              setRecordReview({ entitled: true, kind: "purchased" });
+              setPurchased(true);
             } else if (j.tier) {
               setMsg(`Welcome to ${TIER_NAMES[j.tier] || j.tier} — your plan is active.`);
               track("subscription_purchased", { plan, tier: j.tier, intro: !!j.introOffer });
@@ -155,7 +173,7 @@ function Pricing() {
     }
   }, []);
 
-  async function checkout(plan: PlanKey | "topup" | "consultation" | "gift" | "sortpile" | "attorney_prep_pack", interval: Interval = "month") {
+  async function checkout(plan: PlanKey | "topup" | "consultation" | "gift" | "sortpile" | "attorney_prep_pack" | "record_review", interval: Interval = "month") {
     setBusy(`${plan}${interval}`);
     setMsg("");
     track("checkout_started", { plan, interval, ...(checkinActive ? { source: "checkin" } : {}) });
@@ -336,7 +354,18 @@ function Pricing() {
                   <p className="mt-2 font-display text-3xl text-forest">{p}</p>
                   <p className="mt-2 text-stone">{d}</p>
                   <p className="mt-3 text-sm text-stone">Buy once — no subscription{n === "Review Top-Up" ? " · 10 credits" : ""}</p>
-                  {isUltimate && included ? (
+                  {n === "Record Review" ? (
+                    recordReview?.entitled && recordReview.kind === "purchased" ? (
+                      <span className="mt-4 inline-block rounded-full border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Record Review unlocked ✓</span>
+                    ) : recordReview?.entitled ? (
+                      // kind === "ultimate" — allowance available this year.
+                      <span className="mt-4 inline-block rounded-full border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>
+                    ) : (
+                      // Not entitled — Ultimate members who used their 1/year
+                      // allowance see the Buy button too (honest: they can buy more).
+                      <button onClick={() => checkout("record_review")} className="btn-ghost mt-4 w-full">Buy Record Review</button>
+                    )
+                  ) : isUltimate && included ? (
                     <span className="mt-4 inline-block rounded-full border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>
                   ) : n === "Attorney Prep Pack" && attorneyPrepOwned ? (
                     <span className="mt-4 inline-block rounded-full border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Attorney Prep Pack unlocked ✓</span>
