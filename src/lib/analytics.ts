@@ -191,26 +191,25 @@ declare global {
 }
 
 let initialized = false;
+export const GOOGLE_ADS_ID = "AW-18234635191";
+export const GOOGLE_SIGNUP_DESTINATION = `${GOOGLE_ADS_ID}/XeTXCOT1muEcELfn-fZD`;
 // Dedup window (audit 85fbc48d Fix 3): page_view/page_enter collapse query-string
 // variations of the SAME pathname within 30s per tab — "/?a=1" and "/?a=2" on one
 // route load count once, and the ttclid redirect hop collapses with the final
 // landing page. A real revisit to a DIFFERENT path still counts.
 const PAGE_DEDUP_MS = 30000;
 let lastPage: { pathname: string; at: number } | undefined;
-const CV: Record<string,string|undefined> = { review_completed: import.meta.env.VITE_GOOGLE_CV_REVIEW, email_submitted: import.meta.env.VITE_GOOGLE_CV_EMAIL, account_created: import.meta.env.VITE_GOOGLE_CV_ACCOUNT, checkout_started: import.meta.env.VITE_GOOGLE_CV_CHECKOUT, subscription_purchased: import.meta.env.VITE_GOOGLE_CV_SUBSCRIPTION };
-
-function injectScript(src: string, id: string): Promise<void> {
-  return new Promise((resolve) => {
-    if (document.getElementById(id)) return resolve();
-    const s = document.createElement("script");
-    s.id = id;
-    s.async = true;
-    s.src = src;
-    s.onload = () => resolve();
-    s.onerror = () => resolve();
-    document.head.appendChild(s);
-  });
-}
+// Signup intentionally does not live in this generic mapping. Its Google Ads
+// conversion carries enhanced-conversion user data and a stable transaction
+// id, so it must go through trackSignupConversion() after the server confirms
+// account creation. Keeping email_submitted/account_created out of CV prevents
+// a button click, failed request, env label, or route remount from double-firing
+// the primary Sign-up conversion.
+const CV: Record<string,string|undefined> = {
+  review_completed: import.meta.env.VITE_GOOGLE_CV_REVIEW,
+  checkout_started: import.meta.env.VITE_GOOGLE_CV_CHECKOUT,
+  subscription_purchased: import.meta.env.VITE_GOOGLE_CV_SUBSCRIPTION,
+};
 
 export async function initAnalytics(cfg: AnalyticsConfig): Promise<void> {
   if (initialized || typeof window === "undefined") return;
@@ -284,29 +283,10 @@ export async function initAnalytics(cfg: AnalyticsConfig): Promise<void> {
       }
     }
 
-    if (cfg.googleAdsId) {
-      // Google's snippet REQUIRES dataLayer to exist BEFORE gtag.js loads:
-      // gtag.js sets dataLayer._env on init, and with dataLayer undefined it
-      // throws "Cannot set properties of undefined (setting '_env')" and every
-      // Google Ads page_view/conversion event silently dies. (QA bd99fbf8)
-      w.dataLayer = w.dataLayer || [];
-      // Standard gtag stub: pre-load calls queue into dataLayer and are
-      // executed by gtag.js once it loads (Google's documented pattern).
-      w.gtag = w.gtag || function (...args: unknown[]) {
-        (w.dataLayer as unknown[]).push(args);
-      };
-      // Queue js + config BEFORE the script tag so gtag.js picks them up on
-      // init. send_page_view:false — the app fires page_view itself via
-      // trackPageView (no double-count on first load).
-      w.gtag?.("js", new Date());
-      w.gtag?.("config", cfg.googleAdsId, { send_page_view: false });
-      // Google tag gateway (first-party): load gtag.js from OUR origin and
-      // let the serverless proxy (/metrics/*) forward to Google's first-party
-      // server (aw-18234635191.fps.goog). Ad blockers can't block our own
-      // domain, so conversion tracking stays durable. Relative path works on
-      // every domain (and the dev server). Config command + labels unchanged.
-      await injectScript(`/metrics/`, "bys-gtag");
-    }
+    // The canonical Google tag is bootstrapped synchronously in __root.tsx's
+    // shared document head. Do not inject /metrics/ here: that first-party
+    // gateway's gtg_health=1 chain returned Google's health-check stub and
+    // silently dropped every conversion request.
     // Initial page view. Fired here (not from the onResolved subscription)
     // because the router's first `onResolved` has already happened by the
     // time the root component mounts — so exactly one page_view fires on
@@ -498,5 +478,49 @@ export function track(event: AnalyticsEvent, data?: Record<string, unknown>): vo
     }
   } catch {
     /* noop */
+  }
+}
+
+/**
+ * Fires the one primary Google Ads Sign-up conversion after the server has
+ * created/confirmed the account. The email is sent only through Google's
+ * supported enhanced-conversion user_data interface; it is never added to the
+ * site's persisted event payload or the generic dataLayer event object.
+ */
+export function trackSignupConversion(input: {
+  email?: unknown;
+  transactionId?: unknown;
+}): void {
+  try {
+    if (typeof window === "undefined") return;
+    const email = typeof input.email === "string"
+      ? input.email.trim().toLowerCase()
+      : "";
+    const transactionId = typeof input.transactionId === "string"
+      ? input.transactionId.trim()
+      : "";
+    if (!email || !transactionId || typeof window.gtag !== "function") return;
+
+    // One conversion per account in this browser session. The server-provided
+    // immutable account id is also sent as transaction_id so Google can dedupe
+    // a legitimate retry across reloads/devices.
+    const guardKey = `bys_google_signup:${transactionId}`;
+    try {
+      if (sessionStorage.getItem(guardKey)) return;
+      sessionStorage.setItem(guardKey, "1");
+    } catch {
+      // Storage can be unavailable in hardened browsers; transaction_id still
+      // gives Google an idempotency key, so the conversion remains safe.
+    }
+
+    window.gtag("set", "user_data", { email });
+    window.gtag("event", "conversion", {
+      send_to: GOOGLE_SIGNUP_DESTINATION,
+      value: 1.0,
+      currency: "USD",
+      transaction_id: transactionId,
+    });
+  } catch {
+    /* conversion tracking must never break signup */
   }
 }

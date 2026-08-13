@@ -1,16 +1,25 @@
 @import "tailwindcss";
-/* ---- Landing hero A/B split (bys_hero_variant cookie) ----
-   An inline head script assigns variant a|b before first paint and sets
+/* ---- Landing hero A/B/C split (bys_hero_variant cookie) ----
+   An inline head script assigns variant a|b|c before first paint and sets
    data-hero-variant on <html>; CSS shows exactly one H1. No attribute
    (JS disabled / pre-script paint) falls back to variant A (current hero).
-   Both H1s stay in the DOM so SSR output is deterministic and hydration
-   never mismatches; the hidden one is display:none (out of the a11y tree)
-   and the head script also sets aria-hidden="true" on it (backlog 2ee6e58e)
+   All three H1s stay in the DOM so SSR output is deterministic and hydration
+   never mismatches; the hidden ones are display:none (out of the a11y tree)
+   and the head script also sets aria-hidden="true" on them (backlog 2ee6e58e)
    so DOM-level a11y audits count exactly one H1. */
 html:not([data-hero-variant="b"]) .hero-variant-b {
   display: none;
 }
+html:not([data-hero-variant="c"]) .hero-variant-c {
+  display: none;
+}
 html[data-hero-variant="b"] .hero-variant-a {
+  display: none;
+}
+html[data-hero-variant="c"] .hero-variant-a {
+  display: none;
+}
+html[data-hero-variant="c"] .hero-variant-b {
   display: none;
 }
 

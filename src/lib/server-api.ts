@@ -107,7 +107,11 @@ function resolveLLM() {
   return { key, base: base2, model };
 }
 var llm = resolveLLM();
-var isProd2 = false;
+// Restored runtime production detection (Codex a96c03f): hardcoding `false`
+// here silently enabled the DEV-only sample fallback for REAL drafts in
+// production whenever a provider key was missing. Mirror serve.ts's isProd —
+// production never serves the deterministic sample to a real draft.
+var isProd2 = process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
 var fallbackAllowed = !isProd2 && process.env.ALLOW_DEV_FALLBACK !== "0";
 if (!llm && fallbackAllowed) {
   console.warn("[review] No LLM key configured (SAMBANOVA_API_KEY / OPENAI_API_KEY / LLM_API_KEY) — using the DEV-ONLY sample fallback. Set a key to serve live reviews.");
@@ -779,10 +783,26 @@ async function handleReview(req) {
         if (!example && !session) {
           refundAnonReview(ip).catch((e2) => console.warn("[review] ip refund failed:", e2));
         }
-        try {
-          controller.enqueue(enc.encode(JSON.stringify({ type: "error", message, ...(errCode ? { code: errCode } : {}) }) + `
+        // Example resilience (Codex defense-in-depth): the labeled homepage
+        // example must ALWAYS complete — when a provider failure hits the
+        // example path, nothing streamed, and the client has not aborted,
+        // replay the deterministic sample and finish cleanly. Real drafts
+        // never take this branch; they keep the honest error event below.
+        if (example && collected.length === 0 && !ac.signal.aborted) {
+          try {
+            for (const ev of fallbackEvents(draft)) {
+              controller.enqueue(enc.encode(ev + `
 `));
-        } catch {}
+            }
+            controller.enqueue(enc.encode(JSON.stringify({ type: "done" }) + `
+`));
+          } catch {}
+        } else {
+          try {
+            controller.enqueue(enc.encode(JSON.stringify({ type: "error", message, ...(errCode ? { code: errCode } : {}) }) + `
+`));
+          } catch {}
+        }
       } finally {
         try {
           controller.close();

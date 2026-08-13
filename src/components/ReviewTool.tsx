@@ -448,6 +448,9 @@ export default function ReviewTool({ reviewRef }: Props) {
           <p className="mt-3 text-center text-base text-stone">
             Free · No account · Private
           </p>
+          <p className="mt-1 text-center text-sm text-taupe">
+            Usually about 10–20 seconds.
+          </p>
         </form>
 
         {showResults && (
@@ -573,12 +576,10 @@ function QuotaCTA({ draft }: { draft: string }) {
 }
 
 // The human failure fallback (owner direction, 2026-08-10): when a review fails
-// after the automatic retries, never dead-end the dad. Option A saves his
-// message through the existing account-creation flow (/api/save — draft carried
-// along, so nothing is lost); Option B is the real half-price Check-In offer
-// (bys-checkin-50 coupon via /pricing?checkin=50); "Try again" re-POSTs the
-// same draft and is quota-safe now that failed streams refund their slot. All
-// copy is honest — no "AI" word, no urgency, no invented numbers.
+// after the automatic retries, never dead-end the dad. He can save his message
+// through the existing account-creation flow (/api/save — draft carried along,
+// so nothing is lost) or retry the same quota-safe request. A failed core
+// result is never a moment for a payment pitch.
 function ReviewFallback({ draft, error, onRetry }: { draft: string; error: string; onRetry: () => void }) {
   const [showSave, setShowSave] = useState(false);
   const [email, setEmail] = useState("");
@@ -675,15 +676,6 @@ function ReviewFallback({ draft, error, onRetry }: { draft: string; error: strin
         </form>
       )}
       <p className="mt-3 text-center text-sm text-stone">No card. No spam. Your message stays yours.</p>
-
-      <a href="/pricing?checkin=50" className="mt-5 block text-center text-base font-semibold text-forest underline underline-offset-4">
-        Half price for the wait — your first 3 months at 50% off
-      </a>
-      <p className="mt-1 text-center text-sm text-stone">Real offer, real math — no countdown. Cancel anytime.</p>
-
-      <p className="mt-5 rounded-2xl bg-cream-deep px-4 py-3 text-center text-sm text-stone">
-        Honest about it: the engine is genuinely busy right now. This offer is real and it's yours.
-      </p>
 
       <button type="button" onClick={onRetry} className="btn-ghost mt-4 w-full">
         Try again

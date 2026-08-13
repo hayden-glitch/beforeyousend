@@ -203,6 +203,32 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
   const seqPlayedRef = useRef(false);
   const prevStreamingRef = useRef(false);
   const seqTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Latency UX (conversion-cycle-1, 2026-08-13): if a stream is still silent
+  // ~12s in (slow provider windows hit 20–45s+), show one calm line next to
+  // the streaming pill — an expectation reset, never urgency. Cleared the
+  // moment the first content block lands or the stream ends.
+  const [stalled, setStalled] = useState(false);
+  const stalledTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (streaming) {
+      setStalled(false);
+      if (stalledTimerRef.current) clearTimeout(stalledTimerRef.current);
+      stalledTimerRef.current = setTimeout(() => setStalled(true), 12000);
+      return () => {
+        if (stalledTimerRef.current) clearTimeout(stalledTimerRef.current);
+        stalledTimerRef.current = null;
+      };
+    }
+    setStalled(false);
+    if (stalledTimerRef.current) clearTimeout(stalledTimerRef.current);
+    stalledTimerRef.current = null;
+  }, [streaming]);
+  useEffect(() => {
+    if (blocks.length === 0) return;
+    setStalled(false);
+    if (stalledTimerRef.current) clearTimeout(stalledTimerRef.current);
+    stalledTimerRef.current = null;
+  }, [blocks.length]);
   // First analysis section auto-opens via the NATIVE details API (one-shot,
   // never a controlled `open` prop) so React never slams a section shut that
   // the dad opened himself during streaming.
@@ -645,7 +671,14 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
       </p>
 
       {streaming ? (
-        <p className="rounded-2xl border border-line bg-cream-deep px-4 py-3 text-base text-stone">{isAnalyze ? "Reading the situation — how it may look, and what to do next…" : "Reading the tone, conflict risks, and calmer rewrites…"}</p>
+        <>
+          <p className="rounded-2xl border border-line bg-cream-deep px-4 py-3 text-base text-stone">{isAnalyze ? "Reading the situation — how it may look, and what to do next…" : "Reading the tone, conflict risks, and calmer rewrites…"}</p>
+          {stalled && (
+            <p className="rounded-2xl border border-forest/15 bg-card px-4 py-3 text-base text-stone">
+              Still working — this can take up to a minute when things are slow. Nothing's lost.
+            </p>
+          )}
+        </>
       ) : mode === "demo" ? (
         <p className="rounded-2xl border border-line bg-cream-deep px-4 py-3 text-base text-stone">
           {isAnalyze ? "Sample output is never saved to an account. Describe a real situation and get a live analysis." : "Sample output is never saved to an account. Paste a real draft and get a live AI review."}

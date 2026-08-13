@@ -14,6 +14,7 @@ import TrialModal from "~/components/TrialModal";
 import CoParentCheckIn from "~/components/CoParentCheckIn";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
 import {
+  GOOGLE_ADS_ID,
   initAnalytics,
   initRouteTracking,
   type AnalyticsConfig,
@@ -23,9 +24,14 @@ const getAnalyticsConfig = createServerFn().handler(async () => {
   const cfg: AnalyticsConfig = {};
   const pick = (v: string | undefined) => (v && v.trim() ? v.trim() : undefined);
   cfg.tiktokPixelId = pick(process.env.TIKTOK_PIXEL_ID);
-  cfg.googleAdsId = pick(process.env.GOOGLE_ADS_ID);
   return cfg;
 });
+
+// Canonical Google tag bootstrap supplied by Google Ads for this account.
+// It lives directly in the shared document head so every route has a ready
+// gtag queue before React mounts. send_page_view:false keeps trackPageView()
+// as the single page-view fire point.
+const GOOGLE_TAG_BOOTSTRAP = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}window.gtag=window.gtag||gtag;gtag('consent','default',{ad_storage:'granted',analytics_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'});gtag('js',new Date());gtag('config','${GOOGLE_ADS_ID}',{send_page_view:false});`;
 
 export const Route = createRootRoute({
   head: () => ({
@@ -149,6 +155,8 @@ function RootDocument({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <script async src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`} />
+        <script dangerouslySetInnerHTML={{ __html: GOOGLE_TAG_BOOTSTRAP }} />
         <HeadContent />
       </head>
       <body>
