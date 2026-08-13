@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { track } from "~/lib/analytics";
+import { valueDelivered } from "~/lib/offer";
 import {
   trialDismissed,
   markTrialDismissed,
@@ -191,6 +192,10 @@ export default function TrialModal() {
   // /login with the 3-question intake showing is deferred too (owner
   // 2026-08-13): the intake IS the engagement; the trial starts quietly at
   // account confirm for anyone who carried intent.
+  // Value gate (conversion-cycle-1, owner 2026-08-13): the offer never fires
+  // before a review completes in this session — the reward lands first, the
+  // ask comes after (mirrors SpecialOffer's value gate). Read FRESH at fire
+  // time from sessionStorage, so a late delivery still un-gates.
   const gated = useCallback(
     () =>
       TRIAL_NEVER.includes(pathname) ||
@@ -199,35 +204,46 @@ export default function TrialModal() {
       modalOpen() ||
       trialShownThisSession() ||
       trialDismissed() ||
+      !valueDelivered() ||
       auth === null ||
       !auth.eligible,
     [pathname, auth]
   );
 
   // Dwell timer: /pricing after ~2s, high-intent pages after ~10s. Re-armed on
-  // path change. Gating is re-checked at FIRE time, never stale.
+  // path change AND on value delivery (bys:checkin-value, dispatched by
+  // ReviewTool/home right after markValueDelivered) — a visitor who lands
+  // before reviewing must still get the offer after their first review, not
+  // miss it because the pre-value arm already elapsed. Gating is re-checked at
+  // FIRE time, never stale.
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [valueAt, setValueAt] = useState(0);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const dwell = pathname === TRIAL_FAST ? 2000 : 10000;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = null;
-    if (show || gated()) return;
-    timerRef.current = setTimeout(() => {
+    const arm = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = null;
-      if (!gated()) {
-        setShow(true);
-        claimModal();
-        markTrialShown();
-        track("trial_modal_shown", { path: pathname });
-      }
-    }, dwell);
+      if (show || gated()) return;
+      const dwell = pathname === TRIAL_FAST ? 2000 : 10000;
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        if (!gated()) {
+          setShow(true);
+          claimModal();
+          markTrialShown();
+          track("trial_modal_shown", { path: pathname });
+        }
+      }, dwell);
+    };
+    arm();
+    window.addEventListener("bys:checkin-value", () => setValueAt((v) => v + 1));
     return () => {
+      window.removeEventListener("bys:checkin-value", () => setValueAt((v) => v + 1));
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, show, auth, gated]);
+  }, [pathname, show, auth, gated, valueAt]);
 
   // Release the shared lock when the modal closes for ANY reason.
   useEffect(() => {

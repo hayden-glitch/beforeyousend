@@ -54,13 +54,14 @@ async function streamNDJSON(path:string,payload:Record<string,unknown>,onEvent:(
   // bound runs from REQUEST START and covers every phase: the fetch itself
   // (headers never arriving), each stream read, and EOF. It is an absolute
   // deadline — NOT an idle timer — so a trickling provider still gets cut.
-  // 90s (P1 2026-08-13): the server's own 45s provider deadline + the hosting
-  // function's ~60s hard limit fire first in practice; this bound is the
-  // backstop for a server that never responds at all, and 90s keeps that
-  // worst-case wait reasonable for a mobile dad. On timeout the fetch is
-  // aborted so the server's abort path runs (lazy quota means nothing burns).
-  // Calm copy unchanged — no urgency, nothing lost.
-  const deadline=Date.now()+90000;
+  // 75s (conversion-cycle-1 2026-08-13, down from 90s): the server's own 45s
+  // provider deadline + the hosting function's ~60s hard limit fire first in
+  // practice; this bound is the backstop for a server that never responds at
+  // all, and 75s keeps that worst-case wait reasonable for a mobile dad (the
+  // ~12s stalled line in ReviewResults resets the expectation long before).
+  // On timeout the fetch is aborted so the server's abort path runs (lazy
+  // quota means nothing burns). Calm copy unchanged — no urgency, nothing lost.
+  const deadline=Date.now()+75000;
   const TIMEOUT_MSG=copy.timeout;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const raceDeadline = <T>(p: Promise<T>): Promise<T> =>

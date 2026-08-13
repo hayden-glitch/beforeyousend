@@ -300,6 +300,25 @@ export async function initAnalytics(cfg: AnalyticsConfig): Promise<void> {
       // trackPageView (no double-count on first load).
       w.gtag?.("js", new Date());
       w.gtag?.("config", cfg.googleAdsId, { send_page_view: false });
+      // P0 conversion-beacon fix (conversion-cycle-1, 2026-08-13; E2E evidence
+      // same day): the /metrics/ gateway serves a Google Ads Consent-Mode
+      // container (CCD tags incl. __ccd_enable_cm, __ccd_ads_*) — NOT raw
+      // gtag.js. With no consent commands on the page, the container's
+      // consent-mode defaults gate the AW tag: the email_submitted conversion
+      // command queues in dataLayer (provably correct) but never pings
+      // doubleclick (0 requests across 3 HARs of a real signup). GTM applies
+      // container-scoped consent defaults only when the page hasn't set its
+      // own, so push explicit GRANTED defaults BEFORE the container loads —
+      // the standard gtag consent pattern (pushed through the stub so the
+      // command queues in dataLayer exactly like gtag('consent','default')).
+      // Site is US-facing with no consent UI; this is the minimal honest fix.
+      // Label/event/send_to unchanged; TikTok wiring untouched.
+      w.gtag?.("consent", "default", {
+        ad_storage: "granted",
+        analytics_storage: "granted",
+        ad_user_data: "granted",
+        ad_personalization: "granted",
+      });
       // Google tag gateway (first-party): load gtag.js from OUR origin and
       // let the serverless proxy (/metrics/*) forward to Google's first-party
       // server (aw-18234635191.fps.goog). Ad blockers can't block our own
