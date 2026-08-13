@@ -3,12 +3,14 @@
 import Stripe from "stripe";
 import * as crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
-import { readUsers, writeUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, insertConsultation, getTrial, startTrial, clearMetrics, customerMetrics } from "./storage";
+import { readUsers, writeUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, insertConsultation, insertAttorneyPack, attorneyPacksForUser, getTrial, startTrial, clearMetrics, customerMetrics } from "./storage";
 import { computeImpactScore } from "./impactScore";
 import { TAXONOMY, folderBySlug } from "./taxonomy";
 // Shared rule classifier (landing "Sort one thing free" demo + Organizer
 // fallback + Sort My Pile rule path) — single source of truth, see ruleClassify.ts.
 import { ruleFolderFor, fallbackOrganizerClassify, RECORD_HEALTH_MISSING_RULES } from "./ruleClassify";
+import { expDate, expEsc, buildExportSectionsHtml, exportPackCss } from "./exportPack";
+import { buildAttorneyPack } from "./attorneyPack";
 
 
 var TIER_LIMITS = { free: 5, steady: 30, command: Infinity, ultimate: Infinity };
@@ -57,6 +59,17 @@ function sortPileActive(user) {
 function organizerEnabled(user) {
   const t = userTier(user);
   return t === "command" || t === "ultimate" || sortPileActive(user);
+}
+// Attorney Prep Pack (one-time, 2026-08-12): entitlement = Ultimate tier OR a
+// durable paid grant. The grant is stamped on profile.attorneyPrep at verified
+// paid confirm (sync fast-path for pricing/UI); the canonical durable row is
+// bys_attorney_packs, written in the same confirm (session_id UNIQUE, mirrors
+// bys_consultations). Re-download stays possible — the grant IS the entitlement;
+// pack generation/download is a later build. Server gates must never trust the
+// client: check this helper (and the durable row where the stamp is missing).
+function attorneyPrepEntitled(user) {
+  if (userTier(user) === "ultimate") return true;
+  return user?.profile?.attorneyPrep === true;
 }
 // Gift-code alphabet: 32 chars (no I/L/O/0/1) -> 8 chars ~ 1.1e12 combos.
 // Single-use + auth'd redeem makes brute force infeasible.
@@ -1841,7 +1854,13 @@ async function authMe(req) {
     },
     organizerTrial: { used: orgTrialCount >= ORGANIZER_TRIAL_LIMIT, remaining: Math.max(0, ORGANIZER_TRIAL_LIMIT - orgTrialCount), count: orgTrialCount },
     organizerFiles: { hasAny: hasOrgFiles },
-    trial
+    trial,
+    entitlements: {
+      // Attorney Prep Pack: Ultimate tier OR a durable paid grant. Server-side
+      // authority (never trust the client); the pricing card reads this to show
+      // "Already included in Ultimate" / "unlocked" instead of a Buy button.
+      attorneyPrep: attorneyPrepEntitled(u)
+    }
   }, 200, { "Set-Cookie": sessionCookies(req, s.token, 2592000) });
 }
 async function authLogout(req) {
@@ -2974,30 +2993,9 @@ async function handleSortPilePoll(req, jobId) {
 // phone, prints cleanly) and returned as an attachment. Honest framing only:
 // it's his record, organized for him — no legal/admissibility claims.
 var EXPORT_402 = "The Export pack is part of the Command Center plan.";
-var EXPORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-var EXPORT_TONES = { gentle: "Gentle", direct: "Direct", firm: "Firm but Neutral", neutral: "Neutral" };
-function expDate(d) {
-  if (!d) return "";
-  var m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return String(d);
-  var mon = EXPORT_MONTHS[(Number(m[2]) - 1 + 12) % 12];
-  return mon + " " + Number(m[3]) + ", " + m[1];
-}
-function expEsc(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-function expBlocksHtml(blocks) {
-  if (!Array.isArray(blocks) || !blocks.length) return "";
-  var out = [];
-  for (var i = 0; i < blocks.length; i++) {
-    var b = blocks[i] || {};
-    if (b.kind === "section" || b.kind === "rewrite") out.push('<p class="label">' + expEsc(b.title) + "</p>");
-    else if (b.kind === "para" || b.kind === "item" || b.kind === "rwtext") out.push('<p class="txt">' + expEsc(b.text) + "</p>");
-  }
-  return out.join("\n");
-}
+// Export assembly moved to src/lib/exportPack.ts (2026-08-12): expDate/expEsc/
+// expBlocksHtml + all section HTML are shared with the Attorney Prep Pack so
+// both downloads render the identical full-record sections.
 async function handleExport(req) {
   var s = getSession(req);
   if (!s) return json3({ error: EXPORT_402 }, 402);
@@ -3028,62 +3026,52 @@ async function handleExport(req) {
     return json3({ error: "We couldn't prepare your record right now — give it a minute and try again." }, 502);
   }
   var generatedAt = expDate(new Date().toISOString());
-  var total = reviews.length + log.length + timeline.length + files.length + (cs && cs.text ? 1 : 0);
-  var html = "";
-  html += "<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>Your Record — Before You Send</title><style>";
-  html += "body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#faf7ef;color:#2a2a28;line-height:1.55}.wrap{max-width:760px;margin:0 auto;padding:40px 20px 80px}header{border-bottom:2px solid #1f3d2b;padding-bottom:20px;margin-bottom:28px}h1{font-size:26px;color:#1f3d2b;margin:0 0 6px}.sub{color:#6b6b62;font-size:14px;margin:4px 0}h2{font-size:19px;color:#1f3d2b;margin:36px 0 2px}.count{color:#6b6b62;font-size:13px;margin:0 0 12px}.card{border:1px solid #e5e0d4;border-radius:14px;padding:16px 18px;margin:10px 0;background:#fff}.meta{color:#6b6b62;font-size:12.5px;margin:0}.label{font-size:11px;font-weight:700;letter-spacing:.06em;color:#1f3d2b;text-transform:uppercase;margin:12px 0 2px}.txt{white-space:pre-wrap;font-size:14.5px;margin:4px 0}.note{background:#f1ece0;border-radius:10px;padding:12px 14px;font-size:13px;color:#6b6b62;margin:10px 0}.empty{color:#6b6b62;font-style:italic;font-size:14px}.tags{font-size:12.5px;color:#6b6b62}@media print{body{background:#fff}.card{break-inside:avoid}}";
-  html += "</style></head><body><div class=\"wrap\"><header><h1>Your Record — Before You Send</h1><p class=\"sub\">Exported " + expEsc(generatedAt) + ". Everything you've saved — saved reviews, communication log, event timeline, organizer documents, and your case summary — in one file.</p><p class=\"sub\">This is your own record from Before You Send. It is not legal advice.</p></header>";
-  html += '<div class="note">' + reviews.length + " saved review" + (reviews.length === 1 ? "" : "s") + " · " + log.length + " log entr" + (log.length === 1 ? "y" : "ies") + " · " + timeline.length + " timeline event" + (timeline.length === 1 ? "" : "s") + " · " + files.length + " organizer document" + (files.length === 1 ? "" : "s") + (cs && cs.text ? " · Case summary: yes" : "") + "</div>";
-  if (total === 0) html += '<div class="note">Nothing saved yet. This file will fill in as you save reviews, log entries, and documents.</div>';
-  html += "<h2>Case Summary</h2>";
-  if (cs && cs.text) html += '<p class="count">Generated ' + expEsc(expDate(cs.generatedAt)) + '</p><div class="card"><div class="txt">' + expEsc(cs.text) + "</div></div>";
-  else html += '<p class="empty">No case summary yet.</p>';
-  html += "<h2>Saved Reviews</h2>";
-  if (!reviews.length) html += '<p class="empty">No entries yet.</p>';
-  for (var i = 0; i < reviews.length; i++) {
-    var r = reviews[i];
-    var score = computeImpactScore(Array.isArray(r.blocks) ? r.blocks : []).score;
-    html += '<div class="card"><p class="meta">' + expEsc(expDate(r.createdAt)) + " · Message Impact Score " + score + "/100</p>";
-    html += '<p class="label">Your message</p><p class="txt">' + expEsc(r.draft) + "</p>";
-    var bh = expBlocksHtml(r.blocks);
-    html += bh ? '<p class="label">Review</p>' + bh : (r.review ? '<p class="label">Review</p><p class="txt">' + expEsc(r.review) + "</p>" : "");
-    html += "</div>";
-  }
-  html += "<h2>Communication Log</h2>";
-  if (!log.length) html += '<p class="empty">No entries yet.</p>';
-  for (var j = 0; j < log.length; j++) {
-    var l = log[j];
-    html += '<div class="card"><p class="meta">' + expEsc(expDate(l.date)) + " · " + (l.direction === "sent" ? "Sent by me" : "Received from co-parent") + " · " + expEsc(l.topic || "other") + (l.tone && l.tone !== "reviewed" ? " · " + expEsc(EXPORT_TONES[l.tone] || l.tone) : "") + '</p><p class="txt">' + expEsc(l.message) + "</p>";
-    if (l.notes) html += '<p class="label">Private notes</p><p class="txt">' + expEsc(l.notes) + "</p>";
-    html += "</div>";
-  }
-  html += "<h2>Event Timeline</h2>";
-  if (!timeline.length) html += '<p class="empty">No entries yet.</p>';
-  for (var k = 0; k < timeline.length; k++) {
-    var t = timeline[k];
-    html += '<div class="card"><p class="meta">' + expEsc(expDate(t.date)) + " · " + expEsc(String(t.category || "other").replace(/-/g, " ")) + '</p><p class="txt"><strong>' + expEsc(t.title) + "</strong></p>";
-    if (t.details) html += '<p class="txt">' + expEsc(t.details) + "</p>";
-    html += "</div>";
-  }
-  html += "<h2>Organizer Documents</h2>";
-  if (!files.length) html += '<p class="empty">No entries yet.</p>';
-  for (var m2 = 0; m2 < files.length; m2++) {
-    var f = files[m2];
-    var folder = f.folder ? String(f.folder).replace(/-/g, " ") : "";
-    var cat = f.category ? String(f.category).replace(/-/g, " ") : "";
-    html += '<div class="card"><p class="meta">' + (f.kind === "image" ? "Photo, screenshot, or PDF" : "Pasted text") + (f.createdAt ? " · " + expEsc(expDate(f.createdAt)) : "") + (folder ? " · " + expEsc(folder) + (cat ? " › " + expEsc(cat) : "") : "") + "</p>";
-    html += '<p class="txt"><strong>' + expEsc(f.title || (f.kind === "text" ? "Pasted text" : "Untitled document")) + "</strong></p>";
-    if (f.summary) html += '<p class="label">Summary</p><p class="txt">' + expEsc(f.summary) + "</p>";
-    if (f.kind === "text" && f.content) html += '<p class="label">Text</p><p class="txt">' + expEsc(f.content) + "</p>";
-    if (f.kind !== "text" && f.description) html += '<p class="label">Description</p><p class="txt">' + expEsc(f.description) + "</p>";
-    if (f.reason) html += '<p class="label">Why it was filed here</p><p class="txt">' + expEsc(f.reason) + "</p>";
-    if (Array.isArray(f.tags) && f.tags.length) html += '<p class="tags">Tags: ' + expEsc(f.tags.join(", ")) + "</p>";
-    html += "</div>";
-  }
-  html += '<div class="note">Downloaded from your Before You Send account on ' + expEsc(generatedAt) + ". This file contains your own saved records — nothing more, nothing less.</div></div></body></html>";
+  var html = "<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>Your Record — Before You Send</title><style>" + exportPackCss() + "</style></head><body><div class=\"wrap\"><header><h1>Your Record — Before You Send</h1><p class=\"sub\">Exported " + expEsc(generatedAt) + ". Everything you've saved — saved reviews, communication log, event timeline, organizer documents, and your case summary — in one file.</p><p class=\"sub\">This is your own record from Before You Send. It is not legal advice.</p></header>";
+  html += buildExportSectionsHtml(reviews, log, timeline, files, cs, generatedAt);
+  html += "</div></body></html>";
   var fname = "Before-You-Send-Record-" + new Date().toISOString().slice(0, 10) + ".html";
   return new Response(html, { status: 200, headers: toHeaders({ "Content-Type": "text/html; charset=utf-8", "Content-Disposition": 'attachment; filename="' + fname + '"', "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }) });
 }
+// ---- Attorney Prep Pack (one-time $24.50) ------------------------------
+// Stage 2 DELIVERABLE (2026-08-12): generates the self-contained HTML pack
+// from the dad's OWN record — cover sheet, case chronology, evidence/document
+// index, communication-pattern summary, and the full record bundle. The
+// entitlement is the Stage-1 grant (Ultimate OR a durable profile.attorneyPrep
+// stamp) — the same server-side authority the pricing card and dashboard read;
+// re-download = regenerate on demand (no HTML blobs persisted). Deterministic
+// first: the LLM only polishes the narrative paragraph; on any provider
+// failure the pack still assembles completely from the record. The honest
+// footer "Prepared from your record — communication guidance, not legal advice."
+// is baked into the HTML; this route never implies attorney review.
+var ATTORNEY_PREP_402 = "The Attorney Prep Pack is a one-time purchase — you can get it from the One-time tab on the pricing page.";
+async function handleAttorneyPack(req) {
+  var s = getSession(req);
+  if (!s) return json3({ error: ATTORNEY_PREP_402 }, 402);
+  var users = await readUsers(), u = users.find(function (x) { return x.id === s.userId; });
+  if (!u) return json3({ error: "Account not found." }, 404);
+  if (!attorneyPrepEntitled(u)) return json3({ error: ATTORNEY_PREP_402 }, 402);
+  var reviews, log, timeline, files, cs;
+  try {
+    reviews = (await readReviewsForUser(u.id)).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+    log = await readLogForUser(u.id);
+    timeline = await readTimelineForUser(u.id);
+    files = await readOrganizerFilesMeta(u.id);
+    cs = await readCaseSummary(u.id);
+  } catch (err) {
+    console.warn("[attorney-pack] record gather failed:", err);
+    return json3({ error: "We couldn't prepare your pack right now — give it a minute and try again." }, 502);
+  }
+  var pack;
+  try {
+    pack = await buildAttorneyPack({ user: u, reviews: reviews, log: log, timeline: timeline, files: files, caseSummary: cs }, llm);
+  } catch (err) {
+    console.warn("[attorney-pack] assembly failed:", err);
+    return json3({ error: "We couldn't prepare your pack right now — please try again." }, 502);
+  }
+  addEvent({ vid: visitorVid(req) || "server", name: "attorney_pack_generate", plan: userTier(u), meta: { fallback: pack.fallback } }).catch(function (err) { console.warn("[attorney-pack] event failed:", err); });
+  return new Response(pack.html, { status: 200, headers: toHeaders({ "Content-Type": "text/html; charset=utf-8", "Content-Disposition": 'attachment; filename="' + pack.filename + '"', "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }) });
+}
+
 // ---- Case Summary (Command Center paid feature) -----------------------------
 // A calm, factual overview of the dad's OWN saved record (Communication Log,
 // Event Timeline, Organizer documents with summaries/tags, saved reviews).
@@ -3827,10 +3815,12 @@ async function handleActionCenter(req, method) {
 }
 
 var SUBSCRIPTION_PLANS = ["steady", "command", "ultimate"];
-var PLAN_LABELS2 = { steady: "Steady", command: "Command Center", ultimate: "Ultimate Co-Parent", consultation: "Consultation", topup: "Review Top-Up", gift: "Gift a month of Steady", sortpile: "Sort My Pile" };
+var PLAN_LABELS2 = { steady: "Steady", command: "Command Center", ultimate: "Ultimate Co-Parent", consultation: "Consultation", topup: "Review Top-Up", gift: "Gift a month of Steady", sortpile: "Sort My Pile", attorney_prep_pack: "Attorney Prep Pack" };
 function planCents(plan, interval) {
   if (plan === "consultation")
     return Number(process.env.PRICE_CONSULTATION_USD_CENTS || 3950);
+  if (plan === "attorney_prep_pack")
+    return Number(process.env.PRICE_ATTORNEY_PREP_USD_CENTS || 2450);
   if (plan === "subscription")
     plan = "command";
   const byPlan = {
@@ -3853,7 +3843,7 @@ async function resolveStripePrice(stripe, plan, interval, opts = {}) {
   if (!cents)
     throw new Error(`No price configured for plan ${plan}/${interval}.`);
   const name = opts.productName || `Before You Send ${PLAN_LABELS2[plan] || plan}`;
-  const isOneTime = plan === "consultation" || plan === "topup" || plan === "gift" || plan === "sortpile";
+  const isOneTime = plan === "consultation" || plan === "topup" || plan === "gift" || plan === "sortpile" || plan === "attorney_prep_pack";
   const products = await stripe.products.list({ active: true, limit: 100 });
   const product = products.data.find((p2) => p2.name === name);
   if (product) {
@@ -3927,6 +3917,18 @@ async function handleCheckout(req) {
     const sessionUser4 = getSession(req);
     const sortSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: sortPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser4 ? sessionUser4.userId : undefined, metadata: { plan: "sortpile", ...sessionUser4 ? { user_id: sessionUser4.userId } : {} }, success_url: `${origin4}/pricing?checkout=success&plan=sortpile&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin4}/pricing?checkout=cancelled` });
     return json3({ url: sortSession.url, plan: "sortpile", interval: "month" });
+  }
+  if (plan === "attorney_prep_pack") {
+    // Attorney Prep Pack — one-time $24.50 (2450c). On verified paid confirm the
+    // durable grant is written (bys_attorney_packs row + profile.attorneyPrep
+    // stamp); re-download stays possible (grant = entitlement; pack generation
+    // is a later build). Stamped with the buyer's user id so a lost session
+    // cookie on the success return can still link.
+    const appPrice = await resolveStripePrice(stripe, "attorney_prep_pack", "month");
+    const origin5 = new URL(req.url).origin;
+    const sessionUser5 = getSession(req);
+    const appSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: appPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser5 ? sessionUser5.userId : undefined, metadata: { plan: "attorney_prep_pack", ...sessionUser5 ? { user_id: sessionUser5.userId } : {} }, success_url: `${origin5}/pricing?checkout=success&plan=attorney_prep_pack&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin5}/pricing?checkout=cancelled` });
+    return json3({ url: appSession.url, plan: "attorney_prep_pack", interval: "month" });
   }
   if (plan !== "consultation" && !SUBSCRIPTION_PLANS.includes(plan))
     return json3({ error: "Choose a valid plan." }, 400);
@@ -4106,6 +4108,24 @@ async function handleCheckoutConfirm(req) {
       await writeUsers(users);
       addEvent({ vid: visitorVid(req) || "server", name: "sortpile_purchase", plan: userTier(u), meta: { sortUntil } }).catch(function (err) { console.warn("[sortpile] purchase event failed:", err); });
       return json3({ ok: true, kind: "sortpile", sortUntil });
+    }
+    if (session.metadata?.plan === "attorney_prep_pack") {
+      // Attorney Prep Pack (2026-08-12): durable grant on verified paid confirm.
+      // profile.attorneyPrep is the sync entitlement stamp (Ultimate OR stamp =
+      // entitled); the bys_attorney_packs row is the canonical durable record —
+      // ON CONFLICT (session_id) makes a double-confirm safe, and processedSessions
+      // guards the stamp. Re-download stays possible; pack generation/download is
+      // a later build.
+      u.profile = { ...u.profile || {}, attorneyPrep: true, processedSessions: [...processed, sessionId] };
+      await writeUsers(users);
+      insertAttorneyPack({
+        userId: u.id,
+        email: u.email || "",
+        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
+        sessionId
+      }).catch((err) => console.warn("[attorney-prep] insert failed:", err));
+      addEvent({ vid: visitorVid(req) || "server", name: "attorney_prep_pack_purchase", plan: "attorney_prep_pack", meta: { sessionId } }).catch((err) => console.warn("[attorney-prep] event failed:", err));
+      return json3({ ok: true, kind: "attorney_prep_pack" });
     }
     u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
     await writeUsers(users);
@@ -4858,6 +4878,8 @@ export async function handleApiRequest(req: Request): Promise<Response | null> {
     return handleActionCenter(req, method);
   if (pathname === "/api/export" && method === "GET")
     return handleExport(req);
+  if (pathname === "/api/attorney-pack" && method === "GET")
+    return handleAttorneyPack(req);
   if (pathname === "/api/tiktok/callback" && method === "GET")
     return handleTikTokCallback(req);
   if (pathname === "/api/tiktok/status" && method === "GET")

@@ -31,14 +31,13 @@ const PLANS: [PlanKey | "free", string, string, string[]][] = [
   ["ultimate", "Ultimate Co-Parent", "Everything we offer. One plan. Set up for you.", ["Unlimited message reviews", "Everything in Command Center", `1 free 45-minute consultation each year (${consultationMoney} value)`, "All one-time packs included", "Priority support + scheduling", "Kickstart onboarding and early access"]],
 ];
 const TIER_NAMES: Record<string, string> = { steady: "Steady", command: "Command Center", ultimate: "Ultimate Co-Parent" };
-// [name, price, delivery line, includedInUltimate] — only LIVE one-time
-// products render here; the unbuilt attorney prep pack is named in the quiet
-// "in the works" line below the grid instead of a dead "Coming soon" card.
+// [name, price, delivery line, includedInUltimate] — LIVE one-time products.
 const ONETIME: [string, string, string, boolean][] = [
   ["One Conversation", consultationMoney, "45 minutes focused on your situation.", false],
   ["Review Top-Up", "$9.50", "10 review credits; no expiry, stackable.", true],
   ["Gift a month of Steady", "$4.99", "One month of Steady for another dad, delivered as a code you can share.", true],
   ["Sort My Pile", "$19.50", "Up to 50 documents filed into your Organizer folders for you — with 30 days of the live Organizer included.", true],
+  ["Attorney Prep Pack", "$24.50", "Your record, prepared for your attorney — cover sheet, chronology, evidence index, and more. Generated from your record.", true],
 ];
 const COMPARE_ROWS: [string, string, string, string, string][] = [
   ["Reviews", "5/mo", "30/mo", "Unlimited", "Unlimited"],
@@ -49,7 +48,7 @@ const COMPARE_ROWS: [string, string, string, string, string][] = [
   ["Case Summary", "—", "—", "Included", "Included"],
   ["Action Center", "—", "—", "Included", "Included"],
   ["Export pack", "—", "—", "Included", "Included"],
-  ["Attorney Prep Pack", "—", "—", "—", "In the works"],
+  ["Attorney Prep Pack", "—", "—", "—", "Included"],
   ["Consultations", "—", "—", "—", "1/year included"],
   ["Record Review", "—", "—", "—", "1/year (launch)"],
   ["Priority support", "—", "—", "—", "Included"],
@@ -62,6 +61,7 @@ function Pricing() {
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [isUltimate, setIsUltimate] = useState(false);
+  const [attorneyPrepOwned, setAttorneyPrepOwned] = useState(false);
   const [purchased, setPurchased] = useState(false);
   const [needLogin, setNeedLogin] = useState(false);
   const [checkinActive, setCheckinActive] = useState(false); // ?checkin=50 (Co-Parent Check-In offer)
@@ -77,10 +77,11 @@ function Pricing() {
     track("pricing_viewed", {});
     fetch("/api/auth/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : { user: null }))
-      .then((j) => { setIsUltimate(j.user?.profile?.tier === "ultimate"); setMyTier(j.quota?.tier || j.user?.profile?.tier || "free"); })
+      .then((j) => { setIsUltimate(j.user?.profile?.tier === "ultimate"); setMyTier(j.quota?.tier || j.user?.profile?.tier || "free"); setAttorneyPrepOwned(!!j.entitlements?.attorneyPrep); })
       .catch(() => {});
     const q = new URLSearchParams(window.location.search);
     setCheckinActive(q.get("checkin") === "50");
+    if (q.get("tab") === "One-time") setTab("One-time");
     if (q.get("checkout") === "success" && q.get("session_id")) {
       // Checkout return — record the purchase (suppresses the offer this session).
       markPurchasedThisSession();
@@ -115,6 +116,11 @@ function Pricing() {
               // Purchase confirmed — guide the dad straight into the flow.
               track("sortpile_purchase", { plan: "sortpile" });
               window.location.href = "/home?tab=organizer&sort=1";
+            } else if (j.kind === "attorney_prep_pack") {
+              setMsg("Attorney Prep Pack unlocked — it's saved to your account.");
+              track("attorney_prep_pack_purchase", { plan: "attorney_prep_pack" });
+              setAttorneyPrepOwned(true);
+              setPurchased(true);
             } else if (j.tier) {
               setMsg(`Welcome to ${TIER_NAMES[j.tier] || j.tier} — your plan is active.`);
               track("subscription_purchased", { plan, tier: j.tier, intro: !!j.introOffer });
@@ -149,7 +155,7 @@ function Pricing() {
     }
   }, []);
 
-  async function checkout(plan: PlanKey | "topup" | "consultation" | "gift" | "sortpile", interval: Interval = "month") {
+  async function checkout(plan: PlanKey | "topup" | "consultation" | "gift" | "sortpile" | "attorney_prep_pack", interval: Interval = "month") {
     setBusy(`${plan}${interval}`);
     setMsg("");
     track("checkout_started", { plan, interval, ...(checkinActive ? { source: "checkin" } : {}) });
@@ -332,19 +338,23 @@ function Pricing() {
                   <p className="mt-3 text-sm text-stone">Buy once — no subscription{n === "Review Top-Up" ? " · 10 credits" : ""}</p>
                   {isUltimate && included ? (
                     <span className="mt-4 inline-block rounded-full border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>
+                  ) : n === "Attorney Prep Pack" && attorneyPrepOwned ? (
+                    <span className="mt-4 inline-block rounded-full border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Attorney Prep Pack unlocked ✓</span>
                   ) : n === "Sort My Pile" ? (
                     <button onClick={() => checkout("sortpile")} className="btn-ghost mt-4 w-full">Buy Sort My Pile</button>
                   ) : n === "Review Top-Up" ? (
                     <button onClick={() => checkout("topup")} className="btn-ghost mt-4 w-full">Buy Review Top-Up</button>
                   ) : n === "Gift a month of Steady" ? (
                     <button onClick={() => checkout("gift")} className="btn-ghost mt-4 w-full">Buy Gift a Month</button>
+                  ) : n === "Attorney Prep Pack" ? (
+                    <button onClick={() => checkout("attorney_prep_pack")} className="btn-ghost mt-4 w-full">Buy Attorney Prep Pack</button>
                   ) : (
                     <button onClick={() => checkout("consultation")} className="btn-ghost mt-4 w-full">Buy One Conversation</button>
                   )}
                 </article>
               ))}
             </div>
-            <p className="mt-3 text-sm text-stone">Attorney prep pack — still in the works.</p>
+            <p className="mt-3 text-sm text-stone">One-time, no subscription — or already included in Ultimate Co-Parent.</p>
           </section>
         )}
 

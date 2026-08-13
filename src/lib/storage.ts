@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 const base = "/home/team/shared";
-const files = { users: `${base}/bys-users.json`, reviews: `${base}/bys-reviews.json`, log: `${base}/bys-log.json`, timeline: `${base}/bys-timeline.json`, signups: `${base}/bys-signups.jsonl`, anon: `${base}/bys-anon.json`, sessions: `${base}/bys-sessions.json`, authSessions: `${base}/bys-auth-sessions.json`, confirmTokens: `${base}/bys-confirm-tokens.json`, events: `${base}/bys-events.json`, organizerFiles: `${base}/bys-organizer-files.json`, organizerTrials: `${base}/bys-organizer-trials.json`, caseSummary: `${base}/bys-case-summaries.json`, actionCenter: `${base}/bys-action-center.json`, reviewEvents: `${base}/bys-review-events.json`, sessionPlay: `${base}/bys-session-play.json`, tiktokTokens: `${base}/bys-tiktok-tokens.json`, tiktokPublishes: `${base}/bys-tiktok-publishes.json`, giftCodes: `${base}/bys-gift-codes.json`, consultations: `${base}/bys-consultations.json`, organizerUsage: `${base}/bys-organizer-usage.json`, trials: `${base}/bys-trials.json` };
+const files = { users: `${base}/bys-users.json`, reviews: `${base}/bys-reviews.json`, log: `${base}/bys-log.json`, timeline: `${base}/bys-timeline.json`, signups: `${base}/bys-signups.jsonl`, anon: `${base}/bys-anon.json`, sessions: `${base}/bys-sessions.json`, authSessions: `${base}/bys-auth-sessions.json`, confirmTokens: `${base}/bys-confirm-tokens.json`, events: `${base}/bys-events.json`, organizerFiles: `${base}/bys-organizer-files.json`, organizerTrials: `${base}/bys-organizer-trials.json`, caseSummary: `${base}/bys-case-summaries.json`, actionCenter: `${base}/bys-action-center.json`, reviewEvents: `${base}/bys-review-events.json`, sessionPlay: `${base}/bys-session-play.json`, tiktokTokens: `${base}/bys-tiktok-tokens.json`, tiktokPublishes: `${base}/bys-tiktok-publishes.json`, giftCodes: `${base}/bys-gift-codes.json`, consultations: `${base}/bys-consultations.json`, attorneyPacks: `${base}/bys-attorney-packs.json`, organizerUsage: `${base}/bys-organizer-usage.json`, trials: `${base}/bys-trials.json` };
 const db = () => process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
 let boot: Promise<void> | null = null;
 async function init(){ const sql=db(); if(!sql)return; await Promise.all([
@@ -23,6 +23,7 @@ async function init(){ const sql=db(); if(!sql)return; await Promise.all([
  sql`CREATE TABLE IF NOT EXISTS bys_gift_codes (id TEXT PRIMARY KEY,giver_id TEXT NOT NULL,months INT NOT NULL DEFAULT 1,status TEXT NOT NULL DEFAULT 'active',created_at TIMESTAMPTZ NOT NULL DEFAULT now(),redeemed_by TEXT,redeemed_at TIMESTAMPTZ,session_id TEXT UNIQUE)`,
  sql`CREATE TABLE IF NOT EXISTS bys_organizer_usage (user_id TEXT NOT NULL, day TEXT NOT NULL, count INT NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day))`,
  sql`CREATE TABLE IF NOT EXISTS bys_consultations (id BIGSERIAL PRIMARY KEY,user_id TEXT NOT NULL,email TEXT,amount_cents INT NOT NULL DEFAULT 0,session_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
+ sql`CREATE TABLE IF NOT EXISTS bys_attorney_packs (id BIGSERIAL PRIMARY KEY,user_id TEXT NOT NULL,email TEXT,amount_cents INT NOT NULL DEFAULT 0,session_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
 sql`CREATE TABLE IF NOT EXISTS bys_trials (user_id TEXT PRIMARY KEY,started_at TIMESTAMPTZ NOT NULL DEFAULT now(),expires_at TIMESTAMPTZ NOT NULL,source TEXT)`,
  sql`CREATE INDEX IF NOT EXISTS bys_events_name_ts ON bys_events(name,ts)`,
  sql`CREATE INDEX IF NOT EXISTS bys_events_vid_ts ON bys_events(vid,ts)`]);
@@ -1146,6 +1147,34 @@ export async function insertConsultation(row:{userId:string,email?:string,amount
   }
   return existing;
 }
+// ---- Attorney Prep Pack (one-time 2026-08-12, Stage 1 money path) -----------
+// Durable grant row — mirrors bys_consultations exactly (lazy DDL, session_id
+// UNIQUE idempotency, JSON fallback). The confirm handler ALSO stamps
+// profile.attorneyPrep so the sync entitlement check needs no DB read; this row
+// is the canonical durable record (re-download entitlement, audit trail).
+export async function insertAttorneyPack(row:{userId:string,email?:string,amountCents?:number,sessionId:string}):Promise<any>{
+  await ready();const sql=db();
+  if(sql){
+    await sql`INSERT INTO bys_attorney_packs(user_id,email,amount_cents,session_id) VALUES(${row.userId},${row.email||null},${row.amountCents||0},${row.sessionId}) ON CONFLICT (session_id) DO NOTHING`;
+    const r=await sql`SELECT id,user_id AS "userId",email,amount_cents AS "amountCents",session_id AS "sessionId",created_at AS "createdAt" FROM bys_attorney_packs WHERE session_id=${row.sessionId}`;
+    return (r as any[])[0] || null;
+  }
+  const rows=await json(files.attorneyPacks);
+  const existing=rows.find((x:any)=>x.sessionId===row.sessionId);
+  if(!existing){
+    const c={userId:row.userId,email:row.email||null,amountCents:row.amountCents||0,sessionId:row.sessionId,createdAt:new Date().toISOString()};
+    rows.push(c);await put(files.attorneyPacks,rows);return c;
+  }
+  return existing;
+}
+export async function attorneyPacksForUser(userId:string):Promise<any[]>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`SELECT id,user_id AS "userId",email,amount_cents AS "amountCents",session_id AS "sessionId",created_at AS "createdAt" FROM bys_attorney_packs WHERE user_id=${userId} ORDER BY created_at DESC`;
+    return r as any[];
+  }
+  const rows=await json(files.attorneyPacks);
+  return rows.filter((x:any)=>x.userId===userId).sort((a:any,b:any)=>String(b.createdAt).localeCompare(String(a.createdAt)));
 // 24-hour free trial (owner 2026-08-13): ONE trial per person, ever. user_id is
 // the PK — a second INSERT for the same person is a no-op (race-safe). Expiry
 // is pure timestamp math (started_at + 24h) compared at read/grant time; no

@@ -52,6 +52,7 @@ export type AnalyticsEvent =
   | "sortpile_added"          // meta: { n }               — papers added to the pile
   | "sortpile_started"        // meta: { n }               — sort job started
   | "sortpile_purchase"       // meta: { plan }            — Sort My Pile confirmed
+  | "attorney_prep_pack_purchase" // meta: { plan }        — Attorney Prep Pack confirmed
   | "sortpile_extract_start"   // meta: { n }                — client-side text extraction began (on-device)
   | "sortpile_extract_done"    // meta: { n, chars }         — client-side text extraction finished
   | "sortpile_extract_blocked" // meta: { reason }           — a paper couldn't be read (oversize/corrupt/unknown)
@@ -119,6 +120,9 @@ export type AnalyticsEvent =
   | "export_started"           // meta: { plan }               — export requested (tap)
   | "export_downloaded"        // meta: { plan }               — record file downloaded
   | "export_failed"            // meta: { plan }               — export errored
+  | "attorney_pack_started"    // meta: { plan }               — pack generation requested (tap)
+  | "attorney_pack_downloaded" // meta: { plan }               — pack file downloaded
+  | "attorney_pack_failed"     // meta: { plan }               — pack generation errored
   | "organizer_needs_sorting"          // meta: { plan, kind }    — upload classified other/needs-sorting (notice card shown)
   | "organizer_needs_sorting_view"     // meta: { plan }          — needs-sorting strip/rows seen (once per mount)
   | "organizer_needs_sorting_dismissed" // meta: { plan }         — notice card or strip dismissed
