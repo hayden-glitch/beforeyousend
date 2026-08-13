@@ -12,6 +12,7 @@ import appCss from "~/styles/app.css?url";
 import SpecialOffer from "~/components/SpecialOffer";
 import TrialModal from "~/components/TrialModal";
 import CoParentCheckIn from "~/components/CoParentCheckIn";
+import GuidedFunnel from "~/components/GuidedFunnel";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
 import {
   GOOGLE_ADS_ID,
@@ -147,6 +148,7 @@ function RootComponent() {
       <SpecialOffer />
       <TrialModal />
       <CoParentCheckIn />
+      <GuidedFunnel />
     </RootDocument>
   );
 }

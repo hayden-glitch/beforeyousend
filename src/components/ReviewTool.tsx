@@ -156,6 +156,14 @@ export default function ReviewTool({ reviewRef }: Props) {
           ...(variant ? { auth: "anon", variant, mode: "review" } : { auth: "anon", mode: "review" }),
           ...(exampleRunRef.current ? { example: true } : {}),
         });
+        // Round-6 guided funnel (R6-2): post-value entry point after the
+        // first review or the free example lands. Delayed ~1.4s so the payoff
+        // is seen first; GuidedFunnel (mounted in __root) decides eligibility
+        // (signed-out, once per page load) and fires the funnel events.
+        // Never carries draft text.
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("bys:guided-funnel"));
+        }, 1400);
       }
       // Co-Parent Check-In: second-chance trigger — pill may re-appear once.
       window.dispatchEvent(new CustomEvent("bys:checkin-value"));
