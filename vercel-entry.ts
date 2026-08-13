@@ -162,14 +162,27 @@ export default async function vercelHandler(
   res: ServerResponse,
 ): Promise<void> {
   try {
-    // First-party tag gateway: intercept /metrics/* AND the fps root-relative
-    // beacon paths (/a, /a/* — GTM container load telemetry) BEFORE any
-    // SSR/API route matching. (No app route uses /metrics or /a — both are
-    // reserved for the gateway.)
-    const proxyPath = (req.url ?? "/").split("?")[0];
+    // Legacy GTM beacon path: the first-party container was deleted (Round-3),
+    // so nothing fetches /a anymore. A real visitor (or a stale cached beacon)
+    // landing here previously got a blank 200 from the fps proxy — redirect to
+    // the landing page instead. 307: temporary + method-preserving (the path
+    // may be re-enabled with the gateway). Query string is preserved so ad
+    // attribution (gclid/wbraid/gbraid) survives a landing on /a?... .
+    const rawUrl = req.url ?? "/";
+    const proxyPath = rawUrl.split("?")[0];
+    if (proxyPath === "/a" || proxyPath.startsWith("/a/")) {
+      const search = rawUrl.includes("?") ? rawUrl.slice(rawUrl.indexOf("?")) : "";
+      res.statusCode = 307;
+      res.setHeader("location", `/${search}`);
+      res.setHeader("cache-control", "no-store");
+      res.end();
+      return;
+    }
+    // First-party tag gateway: /metrics/* still proxies to fps.goog (inert —
+    // nothing fetches it today; kept as the re-enable point). No app route
+    // uses /metrics, and /api/metrics/* (owner dashboard) does not collide.
     const isGateway =
-      proxyPath === "/metrics" || proxyPath.startsWith("/metrics/") ||
-      proxyPath === "/a" || proxyPath.startsWith("/a/");
+      proxyPath === "/metrics" || proxyPath.startsWith("/metrics/");
     if (isGateway) {
       await proxyMetrics(req, res);
       return;
