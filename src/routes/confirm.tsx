@@ -51,8 +51,14 @@ function Confirm(){
   // survives the confirm hop — a new dad redeeming a gift lands back on the
   // redeem page after signup instead of onboarding. Same-site only (no open
   // redirect), same guard as login.tsx.
-  const next=(()=>{try{const n=new URLSearchParams(window.location.search).get("next");if(n&&n.startsWith("/")&&!n.startsWith("//"))return n}catch{}return null})();
-  const urlToken=new URLSearchParams(window.location.search).get("token")||"";
+  // SSR-safe search parse (Codex b2184c1): window does not exist during the
+  // server render — reading window.location.search here crashed the SSR stream
+  // (React #419, error boundary, zero "Confirming your account" markup). Parse
+  // a render-time-safe value ONCE and derive next/urlToken from it; the mount
+  // effect below still reads the real URL as before.
+  const renderSearch=typeof window==="undefined"?"":window.location.search;
+  const next=(()=>{try{const n=new URLSearchParams(renderSearch).get("next");if(n&&n.startsWith("/")&&!n.startsWith("//"))return n}catch{}return null})();
+  const urlToken=new URLSearchParams(renderSearch).get("token")||"";
   useEffect(()=>{
     const token=new URLSearchParams(window.location.search).get("token")||"";
     if(!token){ setState("error"); setErr("This confirmation link is missing its token — request a new one below."); setShowResend(true); return; }
