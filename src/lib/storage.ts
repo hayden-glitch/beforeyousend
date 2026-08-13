@@ -173,6 +173,9 @@ export async function deleteUserData(userId:string, email:string){
     await sql`DELETE FROM bys_review_events WHERE user_id=${userId}`;
     await sql`DELETE FROM bys_gift_codes WHERE giver_id=${userId} OR redeemed_by=${userId}`;
     await sql`DELETE FROM bys_trials WHERE user_id=${userId}`;
+    await sql`DELETE FROM bys_record_reviews WHERE user_id=${userId}`;
+    await sql`DELETE FROM bys_attorney_packs WHERE user_id=${userId}`;
+    await sql`DELETE FROM bys_consultations WHERE user_id=${userId}`;
     try {
       await sql`DELETE FROM bys_organizer_files WHERE user_id=${userId}`;
       await sql`DELETE FROM bys_organizer_trial_usage WHERE key='user:'||${userId}`;
@@ -200,6 +203,9 @@ export async function deleteUserData(userId:string, email:string){
     put(files.organizerUsage,(await json(files.organizerUsage)).filter((o:any)=>o.userId!==userId)),
     put(files.giftCodes,giftCodes.filter((g:any)=>g.giverId!==userId&&g.redeemedBy!==userId)),
     put(files.trials,(await json(files.trials)).filter((t:any)=>t.userId!==userId)),
+    put(files.recordReviews,(await json(files.recordReviews)).filter((r:any)=>r.userId!==userId)),
+    put(files.attorneyPacks,(await json(files.attorneyPacks)).filter((a:any)=>a.userId!==userId)),
+    put(files.consultations,(await json(files.consultations)).filter((c:any)=>c.userId!==userId)),
     sf.writeFile(files.signups,signupsKept.length?signupsKept.join("\n")+"\n":""),
   ]);
 }

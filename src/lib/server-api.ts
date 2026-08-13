@@ -3,7 +3,7 @@
 import Stripe from "stripe";
 import * as crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
-import { readUsers, writeUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, insertConsultation, insertAttorneyPack, attorneyPacksForUser, recordReviewsForUser, saveRecordReviewReport, latestRecordReviewReport, deleteRecordReviewBySession, getTrial, startTrial, clearMetrics, customerMetrics } from "./storage";
+import { readUsers, writeUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, insertConsultation, insertAttorneyPack, insertRecordReview, attorneyPacksForUser, recordReviewsForUser, saveRecordReviewReport, latestRecordReviewReport, deleteRecordReviewBySession, getTrial, startTrial, clearMetrics, customerMetrics } from "./storage";
 import { computeImpactScore } from "./impactScore";
 import { buildRecordReview } from "./recordReview";
 import { TAXONOMY, folderBySlug } from "./taxonomy";
@@ -81,6 +81,7 @@ function attorneyPrepEntitled(user) {
 // not-entitled (Buy button) — the pricing card never shows a false unlock.
 // Shape: { entitled, kind: 'ultimate'|'purchased'|'none', nextAvailableAt? }.
 async function recordReviewEntitlement(user) {
+  if (user?.profile?.recordReview === true) return { entitled: true, kind: "purchased" };
   let rows = [];
   try {
     rows = await recordReviewsForUser(user.id);
@@ -4902,7 +4903,14 @@ async function handleRecordReview(req, method) {
       var rows = await recordReviewsForUser(u.id);
       var purchaseRow = rows.find(function (r) { return r.kind === "purchase"; });
       anchorSession = purchaseRow && purchaseRow.sessionId ? purchaseRow.sessionId : null;
-      if (!anchorSession) console.warn("[record-review] purchased user without a purchase row — report returned unpersisted:", u.id);
+      if (!anchorSession) {
+        // Stamp-only purchase (the durable insert failed at confirm): mint the
+        // anchor row now so the report persists and the grant becomes durable
+        // (same token scheme as the redemption branch).
+        var pToken = "rr-" + String(u.id).slice(0, 8) + "-" + crypto.randomUUID();
+        var pRow = await insertRecordReview({ userId: u.id, email: u.email, kind: "purchase", amountCents: 0, sessionId: pToken });
+        anchorSession = pRow && pRow.sessionId ? pRow.sessionId : pToken;
+      }
     } else {
       var token = "rr-" + String(u.id).slice(0, 8) + "-" + crypto.randomUUID();
       var red = await insertRecordReview({ userId: u.id, email: u.email, kind: "redemption", amountCents: 0, sessionId: token });
