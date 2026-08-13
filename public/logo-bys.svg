@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Before You Send">
+  <!-- Before You Send logo mark: iMessage-style typing bubble (rounded rect + bottom-left tail)
+       holding three cream dots, each with one bold letter — B · Y · S.
+       Square viewBox so the header's fixed h-7/h-8 sizing never distorts it. -->
+  <path d="M22 46h13l-5.8 8.2q-1.4 2-3.2.7z" fill="#1e4236"/>
+  <rect x="4" y="8" width="56" height="38" rx="17" fill="#1e4236"/>
+  <circle cx="20" cy="27" r="8" fill="#faf7f1"/>
+  <circle cx="32" cy="27" r="8" fill="#faf7f1"/>
+  <circle cx="44" cy="27" r="8" fill="#faf7f1"/>
+  <text x="20" y="27" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="11.5" font-weight="800" fill="#1e4236">B</text>
+  <text x="32" y="27" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="11.5" font-weight="800" fill="#1e4236">Y</text>
+  <text x="44" y="27" text-anchor="middle" dominant-baseline="central" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="11.5" font-weight="800" fill="#1e4236">S</text>
+</svg>

@@ -1,0 +1,478 @@
+/* ---- The child's folder (FRONT B) ----------------------------------------
+   The one place color blooms: app chrome stays forest/cream; the folder is the
+   child's bright world. Pure CSS/SVG/emoji — zero raster assets. Face colors
+   are deliberate fixed hexes (theme-independent — the child's world is constant
+   across Forest/Midnight/Sand).
+
+   Phase 1 (shipped): static-open kraft/decorated folder, one-tap name capture,
+   live in-place decoration on save (< 900ms), neutral sticker pack default.
+   Phase 2 (follow-up build): scroll-linked opening, gender sticker packs,
+   tap-to-open, parked tab strip. The CSS below is structured so Phase 2 lands
+   with zero rework: `--open` drives the cover/papers transforms (base = 1 =
+   already open, matching the "content visible by default" philosophy); the
+   hint-pill element is present but invisible at --open:1. */
+
+.child-folder-scene {
+  position: relative;
+}
+
+.child-folder {
+  position: relative;
+  width: 100%;
+  max-width: 26rem;
+  margin: 0 auto;
+  aspect-ratio: 16 / 10;
+  perspective: 1200px;
+  --open: 1; /* Phase 1: static-open. Phase 2 drives this with JS (0 on mount). */
+}
+
+/* ---- Layer 1: papers (z-1) ---- */
+.child-folder-papers {
+  position: absolute;
+  inset: 6% 4% 4% 4%;
+  z-index: 1;
+  /* Phase 2 hook: papers rise out of the pocket as the cover opens. */
+  transform: translateY(calc((1 - var(--open)) * 16%)) scale(calc(0.94 + var(--open) * 0.06));
+}
+/* Peeking strips above the top edge of the stack. */
+.child-folder-peek {
+  position: absolute;
+  top: -8px;
+  left: 16%;
+  width: 34%;
+  height: 18px;
+  background: #fffdf8;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 5px;
+  transform: rotate(-2deg);
+}
+.child-folder-peek:nth-child(2) {
+  left: 52%;
+  width: 28%;
+  top: -12px;
+  transform: rotate(2deg);
+}
+/* Colored edge tags sticking out of the stack (folder accent color). */
+.child-folder-tag {
+  position: absolute;
+  top: -6px;
+  width: 12px;
+  height: 22px;
+  border-radius: 3px;
+}
+.child-folder-tag.a {
+  left: 28%;
+  background: var(--accent);
+  transform: rotate(-3deg);
+}
+.child-folder-tag.b {
+  left: 46%;
+  background: color-mix(in srgb, var(--accent) 78%, #fff);
+  transform: rotate(2deg);
+}
+/* The stacked sheets inside the pocket. */
+.child-folder-sheet {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 12%;
+  height: 72%;
+  background: #fffdf8;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.child-folder-sheet:nth-child(3) {
+  transform: rotate(-1.5deg);
+}
+.child-folder-sheet:nth-child(4) {
+  transform: rotate(1deg);
+  top: 16%;
+}
+.child-folder-sheet:nth-child(5) {
+  transform: rotate(0.5deg);
+  top: 20%;
+}
+
+/* ---- Layer 2: pocket / folder back (z-2) — the visible face when open ---- */
+.child-folder-pocket {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background-color: var(--face);
+  background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.02) 0 2px, transparent 2px 8px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 10px 10px 18px 18px;
+  transition: background-color 400ms ease;
+}
+/* Darker bottom band — the pocket lip where the papers sit. */
+.child-folder-pocket::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34%;
+  border-radius: 0 0 18px 18px;
+  background: color-mix(in srgb, var(--face) 60%, #000);
+  opacity: 0.35;
+}
+
+/* ---- Layer 3: cover / hinged lid (z-3) — Phase 2 transform hook ---- */
+.child-folder-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background-color: var(--face);
+  background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.02) 0 2px, transparent 2px 8px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 10px 10px 18px 18px;
+  transform-origin: 50% 90%;
+  will-change: transform;
+  /* Phase 2: --open 0 → lid down (closed); --open 1 → lid tilted back + gone.
+     Phase 1 keeps --open: 1, so the cover is invisible and the pocket shows. */
+  transform: rotateX(calc(var(--open) * -58deg));
+  opacity: calc(1 - clamp(0, calc((var(--open) - 0.7) / 0.3), 1));
+  transition: background-color 400ms ease;
+}
+
+/* ---- Layer 4: tab (z-4) — holds the child's first initial ---- */
+.child-folder-tab {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 74px;
+  height: 18px;
+  background: color-mix(in srgb, var(--face) 78%, #000);
+  border-radius: 7px 7px 0 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+/* ---- Layer 5: name plate (z-5) — per-letter colors, white stroke ---- */
+.child-folder-nameplate {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 55%;
+  transform: translateY(-50%);
+  z-index: 5;
+  container-type: inline-size;
+  text-align: center;
+  pointer-events: none;
+}
+.child-folder-name {
+  display: flex;
+  justify-content: center;
+  white-space: nowrap;
+  line-height: 1.05;
+}
+.fn-letter {
+  display: inline-block;
+  font-size: clamp(1.5rem, 15cqw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  -webkit-text-stroke: 1.5px #fff;
+  paint-order: stroke fill;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
+}
+/* Long names (> 12 chars): two centered lines, size drops. */
+.child-folder-nameplate.two-line .fn-letter {
+  font-size: clamp(1.2rem, 12cqw, 2rem);
+}
+.child-folder-underline {
+  display: block;
+  height: 3px;
+  width: 74%;
+  margin: 0.12em auto 0;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 70%, #fff);
+}
+
+/* ---- Layer 6: stickers (z-6) — die-cut white circles + emoji ---- */
+.child-folder-stickers {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+.sticker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 1.9em;
+  height: 1.9em;
+  background: #fff;
+  border-radius: 50%;
+  rotate: var(--r, 0deg);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.14),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.05);
+  line-height: 1;
+  user-select: none;
+}
+
+/* ---- Live decoration sequence (B7): plays once, < 900ms, transform-only.
+   Global prefers-reduced-motion rule in app.css zeroes all of this. ---- */
+@keyframes bys-fn-letter-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes bys-sticker-in {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+    rotate: -16deg;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    rotate: var(--r, 0deg);
+  }
+}
+.child-folder.decorating .fn-letter {
+  animation: bys-fn-letter-in 260ms ease-out both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+.child-folder.decorating .sticker {
+  animation: bys-sticker-in 320ms cubic-bezier(0.32, 0.72, 0.35, 1.02) both;
+  animation-delay: calc(200ms + var(--i, 0) * 60ms);
+}
+
+/* ---- Layer 7: hint pill (z-7) — Phase 2 "Tap to open", invisible at --open:1 */
+.child-folder-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  transform: translateX(-50%);
+  z-index: 7;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(4px);
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  white-space: nowrap;
+  opacity: calc(1 - var(--open) * 3);
+  pointer-events: none;
+}
+
+/* ---- No-child capture state (B7): kraft folder + one calm line ----
+   Phase 1 bug (QA fd8d6ec6): the capture line lived INSIDE the tap button,
+   static-positioned, and painted BEHIND the opaque .child-folder-pocket (z-2)
+   and .child-folder-cover (z-3). Fix: the line is now a SIBLING directly
+   under the folder scene, in normal flow, positioned + z-indexed above the
+   cover so it always paints on top — and it stays tappable (own button). */
+.child-folder-capture {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.child-folder-capture .child-folder-nameplate {
+  display: none;
+}
+.child-folder-capture-line {
+  position: relative;
+  z-index: 8;
+  display: block;
+  margin: 0.9rem auto 0;
+  max-width: 22rem;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: center;
+  font-size: 1rem;
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--bys-accent, #1e4236);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--bys-accent, #1e4236) 38%, transparent);
+  text-underline-offset: 4px;
+  text-decoration-thickness: 2px;
+  transition: opacity 120ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.child-folder-capture-line:hover {
+  text-decoration-color: var(--bys-accent, #1e4236);
+}
+.child-folder-capture-line:active {
+  opacity: 0.75;
+}
+
+/* ---- Edit (✎) icon button on the decorated folder (B7) ---- */
+.child-folder-edit {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.42);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 1.05rem;
+  line-height: 1;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  transition:
+    background-color 150ms ease,
+    transform 100ms ease;
+}
+.child-folder-edit:hover {
+  background: rgba(255, 255, 255, 0.68);
+}
+.child-folder-edit:active {
+  transform: scale(0.94);
+}
+
+/* ================= Phase 2 (B6) + Owner batch 2 (Design 1): opening motion =
+   Philosophy: content visible by default. Base --open: 1 (open). React drives
+   --open from the `open` prop; reduced-motion / no-JS → the base open folder.
+   All transitions below are zeroed by the global prefers-reduced-motion rule
+   in app.css. The old scroll-link / park-away machinery is gone — the folder
+   opens on tap and STAYS until the dad closes it (✕ or a tap on the cover). */
+.child-folder-wrap {
+  position: relative;
+  scroll-margin-top: 5.5rem; /* clear the sticky dashboard header on scroll-to */
+}
+
+/* ---- Tap-to-open animation (B6): same curve as .bys-sheet. The .tapping
+   class is added by JS for the duration of a tap; without it --open changes
+   are instant (reduced motion / programmatic). ---- */
+.child-folder.tapping .child-folder-cover {
+  transition:
+    transform 600ms cubic-bezier(0.32, 0.72, 0.35, 1.02),
+    opacity 600ms cubic-bezier(0.32, 0.72, 0.35, 1.02),
+    background-color 400ms ease;
+}
+.child-folder.tapping .child-folder-papers {
+  transition: transform 600ms cubic-bezier(0.32, 0.72, 0.35, 1.02);
+}
+.child-folder.tapping .child-folder-hint {
+  transition: opacity 600ms cubic-bezier(0.32, 0.72, 0.35, 1.02);
+}
+
+/* ---- Open-folder bar (Design 1): "[📁] {Name}'s folder · {n} papers [✕]".
+   position: fixed at top: 5rem (clears the sticky dashboard header at
+   top-0/min-h-16, z-20) + z-index 5. Rendered whenever a child exists; fades
+   in only while THIS folder is open, so the folder "stays on screen" while
+   the dad works the papers below. The ✕ is the one calm collapse. ---- */
+.child-folder-parked-strip {
+  position: fixed;
+  top: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(calc(100% - 2.5rem), 61.5rem);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem 0.5rem 1rem;
+  border: 1px solid var(--bys-line, #e6dfd2);
+  border-radius: 1rem;
+  background: var(--bys-card, #fffdf8);
+  box-shadow: var(--bys-shadow-card, 0 2px 12px rgba(38, 34, 28, 0.07));
+  color: var(--bys-accent, #1e4236);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: left;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+.child-folder-parked-strip.is-open-folder {
+  opacity: 1;
+  pointer-events: auto;
+}
+.child-folder-parked-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.child-folder-parked-text {
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.child-folder-open-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  border: none;
+  background: var(--bys-bg-soft, #f4efe6);
+  color: var(--bys-accent, #1e4236);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    transform 100ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.child-folder-open-close:hover {
+  background: color-mix(in srgb, var(--bys-bg-soft, #f4efe6) 72%, var(--bys-accent, #1e4236) 28%);
+}
+.child-folder-open-close:active {
+  transform: scale(0.94);
+}
+
+/* ---- The opened folder body (Design 1): the two papers lying in the
+   folder — Ratings + To-Do. In flow, directly under the scene; mobile stacks,
+   sm+ side-by-side. Face-tinted interior so it reads as INSIDE the folder. */
+.child-folder-open-body {
+  margin-top: -0.5rem;
+  border-radius: 0 0 18px 18px;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--face, #e6cfa4) 14%, var(--bys-card, #fffdf8));
+  display: grid;
+  gap: 1rem;
+  overflow-x: clip;
+}
+@media (min-width: 640px) {
+  .child-folder-open-body {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.folder-paper {
+  border: 1px solid var(--bys-line, #e6dfd2);
+  border-radius: 1.25rem;
+  background: var(--bys-card, #fffdf8);
+  box-shadow: var(--bys-shadow-card, 0 2px 12px rgba(38, 34, 28, 0.07));
+  padding: 1rem;
+  min-width: 0;
+}
+.folder-paper:nth-child(1) {
+  transform: rotate(-0.4deg);
+}
+.folder-paper:nth-child(2) {
+  transform: rotate(0.4deg);
+}

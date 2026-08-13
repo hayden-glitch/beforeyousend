@@ -1,0 +1,19 @@
+# Before You Send — robots.txt
+# Public marketing/funnel pages are fully crawlable. Authenticated and
+# API paths are disallowed (private account data lives behind them).
+# Canonical site: https://beforeyousend.org (www and *.vercel.app serve the
+# same build; the apex URL is the one we publish).
+
+User-agent: *
+Allow: /
+
+Disallow: /home
+Disallow: /owner
+Disallow: /api/
+Disallow: /confirm
+Disallow: /onboarding
+Disallow: /dashboard
+Disallow: /tiktok-connected
+Disallow: /checkout
+
+Sitemap: https://beforeyousend.org/sitemap.xml
