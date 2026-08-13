@@ -200,7 +200,7 @@ function AttachSheet({
                   type="button"
                   onClick={() => removeFile(a.name)}
                   aria-label={`Remove ${a.name}`}
-                  className="icon-btn min-h-9 min-w-9 text-stone"
+                  className="icon-btn min-h-11 min-w-11 text-stone"
                 >
                   <IconClose className="h-4 w-4" />
                 </button>

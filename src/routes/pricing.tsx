@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { track } from "~/lib/analytics";
+import { track, trackFunnelOnce } from "~/lib/analytics";
 import { recordSurface, markPurchasedThisSession, offerAccepted, purchasedThisSession, valueDelivered } from "~/lib/offer";
 import { IconCheck, IconChevronDown } from "~/components/icons";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
@@ -176,6 +176,9 @@ function Pricing() {
   async function checkout(plan: PlanKey | "topup" | "consultation" | "gift" | "sortpile" | "attorney_prep_pack" | "record_review", interval: Interval = "month") {
     setBusy(`${plan}${interval}`);
     setMsg("");
+    // Round-6 funnel: plan/interval identifiers only — no sensitive data.
+    trackFunnelOnce("funnel_started", { entry: "pricing" });
+    track("funnel_option_selected", { plan, interval });
     track("checkout_started", { plan, interval, ...(checkinActive ? { source: "checkin" } : {}) });
     try {
       if (plan === "gift") {
@@ -249,7 +252,7 @@ function Pricing() {
       <SiteHeader active="pricing" />
       <main className="mx-auto max-w-5xl px-5 pb-32 pt-12">
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Simple, honest pricing</p>
-        <h1 className="mt-3 max-w-3xl font-display text-[2.65rem] font-semibold leading-[1.06] text-forest sm:text-5xl">
+        <h1 className="mt-3 max-w-3xl font-display text-[clamp(2.25rem,6vw,3rem)] font-semibold leading-[1.06] text-forest">
           Your calm, your record, your peace — for less than a dinner out.
         </h1>
         <p className="mt-5 max-w-2xl text-lg text-stone">

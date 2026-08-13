@@ -175,7 +175,7 @@ export function FolderTodos({
                 onClick={() => remove(i.id)}
                 disabled={busy}
                 aria-label={`Remove ${i.text}`}
-                className="icon-btn min-h-9 h-9 w-9 shrink-0 text-stone"
+                className="icon-btn min-h-11 min-w-11 shrink-0 text-stone"
               >
                 ×
               </button>

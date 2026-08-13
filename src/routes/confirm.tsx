@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { track, trackSignupConversion } from "~/lib/analytics";
+import { track, trackFunnelOnce, trackSignupConversion } from "~/lib/analytics";
 import { EMAIL_RE } from "~/lib/api";
 import { maybeStartTrial } from "~/lib/trial";
 import { loadLoginIntake, clearLoginIntake } from "~/lib/checkin";
@@ -80,6 +80,7 @@ function Confirm(){
           return;
         }
         track("account_created",{q1:intake?.q1,q2:intake?.q2,q3:intake?.q3});
+        trackFunnelOnce("signup_completed", { source: "confirm" });
         trackSignupConversion({email:j.user?.email,transactionId:j.user?.id});
         clearLoginIntake();
         setUser(j.user||null);

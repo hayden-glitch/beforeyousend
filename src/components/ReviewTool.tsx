@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, RefObject } from "react";
 import { streamReview, streamAnalyze, type ReviewEvent, type Attachment, EMAIL_RE, confirmPath, saveReview } from "~/lib/api";
-import { track } from "~/lib/analytics";
+import { track, trackFunnelOnce } from "~/lib/analytics";
 import { readCaptureVariant } from "~/lib/captureVariant";
 import { markValueDelivered } from "~/lib/offer";
 import { useReviewTyping } from "~/lib/useReviewTyping";
@@ -185,6 +185,7 @@ export default function ReviewTool({ reviewRef }: Props) {
     setExampleResults(example);
     exampleRunRef.current = example;
     patch("review", { error: "", quota: false, status: "streaming", blocks: [] });
+    trackFunnelOnce("funnel_started", { entry: "review" });
     track("review_started", { example: example ? true : undefined, auth: "anon", mode: "review" });
     try {
       await streamReview(text, handleEvent, ac.signal, {

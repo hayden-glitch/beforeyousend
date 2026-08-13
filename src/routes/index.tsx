@@ -42,7 +42,7 @@ export const Route = createFileRoute("/")({
   }),
   component: Home,
 });
-const HERO_CLS = "font-display text-2xl font-semibold leading-[1.06] tracking-tight text-forest sm:text-[3.4rem]";
+const HERO_CLS = "font-display text-2xl font-semibold leading-[1.06] tracking-tight text-forest sm:text-[clamp(2.5rem,6.8vw,3.4rem)]";
 function heroVariant(): "a" | "b" | "c" {
   if (typeof document === "undefined") return "a";
   const v = document.documentElement.getAttribute("data-hero-variant");

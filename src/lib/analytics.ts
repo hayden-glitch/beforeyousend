@@ -37,6 +37,16 @@ export type AnalyticsEvent =
   | "pricing_viewed"
   | "consultation_viewed"
   | "checkout_started"
+  // Round-6 funnel events (2026-08-13) — the guided-funnel vocabulary for the
+  // owner funnel boards. NEVER carry draft text, email addresses, names, or
+  // answer content — meta holds step/plan/interval/method-category only.
+  | "funnel_started"           // meta: { entry }      — first funnel engagement in a tab (once)
+  | "funnel_step_viewed"       // meta: { step }       — a guided-flow step rendered (intake_q1..signup_form)
+  | "funnel_option_selected"   // meta: { step|plan }  — a non-sensitive option picked (no answer text)
+  | "signup_started"           // meta: { source }     — account-creation attempt began (once per tab)
+  | "signup_completed"         // meta: { source }     — account created (server-confirmed; once)
+  | "checkout_wallet_available" // meta: { methods }   — browser supports wallet payment (method category only)
+  | "purchase_completed"       // SERVER event — meta: { kind, interval? } — any verified paid grant
   | "subscription_purchased"
   | "consultation_purchased"
   | "timeline_entry_added"
@@ -482,12 +492,59 @@ export function track(event: AnalyticsEvent, data?: Record<string, unknown>): vo
       w.dataLayer.push({ event, ...payload });
     }
     persistEvent(event, payload);
+    // Round-6: when a checkout starts, record whether this browser could pay
+    // with a wallet — method category only, never customer data. Fired as a
+    // separate event name so checkout_started's Google conversion mapping is
+    // untouched; persist + dataLayer only (no pixel mapping for this one).
+    if (event === "checkout_started") {
+      const methods = detectWalletMethods();
+      if (methods.length > 0) {
+        persistEvent("checkout_wallet_available", { methods });
+        if (Array.isArray(w.dataLayer)) w.dataLayer.push({ event: "checkout_wallet_available", methods });
+      }
+    }
     if (import.meta.env?.DEV) {
       console.debug("[analytics]", event, payload);
     }
   } catch {
     /* noop */
   }
+}
+
+// Round-6 wallet-capability probe (method category only): Apple Pay via the
+// native ApplePaySession API; Google Pay via PaymentRequest presence (the
+// browser API Google Pay requires — a capability signal, not a GPay session).
+// Link is a Stripe-hosted-side method and cannot be probed client-side.
+function detectWalletMethods(): string[] {
+  try {
+    if (typeof window === "undefined") return [];
+    const out: string[] = [];
+    try {
+      const w = window as unknown as { ApplePaySession?: { canMakePayments?: () => boolean } };
+      if (typeof w.ApplePaySession !== "undefined" && w.ApplePaySession.canMakePayments?.()) out.push("apple_pay");
+    } catch { /* detection must never break checkout */ }
+    try {
+      if ("PaymentRequest" in window) out.push("google_pay");
+    } catch { /* noop */ }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Round-6 funnel events: fire ONCE per tab for events that must never
+ * double-count (funnel_started / signup_started / signup_completed). A
+ * sessionStorage flag survives SPA navigation and reloads; storage failure
+ * degrades to fire-per-call-site and never blocks the caller.
+ */
+export function trackFunnelOnce(event: AnalyticsEvent, data?: Record<string, unknown>): void {
+  try {
+    const key = `bys_funnel:${event}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+  } catch { /* no storage — still fire; call sites are naturally once */ }
+  track(event, data);
 }
 
 /**

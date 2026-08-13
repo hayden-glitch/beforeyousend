@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
-import { track, trackSignupConversion, type AnalyticsEvent } from "~/lib/analytics";
+import { track, trackFunnelOnce, trackSignupConversion, type AnalyticsEvent } from "~/lib/analytics";
 import { ensureCaptureVariant, type CaptureVariant } from "~/lib/captureVariant";
 import { EMAIL_RE } from "~/lib/api";
 import {
@@ -139,7 +139,9 @@ function Login(){
   useEffect(()=>{
     if(showIntake && !intakeStarted.current){
       intakeStarted.current=true;
+      trackFunnelOnce("funnel_started", { entry: "intake", ...adParams() });
       track("login_intake_started", adParams());
+      track("funnel_step_viewed", { step: "intake_q1" });
     }
   },[showIntake]);
   function adParams(): Record<string,string>{
@@ -154,8 +156,12 @@ function Login(){
   function back(){ setStep((s)=>Math.max(0,s-1)); }
   function answer(which:1|2|3, value:string){
     track((`login_intake_q${which}_answered`) as AnalyticsEvent, {...adParams(), answer:value});
-    if(which===1){ setQ1(value); setStep(1); return; }
-    if(which===2){ setQ2(value); setStep(2); return; }
+    // Round-6 funnel: the option is recorded as a STEP identifier only — the
+    // answer content stays out of the funnel event (login_intake_qN_answered
+    // keeps the existing answer payload for the owner boards).
+    track("funnel_option_selected", { step: `q${which}` });
+    if(which===1){ setQ1(value); setStep(1); track("funnel_step_viewed", { step: "intake_q2" }); return; }
+    if(which===2){ setQ2(value); setStep(2); track("funnel_step_viewed", { step: "intake_q3" }); return; }
     // Q3 completes the intake: stash the answers for the signup body, set the
     // returning-visitor flag, fire the completed event, then show the
     // email+password form (the personalized line + fit line render above it).
@@ -164,6 +170,7 @@ function Login(){
     saveLoginIntake(a);
     markLoginIntakeDone();
     track("login_intake_completed", {...adParams(), q1:a.q1, q2:a.q2, q3:a.q3});
+    track("funnel_step_viewed", { step: "signup_form" });
     setStep(3);
   }
   async function submitSignup(e:React.FormEvent){
@@ -177,6 +184,7 @@ function Login(){
     // the signup body — the server whitelists them into profile.intake.
     const intake=(q1&&q2&&q3)?{q1,q2,q3}:undefined;
     const source=intake?"intake-direct":"direct";
+    trackFunnelOnce("signup_started", { source });
     try {
       const r=await fetch("/api/auth/signup",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",body:JSON.stringify({email:value,password:pw,intake})});
       const j=await r.json().catch(()=>({}));
@@ -188,6 +196,7 @@ function Login(){
       // path. sendBeacon survives the redirect below.
       track("email_submitted",{variant,source,q1:intake?.q1,q2:intake?.q2,q3:intake?.q3});
       track("account_created",{source,q1:intake?.q1,q2:intake?.q2,q3:intake?.q3});
+      trackFunnelOnce("signup_completed", { source });
       trackSignupConversion({email:j.user?.email||value,transactionId:j.user?.id});
       // Intake bookkeeping: the questions are answered, the answers are in the
       // account — the local copies are done.

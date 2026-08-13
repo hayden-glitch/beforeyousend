@@ -4111,12 +4111,20 @@ async function handleCheckoutConfirm(req) {
     return json3({ ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0), ...(k2 ? { kind: k2, sortUntil: u.profile?.sortUntil } : {}) });
   }
   const now = new Date;
+  // Round-6 funnel: canonical "any verified paid grant" event (server-side
+  // single source of truth, mirroring the `paid` event's philosophy). Fires
+  // exactly once per Stripe session because the processedSessions early-return
+  // above gates every branch below. Meta carries kind/plan/interval only.
+  const logPurchaseCompleted = (kind: string, planName?: string, interval?: string) => {
+    addEvent({ vid: visitorVid(req) || "server", name: "purchase_completed", plan: planName || session.metadata?.plan || "payment", meta: { kind, ...(interval ? { interval } : {}) } }).catch((err) => console.warn("[checkout] purchase_completed event failed:", err));
+  };
   if (session.mode === "payment") {
     if (session.metadata?.plan === "topup") {
       const n = Number(session.metadata?.credits || 10);
       const grant = applyTopUpGrant(u.profile, n, sessionId);
       u.profile = grant.profile;
       await writeUsers(users);
+      logPurchaseCompleted("topup", "topup");
       return json3({ ok: true, kind: "topup", credits: grant.credits });
     }
     if (session.metadata?.plan === "gift") {
@@ -4144,6 +4152,7 @@ async function handleCheckoutConfirm(req) {
       }
       u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
       await writeUsers(users);
+      logPurchaseCompleted("gift", "gift");
       const gCreated = gRow.createdAt ? new Date(gRow.createdAt).getTime() : Date.now();
       return json3({ ok: true, kind: "gift", gift: { code: gRow.id, validUntil: new Date(gCreated + 90 * 24 * 60 * 60 * 1000).toISOString() } });
     }
@@ -4155,6 +4164,7 @@ async function handleCheckoutConfirm(req) {
       const sortUntil = new Date(base + 30 * 24 * 60 * 60 * 1000).toISOString();
       u.profile = { ...u.profile || {}, sortUntil, processedSessions: [...processed, sessionId] };
       await writeUsers(users);
+      logPurchaseCompleted("sortpile", "sortpile");
       addEvent({ vid: visitorVid(req) || "server", name: "sortpile_purchase", plan: userTier(u), meta: { sortUntil } }).catch(function (err) { console.warn("[sortpile] purchase event failed:", err); });
       return json3({ ok: true, kind: "sortpile", sortUntil });
     }
@@ -4167,6 +4177,7 @@ async function handleCheckoutConfirm(req) {
       // a later build.
       u.profile = { ...u.profile || {}, attorneyPrep: true, processedSessions: [...processed, sessionId] };
       await writeUsers(users);
+      logPurchaseCompleted("attorney_prep_pack", "attorney_prep_pack");
       insertAttorneyPack({
         userId: u.id,
         email: u.email || "",
@@ -4186,6 +4197,7 @@ async function handleCheckoutConfirm(req) {
       // runs (Stage 2) — same table, same 365-day window.
       u.profile = { ...u.profile || {}, recordReview: true, processedSessions: [...processed, sessionId] };
       await writeUsers(users);
+      logPurchaseCompleted("record_review", "record_review");
       insertRecordReview({
         userId: u.id,
         email: u.email || "",
@@ -4209,6 +4221,7 @@ async function handleCheckoutConfirm(req) {
         amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
         sessionId
       }).catch((err) => console.warn("[consultation] insert failed:", err));
+      logPurchaseCompleted("consultation", "consultation");
       addEvent({ vid: visitorVid(req) || "server", name: "consultation_purchased", plan: "consultation", meta: { sessionId } }).catch((err) => console.warn("[consultation] event failed:", err));
     }
     return json3({ ok: true, kind: "payment" });
@@ -4252,6 +4265,7 @@ async function handleCheckoutConfirm(req) {
       }).catch((err) => console.warn("[checkout] paid event failed:", err));
     }
   }
+  logPurchaseCompleted("subscription", mapped.tier, mapped.interval);
   let introOffer = false;
   if (session.metadata?.offer === "true") {
     try {

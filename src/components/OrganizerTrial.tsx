@@ -239,8 +239,8 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
                     aria-label="Name for this item"
                     className="min-h-11 w-full max-w-sm rounded-full border border-line bg-cream px-4 py-2 text-base text-ink focus:border-forest-soft focus:outline-none"
                   />
-                  <button onClick={() => patchCard(i, { editing: false, kept: true })} className="btn-primary min-h-10 px-4 text-base">Save name</button>
-                  <button onClick={() => patchCard(i, { editing: false, localTitle: card.title })} className="btn-ghost min-h-10 px-4 text-base text-stone">Cancel</button>
+                  <button onClick={() => patchCard(i, { editing: false, kept: true })} className="btn-primary min-h-11 px-4 text-base">Save name</button>
+                  <button onClick={() => patchCard(i, { editing: false, localTitle: card.title })} className="btn-ghost min-h-11 px-4 text-base text-stone">Cancel</button>
                 </div>
               ) : !card.kept ? (
                 <p className="mt-2 text-base leading-relaxed text-ink">
