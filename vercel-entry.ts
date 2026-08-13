@@ -59,8 +59,15 @@ async function proxyMetrics(
     const path = qIdx === -1 ? rawUrl : rawUrl.slice(0, qIdx);
     const search = qIdx === -1 ? "" : rawUrl.slice(qIdx);
     // "/metrics" and "/metrics/" both map to the fps root (which serves
-    // gtag.js); everything else maps 1:1 ("/metrics/g/collect" → "/g/collect").
-    const upstreamPath = path === "/metrics" ? "/" : path.slice("/metrics".length);
+    // gtag.js); "/metrics/..." maps 1:1 ("/metrics/g/collect" → "/g/collect").
+    // fps root-relative beacons (/a — GTM container load telemetry, fired by
+    // the fps-hosted gtag.js as an Image request to /a?v=3&t=l&pid=…; live QA
+    // 2026-08-13 showed a 404 before this fix) pass through UNCHANGED — 1:1
+    // to the fps host, which answers 200.
+    let upstreamPath: string;
+    if (path === "/metrics") upstreamPath = "/";
+    else if (path.startsWith("/metrics/")) upstreamPath = path.slice("/metrics".length);
+    else upstreamPath = path;
     const target = `${FPS_ORIGIN}${upstreamPath}${search}`;
 
     const headers = new Headers();
@@ -155,10 +162,15 @@ export default async function vercelHandler(
   res: ServerResponse,
 ): Promise<void> {
   try {
-    // First-party tag gateway: intercept /metrics/* BEFORE any SSR/API route
-    // matching. (No app route uses /metrics — reserved for the gateway.)
+    // First-party tag gateway: intercept /metrics/* AND the fps root-relative
+    // beacon paths (/a, /a/* — GTM container load telemetry) BEFORE any
+    // SSR/API route matching. (No app route uses /metrics or /a — both are
+    // reserved for the gateway.)
     const proxyPath = (req.url ?? "/").split("?")[0];
-    if (proxyPath === "/metrics" || proxyPath.startsWith("/metrics/")) {
+    const isGateway =
+      proxyPath === "/metrics" || proxyPath.startsWith("/metrics/") ||
+      proxyPath === "/a" || proxyPath.startsWith("/a/");
+    if (isGateway) {
       await proxyMetrics(req, res);
       return;
     }

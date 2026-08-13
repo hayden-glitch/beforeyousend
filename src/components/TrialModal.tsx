@@ -235,10 +235,15 @@ export default function TrialModal() {
         }
       }, dwell);
     };
+    // Named handler so cleanup removes the SAME listener (Codex finding
+    // 2026-08-13: add/remove used two different anonymous fns, so the cleanup
+    // never detached anything and the listener leaked on every pathname/show/
+    // auth change). Same named-handler pattern as CoParentCheckIn.tsx.
+    const onCheckinValue = () => setValueAt((v) => v + 1);
     arm();
-    window.addEventListener("bys:checkin-value", () => setValueAt((v) => v + 1));
+    window.addEventListener("bys:checkin-value", onCheckinValue);
     return () => {
-      window.removeEventListener("bys:checkin-value", () => setValueAt((v) => v + 1));
+      window.removeEventListener("bys:checkin-value", onCheckinValue);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = null;
     };
