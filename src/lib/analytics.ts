@@ -295,9 +295,27 @@ export async function initAnalytics(cfg: AnalyticsConfig): Promise<void> {
       w.gtag = w.gtag || function (...args: unknown[]) {
         (w.dataLayer as unknown[]).push(args);
       };
-      // Queue js + config BEFORE the script tag so gtag.js picks them up on
-      // init. send_page_view:false — the app fires page_view itself via
-      // trackPageView (no double-count on first load).
+      // P0 conversion-beacon fix (conversion-cycle-1, 2026-08-13; E2E evidence
+      // same day): the /metrics/ gateway serves a Google Ads Consent-Mode
+      // container (CCD tags incl. __ccd_enable_cm, __ccd_ads_*) — NOT raw
+      // gtag.js. With no consent commands on the page, the container's
+      // consent-mode defaults gate the AW tag: the email_submitted conversion
+      // command queues in dataLayer (provably correct) but never pings
+      // doubleclick (0 requests across 3 HARs of a real signup). GTM applies
+      // container-scoped consent defaults only when the page hasn't set its
+      // own, so push explicit GRANTED defaults BEFORE the container loads —
+      // the standard gtag consent pattern (pushed through the stub so the
+      // command queues in dataLayer exactly like gtag('consent','default')).
+      // Site is US-facing with no consent UI; this is the minimal honest fix.
+      // Label/event/send_to unchanged; TikTok wiring untouched.
+      w.gtag?.("consent", "default", {
+        ad_storage: "granted",
+        analytics_storage: "granted",
+        ad_user_data: "granted",
+        ad_personalization: "granted",
+      });
+      // Consent defaults must be ahead of js/config in the queue. Then config
+      // disables the automatic page view because trackPageView owns that event.
       w.gtag?.("js", new Date());
       w.gtag?.("config", cfg.googleAdsId, { send_page_view: false });
       // Google tag gateway (first-party): load gtag.js from OUR origin and
