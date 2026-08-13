@@ -1,0 +1,713 @@
+@import "tailwindcss";
+/* ---- Landing hero A/B split (bys_hero_variant cookie) ----
+   An inline head script assigns variant a|b before first paint and sets
+   data-hero-variant on <html>; CSS shows exactly one H1. No attribute
+   (JS disabled / pre-script paint) falls back to variant A (current hero).
+   Both H1s stay in the DOM so SSR output is deterministic and hydration
+   never mismatches; the hidden one is display:none (out of the a11y tree)
+   and the head script also sets aria-hidden="true" on it (backlog 2ee6e58e)
+   so DOM-level a11y audits count exactly one H1. */
+html:not([data-hero-variant="b"]) .hero-variant-b {
+  display: none;
+}
+html[data-hero-variant="b"] .hero-variant-a {
+  display: none;
+}
+
+/* ---- Before You Send brand system ----
+   Warm off-white canvas, deep forest green, muted stone neutrals.
+   Fraunces (self-hosted, variable, latin subset) for display; system sans for body.
+
+   Theme architecture (app-redesign-spec §1): Tailwind v4 utility names stay
+   IDENTICAL (bg-cream, text-ink, border-line, bg-forest, text-cream, …) but each
+   token is aliased to a runtime CSS variable (--bys-*) that three themes
+   override: Forest (default = current brand, byte-for-byte), Midnight (calm
+   dark), Sand (warm light). The head script in __root.tsx sets data-theme on
+   <html> before first paint (no FOUC); no JSX class renames were needed. */
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/fraunces-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --color-cream: var(--bys-bg);
+  --color-cream-deep: var(--bys-bg-soft);
+  --color-card: var(--bys-card);
+  --color-ink: var(--bys-ink);
+  --color-stone: var(--bys-muted);
+  --color-taupe: var(--bys-muted-2);
+  --color-forest: var(--bys-accent);
+  --color-forest-deep: var(--bys-accent-deep);
+  --color-forest-soft: var(--bys-accent-soft);
+  --color-line: var(--bys-line);
+  --color-red-50: var(--bys-danger-50);
+  --color-red-300: var(--bys-danger-300);
+  --color-red-800: var(--bys-danger);
+  --color-red-900: var(--bys-danger);
+  --color-amber-50: var(--bys-amber-50);
+  --color-amber-500: var(--bys-amber-500);
+  --color-amber-900: var(--bys-amber-900);
+  --shadow-card: var(--bys-shadow-card);
+  --shadow-pop: var(--bys-shadow-pop);
+  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ---- Theme value blocks (exact hexes per app-redesign-spec §1.2) ----
+   Default = current brand, byte-for-byte identical to the old literals. */
+:root,
+[data-theme="forest"] {
+  --bys-bg: #faf7f1;
+  --bys-bg-soft: #f3ede2;
+  --bys-card: #fffdf8;
+  --bys-ink: #26221c;
+  --bys-muted: #6f6a5e;
+  --bys-muted-2: #6b6559; /* ≥4.5:1 on cream/card (was #8a8377 @ 3.47:1 — failed AA) */
+  --bys-accent: #1e4236;
+  --bys-accent-deep: #16332a;
+  --bys-accent-soft: #2e5a4b;
+  --bys-line: #e6dfd2;
+  --bys-danger: #7f1d1d;
+  --bys-danger-50: #fef2f2;
+  --bys-danger-300: #fca5a5;
+  --bys-amber-50: #fffbeb;
+  --bys-amber-500: #f59e0b;
+  --bys-amber-900: #78350f;
+  --bys-shadow-card: 0 2px 12px rgba(38, 34, 28, 0.07);
+  --bys-shadow-pop: 0 12px 32px rgba(38, 34, 28, 0.16);
+}
+/* Midnight — calm dark: deep green-black, warm off-white text */
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --bys-bg: #0e1a15;
+  --bys-bg-soft: #15231d;
+  --bys-card: #131f1a;
+  --bys-ink: #eae6da;
+  --bys-muted: #a3b0a5;
+  --bys-muted-2: #8a968d;
+  --bys-accent: #8fc7b2;
+  --bys-accent-deep: #aad8c6;
+  --bys-accent-soft: #7dbaa2;
+  --bys-line: #24352c;
+  --bys-danger: #f2b8b8;
+  --bys-danger-50: #2a1517;
+  --bys-danger-300: #d98b8b;
+  --bys-amber-50: #241a08;
+  --bys-amber-500: #d9a04b;
+  --bys-amber-900: #f2d9a0;
+  --bys-shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --bys-shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+/* Sand — warm light alt, brand forest held */
+[data-theme="sand"] {
+  --bys-bg: #f6f1e6;
+  --bys-bg-soft: #efe7d6;
+  --bys-card: #fdfaf3;
+  --bys-ink: #2b241a;
+  --bys-muted: #766b58;
+  --bys-muted-2: #6d6350;
+  --bys-accent: #244f3f;
+  --bys-accent-deep: #1a3d30;
+  --bys-accent-soft: #3a6b57;
+  --bys-line: #e4dcc8;
+  --bys-danger: #8a2020;
+  --bys-danger-50: #f9ecea;
+  --bys-danger-300: #e5a3a3;
+  --bys-amber-50: #fcf4e2;
+  --bys-amber-500: #d99a26;
+  --bys-amber-900: #7c4a10;
+  --bys-shadow-card: 0 2px 12px rgba(58, 46, 26, 0.07);
+  --bys-shadow-pop: 0 12px 32px rgba(58, 46, 26, 0.16);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-cream font-sans text-ink antialiased;
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-x: clip;
+  }
+  /* Never allow horizontal overflow from long words or wide children. */
+  img,
+  svg,
+  video,
+  pre,
+  code {
+    max-width: 100%;
+  }
+  ::selection {
+    background: var(--bys-accent);
+    color: var(--bys-bg);
+  }
+  :focus-visible {
+    outline: 2px solid var(--bys-accent-soft);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  button,
+  a,
+  input,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 16px; /* ≥16px so iOS never auto-zooms on focus */
+  }
+  /* Cursor blink during streaming — pure CSS, no animation library. */
+  @keyframes bys-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+  .stream-caret::after {
+    content: "▍";
+    margin-left: 2px;
+    color: var(--bys-accent-soft);
+    animation: bys-blink 1s step-end infinite;
+  }
+  /* Co-Parent Check-In: 120ms slide/fade between question steps. */
+  @keyframes bys-checkin-fade {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .bys-checkin-step {
+    animation: bys-checkin-fade 120ms ease-out;
+  }
+  /* Record Health (organizer-expansion spec §1, Slice 1) — one calm ~600ms
+     reveal when the snapshot opens: 30-day dots pop left→right (24ms stagger,
+     150ms each, capped at 600ms), the % number rises 8px + fades, and the
+     finding cards fade-slide up staggered. Transform/opacity only; the ring
+     fill is STATIC (renders at its final value immediately — no stroke-
+     dashoffset animation, which would be fake motion on a real number). The
+     global prefers-reduced-motion rule zeroes everything. */
+  @keyframes bys-health-dot-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.2);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  .bys-health-dot {
+    animation: bys-health-dot-pop 150ms ease-out both;
+  }
+  @keyframes bys-health-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .bys-health-pct {
+    animation: bys-health-rise 300ms ease-out both;
+  }
+  @keyframes bys-health-card-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .bys-health-card {
+    animation: bys-health-card-in 300ms ease-out both;
+  }
+  /* Wizard A — sequenced results reveal (Design A, "Paste → Payoff"):
+     on stream completion the payoff lands in one calm moment instead of a
+     dump. The score card settles in first (mount-time fade/rise), the three
+     rewrite cards settle in a ~120ms stagger, then the analysis sections
+     unfold with the first one auto-open. Transform/opacity only — the settle
+     is deliberately transform-only so streamed content is never flashed or
+     re-mounted; the global prefers-reduced-motion rule zeroes everything. */
+  @keyframes bys-wizard-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes bys-wizard-settle {
+    from {
+      transform: translateY(8px);
+    }
+    to {
+      transform: none;
+    }
+  }
+  .bys-wizard-in {
+    animation: bys-wizard-in 260ms ease-out;
+  }
+  .bys-wizard-settle {
+    animation: bys-wizard-settle 200ms ease-out;
+  }
+  /* Two-mode AI Co-Parent (2026-08-11): 200ms opacity/transform settle when the
+     mode-dependent label/placeholder/submit/footer/status copy swaps between
+     "Review a message" and "Analyze a situation". Transform-only (translateY +
+     opacity — never layout); keyed remounts play it once per mode change; the
+     global prefers-reduced-motion rule zeroes it instantly. */
+  @keyframes bys-mode-settle-kf {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .bys-mode-settle {
+    animation: bys-mode-settle-kf 200ms ease-out;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-forest px-7 py-3.5 text-base font-semibold text-cream transition-colors duration-150 select-none;
+  }
+  .btn-primary:hover {
+    @apply bg-forest-soft;
+  }
+  .btn-primary:active {
+    transform: scale(0.98);
+  }
+  .btn-primary:disabled {
+    @apply cursor-not-allowed opacity-60;
+    transform: none;
+  }
+
+  .btn-ghost {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-line bg-card px-5 py-3 text-base font-medium text-forest transition-colors duration-150 select-none;
+  }
+  .btn-ghost:hover {
+    @apply border-forest/30 bg-cream-deep;
+  }
+  .btn-ghost:active {
+    transform: scale(0.98);
+  }
+
+  .btn-copy {
+    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-line bg-cream px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
+  }
+  .btn-copy:active {
+    transform: scale(0.97);
+  }
+  .btn-copy--done {
+    @apply border-forest bg-forest text-cream;
+  }
+
+  .chip {
+    @apply inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-card px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
+  }
+  .chip:active {
+    transform: scale(0.98);
+  }
+  .chip:hover {
+    @apply border-forest/30 bg-cream-deep;
+  }
+
+  .field-label {
+    @apply mb-2 block text-base font-semibold text-ink;
+  }
+
+  /* ---- App-shell component polish (app-redesign-spec §4) ---- */
+  .input {
+    @apply min-h-12 w-full rounded-2xl border border-line bg-cream px-4 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none;
+  }
+  .card {
+    @apply rounded-3xl border border-line bg-card shadow-card;
+  }
+  .icon-btn {
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-forest transition-colors duration-150 hover:bg-cream-deep active:scale-[0.97];
+  }
+  .bys-sheet {
+    animation: bys-sheet-in 240ms cubic-bezier(0.32, 0.72, 0.35, 1.02);
+  }
+  @keyframes bys-sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* User menu (owner-batch DESIGN 2): calm fade-in, opacity only — no
+     slide/scale; the global prefers-reduced-motion rule zeroes it instantly. */
+  .bys-menu-fade {
+    animation: bys-menu-fade 120ms ease-out;
+  }
+  @keyframes bys-menu-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .bys-grabber {
+    width: 2.25rem;
+    height: 4px;
+    margin: 0 auto 0.5rem;
+    border-radius: 9999px;
+    background: var(--bys-line);
+  }
+  /* Capture-moment redesign (P3): a calm one-shot attention cue for the
+     capture ask (mobile sheet / desktop card) when no email lands within ~6s.
+     A slow settle, never urgency. Reduced-motion users get none — the global
+     media rule zeroes every animation. */
+  .bys-capture-nudge {
+    animation: bys-capture-nudge 1600ms ease-out;
+  }
+  @keyframes bys-capture-nudge {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--bys-accent) 32%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 16px color-mix(in srgb, var(--bys-accent) 0%, transparent);
+    }
+  }
+  /* Organizer FRONT A: 1.6s amber ring on the refiled row / target folder card
+     ("Filed under Finances › Receipts." lands with a soft glow, no yanking). */
+  .bys-needs-sorting-flash {
+    animation: bys-needs-sorting-flash 1600ms ease-out;
+  }
+  @keyframes bys-needs-sorting-flash {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--bys-amber-500) 55%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 16px color-mix(in srgb, var(--bys-amber-500) 0%, transparent);
+    }
+  }
+  /* 5-Paper Trial (2026-08-12): calm forest ring on the just-filed trial card
+     ("First one filed." lands with a soft glow, same pattern as above). */
+  .bys-trial-just-added {
+    animation: bys-trial-just-added 1600ms ease-out;
+  }
+  @keyframes bys-trial-just-added {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--bys-accent) 40%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 16px color-mix(in srgb, var(--bys-accent) 0%, transparent);
+    }
+  }
+}
+
+/* ---- Interactive design layer — Phase 1 (calm scroll reveals) ----
+   Foundation (Reveal.tsx): content is VISIBLE BY DEFAULT — the base state
+   renders everything fully; `.bys-reveal-in` (added once by an
+   IntersectionObserver at 25% visibility) only ADDS calm motion (rise /
+   settle / brighten), it never hides content. Reduced-motion + no-JS show
+   the settled state with zero motion (base == final keyframes). Unlayered
+   on purpose: these rules must beat Tailwind utilities for the brighten
+   overrides and the reveal transforms. All colors resolve through --bys-*
+   tokens so Forest / Midnight / Sand all render correctly. */
+
+/* 1. The Cooling Message — a hot draft lifts away, dots think, the calm
+      reply settles in. One ~3s sequence, played once, then it settles. */
+.bys-cool-stage {
+  position: relative;
+  margin-top: 1rem;
+}
+.bys-cool-calm {
+  position: relative;
+  z-index: 0;
+}
+.bys-cool-hot {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  opacity: 0;
+}
+.bys-cool-typing {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  transform: translateY(-50%);
+  opacity: 0;
+}
+.bys-reveal-in .bys-cool-hot {
+  animation: bys-cool-hot-seq 3000ms ease-in-out forwards;
+}
+.bys-reveal-in .bys-cool-typing {
+  animation: bys-cool-typing-seq 3000ms ease-in-out forwards;
+}
+.bys-reveal-in .bys-cool-calm {
+  animation: bys-cool-calm-seq 3000ms ease-in-out forwards;
+}
+@keyframes bys-cool-hot-seq {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  7% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  42% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  56% {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.98);
+  }
+}
+@keyframes bys-cool-typing-seq {
+  0%,
+  50% {
+    opacity: 0;
+  }
+  57% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes bys-cool-calm-seq {
+  0%,
+  66% {
+    transform: translateY(12px);
+  }
+  84% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.bys-cool-typing .bys-dot {
+  animation: bys-dot-blink 900ms ease-in-out infinite;
+}
+.bys-cool-typing .bys-dot:nth-child(2) {
+  animation-delay: 150ms;
+}
+.bys-cool-typing .bys-dot:nth-child(3) {
+  animation-delay: 300ms;
+}
+@keyframes bys-dot-blink {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+/* Organizer trial busy dots (calm — transform/opacity only; the global
+   prefers-reduced-motion rule zeroes them instantly). */
+.bys-filing-dots .bys-dot {
+  animation: bys-dot-blink 900ms ease-in-out infinite;
+}
+.bys-filing-dots .bys-dot:nth-child(2) {
+  animation-delay: 150ms;
+}
+.bys-filing-dots .bys-dot:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+/* 2. Three Tones — cards rise staggered; each sample line settles after. */
+.bys-tone-card {
+  transform: translateY(18px);
+  transition: transform 700ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+.bys-tone-line {
+  transform: translateY(6px);
+  transition: transform 520ms ease-out;
+}
+.bys-reveal-in .bys-tone-card,
+.bys-reveal-in .bys-tone-line {
+  transform: none;
+}
+.bys-tones-item:nth-child(1) .bys-tone-card {
+  transition-delay: 0ms;
+}
+.bys-tones-item:nth-child(1) .bys-tone-line {
+  transition-delay: 480ms;
+}
+.bys-tones-item:nth-child(2) .bys-tone-card {
+  transition-delay: 130ms;
+}
+.bys-tones-item:nth-child(2) .bys-tone-line {
+  transition-delay: 610ms;
+}
+.bys-tones-item:nth-child(3) .bys-tone-card {
+  transition-delay: 260ms;
+}
+.bys-tones-item:nth-child(3) .bys-tone-line {
+  transition-delay: 740ms;
+}
+
+/* 3. Control Room — five module tiles rise in sequence; live modules
+      brighten (glow) as they land, coming-soon modules stay dim with
+      their honest "Coming soon" chip. */
+.bys-cr-grid > .bys-cr-tile {
+  transform: translateY(14px);
+  transition:
+    transform 700ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    translate 300ms ease,
+    border-color 800ms ease,
+    background-color 800ms ease;
+}
+.bys-reveal-in .bys-cr-grid > .bys-cr-tile {
+  transform: none;
+}
+.bys-cr-grid > .bys-cr-tile:nth-child(1) {
+  transition-delay: 60ms;
+}
+.bys-cr-grid > .bys-cr-tile:nth-child(2) {
+  transition-delay: 180ms;
+}
+.bys-cr-grid > .bys-cr-tile:nth-child(3) {
+  transition-delay: 300ms;
+}
+.bys-cr-grid > .bys-cr-tile:nth-child(4) {
+  transition-delay: 420ms;
+}
+.bys-cr-grid > .bys-cr-tile:nth-child(5) {
+  transition-delay: 540ms;
+}
+/* Tiles are links now (landing → app modules): the hover lift responds
+   immediately instead of waiting out the reveal stagger. */
+.bys-cr-grid > .bys-cr-tile:hover {
+  transition-delay: 0ms;
+}
+.bys-cr-tile .bys-tile-ic,
+.bys-cr-tile .bys-tile-lb,
+.bys-cr-tile .bys-tile-chip {
+  transition-property: background-color, color;
+  transition-duration: 800ms;
+  transition-timing-function: ease;
+  transition-delay: inherit;
+}
+.bys-reveal-in .bys-cr-live {
+  border-color: color-mix(in srgb, var(--bys-accent) 45%, transparent);
+  background-color: color-mix(in srgb, var(--bys-accent) 9%, var(--bys-card));
+}
+.bys-reveal-in .bys-cr-live .bys-tile-ic {
+  background-color: color-mix(in srgb, var(--bys-accent) 14%, transparent);
+  color: var(--bys-accent);
+}
+.bys-reveal-in .bys-cr-live .bys-tile-lb {
+  color: var(--bys-ink);
+}
+.bys-reveal-in .bys-cr-live .bys-tile-chip {
+  background-color: var(--bys-accent);
+  color: var(--bys-bg);
+}
+
+/* ---- Accessibility ---- */
+/* Skip-to-content link: hidden until focused (standard a11y pattern). */
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  transform: translateY(-300%);
+  @apply inline-flex min-h-11 items-center rounded-full bg-forest px-5 text-base font-semibold text-cream;
+  box-shadow: var(--bys-shadow-pop);
+}
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+/* The skip target itself shouldn't draw an outline ring around all of main. */
+main[id]:focus {
+  outline: none;
+}
+/* Trust pages: the `prose` utility is a no-op (typography plugin not
+   installed) — give the article's lists explicit, consistent styling. */
+.prose ul {
+  list-style: disc;
+  padding-left: 1.4rem;
+  margin: 0.25rem 0 0.75rem;
+}
+.prose li {
+  margin-top: 0.5rem;
+  padding-left: 0.25rem;
+  line-height: 1.6;
+}
+.prose li::marker {
+  color: var(--bys-accent-soft);
+}
+.prose h2 {
+  @apply font-display text-2xl font-semibold text-forest;
+  margin-top: 1.5rem;
+}
+/* prefers-reduced-motion: no motion for users who ask for none. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .stream-caret::after {
+    animation: none;
+  }
+  .btn-primary:active,
+  .btn-ghost:active,
+  .btn-copy:active,
+  .chip:active {
+    transform: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
