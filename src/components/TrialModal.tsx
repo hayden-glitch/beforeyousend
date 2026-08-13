@@ -192,10 +192,14 @@ export default function TrialModal() {
   // /login with the 3-question intake showing is deferred too (owner
   // 2026-08-13): the intake IS the engagement; the trial starts quietly at
   // account confirm for anyone who carried intent.
-  // Value gate (conversion-cycle-1, owner 2026-08-13): the offer never fires
-  // before a review completes in this session — the reward lands first, the
-  // ask comes after (mirrors SpecialOffer's value gate). Read FRESH at fire
-  // time from sessionStorage, so a late delivery still un-gates.
+  // Value gate (conversion-cycle-1, owner 2026-08-13): on / and /login the
+  // offer never fires before a review completes in this session — the reward
+  // lands first, the ask comes after (mirrors SpecialOffer's value gate).
+  // /pricing is EXEMPT by owner decision (2026-08-13, "do whatever is gonna
+  // hold up against real people"): the plan's fast ~2s idle trigger stays live
+  // there for eligible visitors, value or not — a pricing page is already a
+  // buying-intent surface, not a first-run surface. Read FRESH at fire time
+  // from sessionStorage, so a late delivery still un-gates / and /login.
   const gated = useCallback(
     () =>
       TRIAL_NEVER.includes(pathname) ||
@@ -204,7 +208,7 @@ export default function TrialModal() {
       modalOpen() ||
       trialShownThisSession() ||
       trialDismissed() ||
-      !valueDelivered() ||
+      (pathname !== TRIAL_FAST && !valueDelivered()) ||
       auth === null ||
       !auth.eligible,
     [pathname, auth]
