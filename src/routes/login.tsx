@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
-import { track, type AnalyticsEvent } from "~/lib/analytics";
+import { track, trackSignupConversion, type AnalyticsEvent } from "~/lib/analytics";
 import { ensureCaptureVariant, type CaptureVariant } from "~/lib/captureVariant";
 import { EMAIL_RE } from "~/lib/api";
 import {
@@ -188,6 +188,7 @@ function Login(){
       // path. sendBeacon survives the redirect below.
       track("email_submitted",{variant,source,q1:intake?.q1,q2:intake?.q2,q3:intake?.q3});
       track("account_created",{source,q1:intake?.q1,q2:intake?.q2,q3:intake?.q3});
+      trackSignupConversion({email:j.user?.email||value,transactionId:j.user?.id});
       // Intake bookkeeping: the questions are answered, the answers are in the
       // account — the local copies are done.
       markLoginIntakeDone();
