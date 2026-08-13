@@ -31,7 +31,7 @@ const getAnalyticsConfig = createServerFn().handler(async () => {
 // It lives directly in the shared document head so every route has a ready
 // gtag queue before React mounts. send_page_view:false keeps trackPageView()
 // as the single page-view fire point.
-const GOOGLE_TAG_BOOTSTRAP = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}window.gtag=window.gtag||gtag;gtag('js',new Date());gtag('config','${GOOGLE_ADS_ID}',{send_page_view:false});`;
+const GOOGLE_TAG_BOOTSTRAP = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}window.gtag=window.gtag||gtag;gtag('consent','default',{ad_storage:'granted',analytics_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'});gtag('js',new Date());gtag('config','${GOOGLE_ADS_ID}',{send_page_view:false});`;
 
 export const Route = createRootRoute({
   head: () => ({
