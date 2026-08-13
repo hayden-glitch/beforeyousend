@@ -448,6 +448,9 @@ export default function ReviewTool({ reviewRef }: Props) {
           <p className="mt-3 text-center text-base text-stone">
             Free · No account · Private
           </p>
+          <p className="mt-1 text-center text-sm text-taupe">
+            Usually about 10–20 seconds.
+          </p>
         </form>
 
         {showResults && (
