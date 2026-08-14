@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 const base = "/home/team/shared";
-const files = { users: `${base}/bys-users.json`, reviews: `${base}/bys-reviews.json`, log: `${base}/bys-log.json`, timeline: `${base}/bys-timeline.json`, signups: `${base}/bys-signups.jsonl`, anon: `${base}/bys-anon.json`, sessions: `${base}/bys-sessions.json`, authSessions: `${base}/bys-auth-sessions.json`, confirmTokens: `${base}/bys-confirm-tokens.json`, events: `${base}/bys-events.json`, organizerFiles: `${base}/bys-organizer-files.json`, organizerTrials: `${base}/bys-organizer-trials.json`, caseSummary: `${base}/bys-case-summaries.json`, actionCenter: `${base}/bys-action-center.json`, reviewEvents: `${base}/bys-review-events.json`, sessionPlay: `${base}/bys-session-play.json`, tiktokTokens: `${base}/bys-tiktok-tokens.json`, tiktokPublishes: `${base}/bys-tiktok-publishes.json`, giftCodes: `${base}/bys-gift-codes.json`, consultations: `${base}/bys-consultations.json`, attorneyPacks: `${base}/bys-attorney-packs.json`, recordReviews: `${base}/bys-record-reviews.json`, organizerUsage: `${base}/bys-organizer-usage.json`, trials: `${base}/bys-trials.json` };
+const files = { users: `${base}/bys-users.json`, reviews: `${base}/bys-reviews.json`, log: `${base}/bys-log.json`, timeline: `${base}/bys-timeline.json`, signups: `${base}/bys-signups.jsonl`, anon: `${base}/bys-anon.json`, sessions: `${base}/bys-sessions.json`, authSessions: `${base}/bys-auth-sessions.json`, confirmTokens: `${base}/bys-confirm-tokens.json`, events: `${base}/bys-events.json`, organizerFiles: `${base}/bys-organizer-files.json`, organizerTrials: `${base}/bys-organizer-trials.json`, caseSummary: `${base}/bys-case-summaries.json`, actionCenter: `${base}/bys-action-center.json`, reviewEvents: `${base}/bys-review-events.json`, sessionPlay: `${base}/bys-session-play.json`, tiktokTokens: `${base}/bys-tiktok-tokens.json`, tiktokPublishes: `${base}/bys-tiktok-publishes.json`, giftCodes: `${base}/bys-gift-codes.json`, consultations: `${base}/bys-consultations.json`, attorneyPacks: `${base}/bys-attorney-packs.json`, recordReviews: `${base}/bys-record-reviews.json`, organizerUsage: `${base}/bys-organizer-usage.json`, trials: `${base}/bys-trials.json`, fulfillmentClaims: `${base}/bys-fulfillment-claims.json` };
 const db = () => process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
 let boot: Promise<void> | null = null;
 async function init(){ const sql=db(); if(!sql)return; await Promise.all([
@@ -26,6 +26,7 @@ async function init(){ const sql=db(); if(!sql)return; await Promise.all([
  sql`CREATE TABLE IF NOT EXISTS bys_attorney_packs (id BIGSERIAL PRIMARY KEY,user_id TEXT NOT NULL,email TEXT,amount_cents INT NOT NULL DEFAULT 0,session_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
 sql`CREATE TABLE IF NOT EXISTS bys_trials (user_id TEXT PRIMARY KEY,started_at TIMESTAMPTZ NOT NULL DEFAULT now(),expires_at TIMESTAMPTZ NOT NULL,source TEXT)`,
  sql`CREATE TABLE IF NOT EXISTS bys_record_reviews (id BIGSERIAL PRIMARY KEY,user_id TEXT NOT NULL,email TEXT,kind TEXT NOT NULL DEFAULT 'purchase',amount_cents INT NOT NULL DEFAULT 0,session_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
+ sql`CREATE TABLE IF NOT EXISTS bys_fulfillment_claims (session_id TEXT PRIMARY KEY,user_id TEXT NOT NULL,plan TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'processing',outcome JSONB,claimed_at TIMESTAMPTZ NOT NULL DEFAULT now(),processed_at TIMESTAMPTZ)`,
  sql`CREATE INDEX IF NOT EXISTS bys_events_name_ts ON bys_events(name,ts)`,
  sql`CREATE INDEX IF NOT EXISTS bys_events_vid_ts ON bys_events(vid,ts)`]);
   // Run AFTER the parallel table batch: the index depends on its table, and the
@@ -176,6 +177,7 @@ export async function deleteUserData(userId:string, email:string){
     await sql`DELETE FROM bys_record_reviews WHERE user_id=${userId}`;
     await sql`DELETE FROM bys_attorney_packs WHERE user_id=${userId}`;
     await sql`DELETE FROM bys_consultations WHERE user_id=${userId}`;
+    await sql`DELETE FROM bys_fulfillment_claims WHERE user_id=${userId}`;
     try {
       await sql`DELETE FROM bys_organizer_files WHERE user_id=${userId}`;
       await sql`DELETE FROM bys_organizer_trial_usage WHERE key='user:'||${userId}`;
@@ -206,9 +208,94 @@ export async function deleteUserData(userId:string, email:string){
     put(files.recordReviews,(await json(files.recordReviews)).filter((r:any)=>r.userId!==userId)),
     put(files.attorneyPacks,(await json(files.attorneyPacks)).filter((a:any)=>a.userId!==userId)),
     put(files.consultations,(await json(files.consultations)).filter((c:any)=>c.userId!==userId)),
+    put(files.fulfillmentClaims,(await json(files.fulfillmentClaims)).filter((c:any)=>c.user_id!==userId)),
     sf.writeFile(files.signups,signupsKept.length?signupsKept.join("\n")+"\n":""),
   ]);
 }
+
+
+// ---- Fulfillment claims (Track B, R6 payment durability) ------------------
+// DB-level idempotency for Stripe checkout fulfillment. A session may arrive
+// from BOTH the browser confirm (/api/checkout/confirm) and Stripe's verified
+// webhook (checkout.session.completed); the unique session_id primary key is
+// the atomic claim so exactly one path ever grants credits/entitlements, and
+// retries of either path see status='processed' and no-op. JSON fallback is
+// file-based (test/dev only) — production uses the unique constraint.
+export async function claimFulfillment(sessionId: string, userId: string, plan: string): Promise<boolean> {
+  await ready(); const sql = db();
+  if (sql) {
+    try {
+      await sql`INSERT INTO bys_fulfillment_claims(session_id,user_id,plan,status) VALUES(${sessionId},${userId},${plan},'processing') ON CONFLICT(session_id) DO NOTHING`;
+    } catch (err) {
+      console.warn("[storage] claim insert failed:", err);
+      return false;
+    }
+    const rows = await sql`SELECT session_id FROM bys_fulfillment_claims WHERE session_id=${sessionId} AND user_id=${userId}`;
+    return rows.length > 0;
+  }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  if (rows.some((r: any) => r.session_id === sessionId)) return false;
+  rows.push({ session_id: sessionId, user_id: userId, plan, status: "processing", claimed_at: new Date().toISOString() });
+  await put(files.fulfillmentClaims, rows);
+  return true;
+}
+export async function getFulfillmentClaim(sessionId: string): Promise<any | null> {
+  await ready(); const sql = db();
+  if (sql) {
+    const rows = await sql`SELECT session_id AS "sessionId", user_id AS "userId", plan, status, outcome, claimed_at AS "claimedAt", processed_at AS "processedAt" FROM bys_fulfillment_claims WHERE session_id=${sessionId}`;
+    return rows[0] || null;
+  }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  return rows.find((r: any) => r.session_id === sessionId) || null;
+}
+export async function markFulfillmentProcessed(sessionId: string, outcome: any): Promise<void> {
+  await ready(); const sql = db();
+  if (sql) {
+    await sql`UPDATE bys_fulfillment_claims SET status='processed', outcome=${JSON.stringify(outcome || {})}, processed_at=now() WHERE session_id=${sessionId}`;
+    return;
+  }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  const hit = rows.find((r: any) => r.session_id === sessionId);
+  if (hit) {
+    hit.status = "processed";
+    hit.outcome = outcome || {};
+    hit.processed_at = new Date().toISOString();
+    await put(files.fulfillmentClaims, rows);
+  }
+}
+// Re-take a claim that was in-flight for >5 minutes and never processed (a
+// crashed grantor would otherwise lock the session forever). Only call after
+// checking the claim belongs to the same user.
+export async function reclaimFulfillment(sessionId: string): Promise<boolean> {
+  await ready(); const sql = db();
+  if (sql) {
+    const rows = await sql`UPDATE bys_fulfillment_claims SET status='processing', claimed_at=now() WHERE session_id=${sessionId} AND status='processing' AND claimed_at < now() - interval '5 minutes' RETURNING session_id`;
+    return rows.length > 0;
+  }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  const hit = rows.find((r: any) => r.session_id === sessionId && r.status === "processing");
+  if (hit && Date.now() - new Date(hit.claimed_at).getTime() > 5 * 60 * 1000) {
+    hit.claimed_at = new Date().toISOString();
+    await put(files.fulfillmentClaims, rows);
+    return true;
+  }
+  return false;
+}
+// Drop a claim without processing (e.g. gift-code mint failed): lets a retry
+// re-claim and re-run the grant instead of being blocked by a stale claim.
+export async function releaseFulfillmentClaim(sessionId: string): Promise<void> {
+  await ready(); const sql = db();
+  if (sql) { await sql`DELETE FROM bys_fulfillment_claims WHERE session_id=${sessionId}`; return; }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  await put(files.fulfillmentClaims, rows.filter((r: any) => r.session_id !== sessionId));
+}
+export async function deleteFulfillmentClaimsByUser(userId: string): Promise<void> {
+  await ready(); const sql = db();
+  if (sql) { await sql`DELETE FROM bys_fulfillment_claims WHERE user_id=${userId}`; return; }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  await put(files.fulfillmentClaims, rows.filter((r: any) => r.user_id !== userId));
+}
+
 export async function readLog(){await ready();const sql=db();if(sql)return await sql`SELECT id,user_id AS "userId",message,direction,date,topic,notes,tone,child,created_at AS "createdAt",updated_at AS "updatedAt" FROM bys_log` as any[];return json(files.log)}
 export async function writeLog(rows:any[]){await ready();const sql=db();if(sql){await sql`DELETE FROM bys_log WHERE NOT (id = ANY(${rows.map(r=>r.id)}))`;for(const r of rows)await sql`INSERT INTO bys_log(id,user_id,message,direction,date,topic,notes,tone,child,created_at,updated_at) VALUES(${r.id},${r.userId},${r.message},${r.direction},${r.date},${r.topic},${r.notes},${r.tone||null},${r.child||null},${r.createdAt},${r.updatedAt||null}) ON CONFLICT(id) DO UPDATE SET message=EXCLUDED.message,direction=EXCLUDED.direction,date=EXCLUDED.date,topic=EXCLUDED.topic,notes=EXCLUDED.notes,tone=EXCLUDED.tone,child=EXCLUDED.child,updated_at=EXCLUDED.updated_at`;return}await put(files.log,rows)}
 export async function readTimeline(){await ready();const sql=db();if(sql)return await sql`SELECT id,user_id AS "userId",date,title,category,details,created_at AS "createdAt",updated_at AS "updatedAt" FROM bys_timeline` as any[];return json(files.timeline)}

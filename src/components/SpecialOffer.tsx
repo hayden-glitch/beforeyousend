@@ -38,6 +38,7 @@ export default function SpecialOffer() {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [needLogin, setNeedLogin] = useState(false);
   const [isUltimate, setIsUltimate] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const lastFocus = useRef<HTMLElement | null>(null);
@@ -197,6 +198,13 @@ export default function SpecialOffer() {
         location.href = d.url;
         return;
       }
+      if (r.status === 401 || d.login_required) {
+        // Track B item 2: signed-out dad — visible sign-in step that keeps the
+        // offer intent (next=/pricing re-arms the offer after login).
+        setMsg("Sign in to start checkout — your purchase is linked to your account.");
+        setNeedLogin(true);
+        return;
+      }
       setMsg(d.error || "Checkout is not available right now.");
     } catch {
       setMsg("Checkout is not available right now.");
@@ -243,7 +251,7 @@ export default function SpecialOffer() {
         <ul className="mt-4 space-y-2 text-base leading-relaxed text-ink">
           <li className="flex items-start gap-2"><IconCheck className="mt-1 h-4 w-4 shrink-0 text-forest-soft" /><span>1 free consultation a year ({consultationMoney} value)</span></li>
           <li className="flex items-start gap-2"><IconCheck className="mt-1 h-4 w-4 shrink-0 text-forest-soft" /><span>All one-time packs included — Review Top-Ups, Attorney Prep Pack, Record Review, Document Sort</span></li>
-          <li className="flex items-start gap-2"><IconCheck className="mt-1 h-4 w-4 shrink-0 text-forest-soft" /><span>Your account set up for you — situation pre-loaded, starter templates saved, a First-Week Plan ready</span></li>
+          <li className="flex items-start gap-2"><IconCheck className="mt-1 h-4 w-4 shrink-0 text-forest-soft" /><span>Kickstart setup — we'll help you get your situation and your first entries into your record</span></li>
           <li className="flex items-start gap-2"><IconCheck className="mt-1 h-4 w-4 shrink-0 text-forest-soft" /><span>Priority scheduling + priority support</span></li>
         </ul>
         <button type="button" onClick={accept} disabled={busy} className="btn-primary mt-5 w-full">
@@ -261,6 +269,11 @@ export default function SpecialOffer() {
           <p role="status" className="mt-3 rounded-xl bg-cream-deep p-3 text-sm text-stone">
             {msg}
           </p>
+        )}
+        {needLogin && (
+          <a href="/login?next=/pricing" className="btn-primary mt-3 block w-full text-center">
+            Sign in to continue
+          </a>
         )}
       </div>
     </div>

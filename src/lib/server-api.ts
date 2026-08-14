@@ -3,7 +3,7 @@
 import Stripe from "stripe";
 import * as crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
-import { readUsers, writeUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, insertConsultation, insertAttorneyPack, insertRecordReview, attorneyPacksForUser, recordReviewsForUser, saveRecordReviewReport, latestRecordReviewReport, deleteRecordReviewBySession, getTrial, startTrial, clearMetrics, customerMetrics } from "./storage";
+import { readUsers, writeUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, insertConsultation, insertAttorneyPack, insertRecordReview, attorneyPacksForUser, recordReviewsForUser, saveRecordReviewReport, latestRecordReviewReport, deleteRecordReviewBySession, getTrial, startTrial, clearMetrics, customerMetrics, claimFulfillment, getFulfillmentClaim, markFulfillmentProcessed, reclaimFulfillment, releaseFulfillmentClaim, deleteFulfillmentClaimsByUser } from "./storage";
 import { computeImpactScore } from "./impactScore";
 import { buildRecordReview } from "./recordReview";
 import { TAXONOMY, folderBySlug } from "./taxonomy";
@@ -1912,6 +1912,29 @@ async function handleAccountDelete(req) {
   const u = users.find((x2) => x2.id === s.userId);
   if (!u)
     return json3({ error: "Account not found." }, 404);
+  // Track B item 8: never orphan a live renewing subscription. Cancel it FIRST
+  // (so no further renewals can charge after the account is gone); only delete
+  // the app user once the subscription is confirmed cancelled. QA preview
+  // (BYS_PAYMENTS_QA_GUARD) simulates the cancel so destructive tests can run
+  // without touching Stripe; the log proves the cancel was attempted.
+  const subId = u.profile?.stripeSubscriptionId;
+  const custId = u.profile?.stripeCustomerId;
+  if (subId && custId && u.profile?.tier && u.profile.tier !== "free") {
+    if (process.env.BYS_PAYMENTS_QA_GUARD === "true") {
+      console.warn("[account-delete] QA guard: simulating subscription cancellation for", subId);
+    } else if (process.env.STRIPE_SECRET_KEY) {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
+      try {
+        await stripe.subscriptions.cancel(subId);
+        console.log("[account-delete] cancelled subscription", subId, "before deleting account", u.id);
+      } catch (err) {
+        console.error("[account-delete] subscription cancel failed:", err);
+        return json3({ error: "We couldn't cancel your subscription yet. Cancel it in your billing portal first (Settings → Manage billing), then delete your account.", cancel_required: true }, 502);
+      }
+    } else {
+      return json3({ error: "We couldn't verify your subscription's status. Cancel it in your billing portal first (Settings → Manage billing), then delete your account.", cancel_required: true }, 502);
+    }
+  }
   await deleteUserData(u.id, u.email);
   sessions.delete(s.token);
   deleteAuthSession(s.token).catch(() => {});
@@ -2098,6 +2121,9 @@ async function handleGiftPurchase(req) {
   const s = getSession(req);
   if (!s)
     return json3({ error: "Sign in required." }, 401);
+  const qb = qaPaymentsBlocked();
+  if (qb)
+    return qb;
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
   const giftPrice = await resolveStripePrice(stripe, "gift", "month");
   const origin2 = new URL(req.url).origin;
@@ -3923,6 +3949,57 @@ async function resolveCheckinCoupon(stripe, once) {
   stripeCoupons.set(id, coupon.id);
   return coupon.id;
 }
+// ---- Track B (R6 payment durability): pre-pay account invariant -----------
+// No entitlement-bearing Checkout may exist without a resolved app user. The
+// user id is stamped on client_reference_id AND metadata.user_id so both the
+// browser confirm and the verified webhook can only grant to the account that
+// owns the checkout. Top-Up was previously unstamped and anonymous — fixed.
+const LOGIN_REQUIRED_MSG = "Sign in to start checkout — your purchase is linked to your account.";
+function qaPaymentsBlocked() {
+  // Round-6 preview safety (Codex 2026-08-14): preview deployments must NOT be
+  // able to create live-mode Stripe Checkout Sessions (no Stripe test key is
+  // available without dashboard access, which we do not have). The explicit
+  // server-side QA guard blocks payment completion in the preview entirely.
+  return process.env.BYS_PAYMENTS_QA_GUARD === "true"
+    ? json3({ error: "Payments are paused in this preview — nothing can be charged.", payments_disabled: true }, 503)
+    : null;
+}
+function stampCheckoutParams(userId, base) {
+  return { ...base, client_reference_id: userId, metadata: { ...(base.metadata || {}), user_id: userId } };
+}
+// One-time products (topup / sortpile / attorney / record review): minimal
+// metadata — plan + credits only, plus the user stamp. No q1/q2/q3/rec, no
+// free-text anywhere in Stripe metadata.
+function oneTimeCheckoutParams(o) {
+  return stampCheckoutParams(o.userId, {
+    mode: "payment",
+    line_items: [{ price: o.priceId, quantity: 1 }],
+    managed_payments: { enabled: false },
+    metadata: { plan: o.plan, ...(o.credits ? { credits: o.credits } : {}) },
+    success_url: `${o.origin}/pricing?checkout=success&plan=${o.plan}&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${o.origin}/pricing?checkout=cancelled`
+  });
+}
+// Subscriptions + consultation: minimal metadata (plan/interval/user_id +
+// the non-sensitive promo markers offer/checkin). Check-In q1/q2/q3/rec were
+// removed from Stripe metadata entirely (Track B item 3).
+function buildSubscriptionParams(o) {
+  const meta = { plan: o.plan, user_id: o.userId };
+  if (!o.consultation) meta.interval = o.interval;
+  if (o.offer) meta.offer = "true";
+  if (o.checkin) meta.checkin = "true";
+  const params = {
+    mode: o.consultation ? "payment" : "subscription",
+    line_items: [{ price: o.priceId, quantity: 1 }],
+    managed_payments: { enabled: false },
+    client_reference_id: o.userId,
+    metadata: meta,
+    success_url: `${o.origin}${o.successPath}?checkout=success&plan=${o.plan}&interval=${o.interval}&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${o.origin}${o.cancelPath}?checkout=cancelled`
+  };
+  if (o.coupon) params.discounts = [{ coupon: o.coupon }];
+  return params;
+}
 async function handleCheckout(req) {
   if (!process.env.STRIPE_SECRET_KEY)
     return json3({ error: "Payments are not enabled yet — checkout will be active soon." }, 503);
@@ -3936,47 +4013,47 @@ async function handleCheckout(req) {
   if (plan === "subscription")
     plan = "command";
   const interval = body?.interval === "year" ? "year" : "month";
+  // Track B P0 (pre-pay account invariant): no entitlement-bearing Checkout may
+  // be created without a resolved app user. The user id is stamped on
+  // client_reference_id + metadata.user_id so the browser confirm and the
+  // verified webhook can only grant to the account that owns the checkout.
+  // Top-Up is explicitly included — it was previously unstamped and open to
+  // anonymous sessions. Gift stays auth-gated in handleGiftPurchase.
+  const sessionUser = getSession(req);
+  if (!sessionUser)
+    return json3({ error: LOGIN_REQUIRED_MSG, login_required: true }, 401);
+  // Round-6 preview safety: with the QA guard on, never create a Stripe
+  // Checkout Session (no test key is available without dashboard access; the
+  // live restricted key must never be exercised from a public preview).
+  const qaBlocked = qaPaymentsBlocked();
+  if (qaBlocked)
+    return qaBlocked;
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
+  const origin = new URL(req.url).origin;
   if (plan === "topup") {
     const topupPrice = await resolveStripePrice(stripe, "topup", "month");
-    const origin2 = new URL(req.url).origin;
-    const topupSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: topupPrice, quantity: 1 }], managed_payments: { enabled: false }, metadata: { plan: "topup", credits: "10" }, success_url: `${origin2}/pricing?checkout=success&plan=topup&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin2}/pricing?checkout=cancelled` });
+    const topupSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "topup", priceId: topupPrice, userId: sessionUser.userId, origin, credits: "10" }));
     return json3({ url: topupSession.url, plan: "topup", interval: "month" });
   }
   if (plan === "sortpile") {
     // Sort My Pile — one-time $19.50 (1950c). Grants 30 days of the live
-    // Organizer (profile.sortUntil) on confirm. Stamped with the buyer's user
-    // id so a lost session cookie on the success return can still link.
+    // Organizer (profile.sortUntil) on fulfillment.
     const sortPrice = await resolveStripePrice(stripe, "sortpile", "month");
-    const origin4 = new URL(req.url).origin;
-    const sessionUser4 = getSession(req);
-    const sortSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: sortPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser4 ? sessionUser4.userId : undefined, metadata: { plan: "sortpile", ...sessionUser4 ? { user_id: sessionUser4.userId } : {} }, success_url: `${origin4}/pricing?checkout=success&plan=sortpile&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin4}/pricing?checkout=cancelled` });
+    const sortSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "sortpile", priceId: sortPrice, userId: sessionUser.userId, origin }));
     return json3({ url: sortSession.url, plan: "sortpile", interval: "month" });
   }
   if (plan === "attorney_prep_pack") {
-    // Attorney Prep Pack — one-time $24.50 (2450c). On verified paid confirm the
-    // durable grant is written (bys_attorney_packs row + profile.attorneyPrep
-    // stamp); re-download stays possible (grant = entitlement; pack generation
-    // is a later build). Stamped with the buyer's user id so a lost session
-    // cookie on the success return can still link.
+    // Attorney Prep Pack — one-time $24.50 (2450c). Durable grant written on
+    // fulfillment (bys_attorney_packs row + profile.attorneyPrep stamp).
     const appPrice = await resolveStripePrice(stripe, "attorney_prep_pack", "month");
-    const origin5 = new URL(req.url).origin;
-    const sessionUser5 = getSession(req);
-    const appSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: appPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser5 ? sessionUser5.userId : undefined, metadata: { plan: "attorney_prep_pack", ...sessionUser5 ? { user_id: sessionUser5.userId } : {} }, success_url: `${origin5}/pricing?checkout=success&plan=attorney_prep_pack&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin5}/pricing?checkout=cancelled` });
+    const appSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "attorney_prep_pack", priceId: appPrice, userId: sessionUser.userId, origin }));
     return json3({ url: appSession.url, plan: "attorney_prep_pack", interval: "month" });
   }
   if (plan === "record_review") {
-    // Record Review — one-time $29.50 (2950c). On verified paid confirm a
-    // durable grant is written (bys_record_reviews row kind='purchase' +
-    // profile.recordReview stamp). Ultimate members redeem their 1/year
-    // allowance instead — that path writes a kind='redemption' row (amount 0)
-    // when the review runs (Stage 2); the window is enforced by created_at.
-    // Stamped with the buyer's user id so a lost session cookie on the success
-    // return can still link.
+    // Record Review — one-time $29.50 (2950c). Durable grant written on
+    // fulfillment (bys_record_reviews row kind='purchase' + stamp).
     const rrPrice = await resolveStripePrice(stripe, "record_review", "month");
-    const origin6 = new URL(req.url).origin;
-    const sessionUser6 = getSession(req);
-    const rrSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: rrPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser6 ? sessionUser6.userId : undefined, metadata: { plan: "record_review", ...sessionUser6 ? { user_id: sessionUser6.userId } : {} }, success_url: `${origin6}/pricing?checkout=success&plan=record_review&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin6}/pricing?checkout=cancelled` });
+    const rrSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "record_review", priceId: rrPrice, userId: sessionUser.userId, origin }));
     return json3({ url: rrSession.url, plan: "record_review", interval: "month" });
   }
   if (plan !== "consultation" && !SUBSCRIPTION_PLANS.includes(plan))
@@ -3984,30 +4061,26 @@ async function handleCheckout(req) {
   const isCheckin = body?.checkin === true;
   const isIntro = plan === "ultimate" && interval === "month" && body?.offer === true && !isCheckin;
   const priceId = isIntro ? await resolveStripePrice(stripe, "ultimate", "month", { cents: Number(process.env.PRICE_ULTIMATE_INTRO_USD_CENTS || 1999), productName: "Before You Send Ultimate Co-Parent", cacheKey: "ultimate:intro" }) : await resolveStripePrice(stripe, plan, interval);
-  const origin = new URL(req.url).origin;
   const successPath = plan === "consultation" ? "/consultations" : "/pricing";
   const cancelPath = plan === "consultation" ? "/consultations" : "/pricing";
-  const sessionUser = getSession(req);
   const coupon = isCheckin ? await resolveCheckinCoupon(stripe, plan === "consultation") : undefined;
-  const checkinMeta = isCheckin
-    ? {
-        checkin: "true",
-        q1: typeof body?.q1 === "string" ? body.q1.slice(0, 40) : undefined,
-        q2: typeof body?.q2 === "string" ? body.q2.slice(0, 40) : undefined,
-        q3: typeof body?.q3 === "string" ? body.q3.slice(0, 40) : undefined,
-        rec: typeof body?.rec === "string" ? body.rec.slice(0, 40) : undefined
-      }
-    : {};
-  const session = await stripe.checkout.sessions.create({
-    mode: plan === "consultation" ? "payment" : "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
-    managed_payments: { enabled: false },
-    client_reference_id: sessionUser ? sessionUser.userId : undefined,
-    metadata: plan === "consultation" ? { plan, type: "consultation", ...sessionUser ? { user_id: sessionUser.userId } : {}, ...checkinMeta } : { plan, interval, ...isIntro ? { offer: "true" } : {}, ...sessionUser ? { user_id: sessionUser.userId } : {}, ...checkinMeta },
-    discounts: coupon ? [{ coupon }] : undefined,
-    success_url: `${origin}${successPath}?checkout=success&plan=${plan}&interval=${interval}&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}${cancelPath}?checkout=cancelled`
-  });
+  // Track B item 3 (metadata minimization): Check-In q1/q2/q3/rec no longer
+  // ride in Stripe metadata (or anywhere server-side). Only user/plan/interval
+  // plus the non-sensitive promo markers (offer/checkin) are kept — the
+  // Ultimate intro schedule and the Check-In coupon mechanics are unchanged.
+  const session = await stripe.checkout.sessions.create(buildSubscriptionParams({
+    plan,
+    interval,
+    userId: sessionUser.userId,
+    priceId,
+    origin,
+    successPath,
+    cancelPath,
+    offer: isIntro,
+    checkin: isCheckin,
+    consultation: plan === "consultation",
+    coupon
+  }));
   return json3({ url: session.url, plan, interval, offer: isIntro, checkin: isCheckin });
 }
 function tierFromCheckoutSession(session) {
@@ -4045,6 +4118,200 @@ async function handlePortal(req) {
   } catch {
     return json3({ error: "We couldn't open the billing portal right now." }, 502);
   }
+}
+// ---- Track B item 4+5: shared durable fulfillment --------------------------
+// ONE function fulfills a verified paid checkout, used by BOTH the browser
+// confirm (UX/recovery) and the verified Stripe webhook (the durable grant
+// path), for subscriptions AND every one-time product. Atomic idempotency:
+// the bys_fulfillment_claims unique session_id claim (item 5) guarantees that
+// webhook/confirm/retries can never double-grant credits/entitlements/events.
+async function fulfillCheckoutSession(opts) {
+  const { stripe, session, sessionId, users, u, vid, paidVid } = opts;
+  const now = new Date();
+  const processed = Array.isArray(u.profile?.processedSessions) ? u.profile.processedSessions : [];
+  // Legacy/extra guard: sessions processed before the claim table existed
+  // (or a claim row that was manually removed) no-op via the profile stamp.
+  if (processed.includes(sessionId)) {
+    const k2 = session.metadata?.plan === "sortpile" ? "sortpile" : undefined;
+    return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0), ...(k2 ? { kind: k2, sortUntil: u.profile?.sortUntil } : {}) };
+  }
+  // Atomic claim (DB unique constraint on session_id). Exactly one caller wins;
+  // the loser returns alreadyProcessed (the winner completes the grant).
+  const planName = typeof session.metadata?.plan === "string" ? session.metadata.plan : "payment";
+  const claimed = await claimFulfillment(sessionId, u.id, planName);
+  if (!claimed) {
+    const claim = await getFulfillmentClaim(sessionId);
+    if (claim && claim.userId && claim.userId !== u.id)
+      return { error: "This purchase belongs to a different account. Sign in with the account you bought it with.", status: 403 };
+    if (!claim || claim.status === "processed")
+      return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+    // Claim exists and is still 'processing': if it is stale (>5 min — the
+    // original grantor crashed), re-take it and grant; otherwise another
+    // request is in-flight — treat as already processed (it will complete).
+    const age = Date.now() - new Date(claim.claimedAt || Date.now()).getTime();
+    if (age > 5 * 60 * 1000) {
+      const reclaimed = await reclaimFulfillment(sessionId).catch(() => false);
+      if (!reclaimed)
+        return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+    } else {
+      return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+    }
+  }
+  // Canonical "any verified paid grant" event — fires exactly once per Stripe
+  // session because the claim gates every branch below. Coarse fields only
+  // (kind/plan/interval); never session ids, emails, or codes (Track A/B hygiene).
+  const logPurchaseCompleted = (kind, planName2, interval) => {
+    addEvent({ vid, name: "purchase_completed", plan: planName2 || session.metadata?.plan || "payment", meta: { kind, ...(interval ? { interval } : {}) } }).catch((err) => console.warn("[checkout] purchase_completed event failed:", err));
+  };
+  const finalize = async (outcome, result) => {
+    await markFulfillmentProcessed(sessionId, outcome).catch((err) => console.warn("[checkout] claim mark failed:", err));
+    return result;
+  };
+  if (session.mode === "payment") {
+    if (session.metadata?.plan === "topup") {
+      const n = Number(session.metadata?.credits || 10);
+      const grant = applyTopUpGrant(u.profile, n, sessionId);
+      u.profile = grant.profile;
+      await writeUsers(users);
+      logPurchaseCompleted("topup", "topup");
+      return await finalize({ kind: "topup", credits: grant.credits }, { ok: true, kind: "topup", credits: grant.credits });
+    }
+    if (session.metadata?.plan === "gift") {
+      // One-time payment verified -> mint the single-use code. The giver's own
+      // profile is untouched. bys_gift_codes.session_id is UNIQUE, so two
+      // parallel confirms can never mint two codes (fallback to the first row).
+      const already = await getGiftCodeBySession(sessionId);
+      let gRow = already;
+      if (!gRow) {
+        const code = makeGiftCode();
+        try {
+          gRow = await insertGiftCode({ id: code, giverId: u.id, months: 1, sessionId });
+        } catch {
+          gRow = await getGiftCodeBySession(sessionId);
+        }
+      }
+      if (!gRow) {
+        // Insert failed for a non-conflict reason — release the claim so a
+        // retry can re-run; never fabricate a code.
+        console.error("[gift] code mint failed for session", sessionId);
+        await releaseFulfillmentClaim(sessionId).catch(() => {});
+        return { error: "We couldn't create your gift code right now — try again.", status: 500 };
+      }
+      u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
+      await writeUsers(users);
+      logPurchaseCompleted("gift", "gift");
+      const gCreated = gRow.createdAt ? new Date(gRow.createdAt).getTime() : Date.now();
+      return await finalize({ kind: "gift" }, { ok: true, kind: "gift", gift: { code: gRow.id, validUntil: new Date(gCreated + 90 * 24 * 60 * 60 * 1000).toISOString() } });
+    }
+    if (session.metadata?.plan === "sortpile") {
+      // Sort My Pile: grant 30 days of the live Organizer (sortUntil). Rolled
+      // forward from the latest of now / any existing sortUntil so a second
+      // purchase stacks instead of being wasted.
+      const base = Math.max(Date.now(), new Date(u.profile?.sortUntil || 0).getTime());
+      const sortUntil = new Date(base + 30 * 24 * 60 * 60 * 1000).toISOString();
+      u.profile = { ...u.profile || {}, sortUntil, processedSessions: [...processed, sessionId] };
+      await writeUsers(users);
+      logPurchaseCompleted("sortpile", "sortpile");
+      addEvent({ vid, name: "sortpile_purchase", plan: userTier(u), meta: { sortUntil } }).catch(function (err) { console.warn("[sortpile] purchase event failed:", err); });
+      return await finalize({ kind: "sortpile" }, { ok: true, kind: "sortpile", sortUntil });
+    }
+    if (session.metadata?.plan === "attorney_prep_pack") {
+      // Attorney Prep Pack: durable grant — profile.attorneyPrep is the sync
+      // stamp; the bys_attorney_packs row is the canonical record
+      // (ON CONFLICT (session_id) makes double-delivery safe).
+      u.profile = { ...u.profile || {}, attorneyPrep: true, processedSessions: [...processed, sessionId] };
+      await writeUsers(users);
+      logPurchaseCompleted("attorney_prep_pack", "attorney_prep_pack");
+      insertAttorneyPack({
+        userId: u.id,
+        email: u.email || "",
+        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
+        sessionId
+      }).catch((err) => console.warn("[attorney-prep] insert failed:", err));
+      addEvent({ vid, name: "attorney_prep_pack_purchase", plan: "attorney_prep_pack", meta: { kind: "purchase" } }).catch((err) => console.warn("[attorney-prep] event failed:", err));
+      return await finalize({ kind: "attorney_prep_pack" }, { ok: true, kind: "attorney_prep_pack" });
+    }
+    if (session.metadata?.plan === "record_review") {
+      // Record Review: durable grant — profile.recordReview sync stamp +
+      // bys_record_reviews row (kind='purchase', session_id UNIQUE).
+      u.profile = { ...u.profile || {}, recordReview: true, processedSessions: [...processed, sessionId] };
+      await writeUsers(users);
+      logPurchaseCompleted("record_review", "record_review");
+      insertRecordReview({
+        userId: u.id,
+        email: u.email || "",
+        kind: "purchase",
+        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
+        sessionId
+      }).catch((err) => console.warn("[record-review] insert failed:", err));
+      addEvent({ vid, name: "record_review_purchase", plan: "record_review", meta: { kind: "purchase" } }).catch((err) => console.warn("[record-review] event failed:", err));
+      return await finalize({ kind: "record_review" }, { ok: true, kind: "record_review" });
+    }
+    // Consultation (mode payment, no plan-specific stamp beyond the durable row)
+    u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
+    await writeUsers(users);
+    if (session.metadata?.plan === "consultation") {
+      // Durable consultation record — ON CONFLICT (session_id) makes a
+      // double-delivery safe. amount_total is cents.
+      insertConsultation({
+        userId: u.id,
+        email: u.email || "",
+        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
+        sessionId
+      }).catch((err) => console.warn("[consultation] insert failed:", err));
+      logPurchaseCompleted("consultation", "consultation");
+      addEvent({ vid, name: "consultation_purchased", plan: "consultation", meta: { kind: "purchase" } }).catch((err) => console.warn("[consultation] event failed:", err));
+    }
+    return await finalize({ kind: "payment", plan: session.metadata?.plan || "payment" }, { ok: true, kind: "payment" });
+  }
+  if (session.mode !== "subscription")
+    return { error: "That session isn't a subscription.", status: 400 };
+  const mapped = tierFromCheckoutSession(session);
+  if (!mapped)
+    return { error: "We couldn't match that session to a plan.", status: 400 };
+  const renews = new Date(now);
+  if (mapped.interval === "year")
+    renews.setFullYear(renews.getFullYear() + 1);
+  else
+    renews.setMonth(renews.getMonth() + 1);
+  u.profile = {
+    ...u.profile || {},
+    stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id || u.profile?.stripeCustomerId,
+    stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id || u.profile?.stripeSubscriptionId,
+    tier: mapped.tier,
+    tierSince: u.profile?.tierSince || now.toISOString(),
+    tierRenewsAt: renews.toISOString(),
+    processedSessions: [...processed, sessionId]
+  };
+  await writeUsers(users);
+  // Server-side funnel record (owner dashboard "paid" step). Exactly-once via
+  // the claim + a 5-minute vid-level dedupe. Attribution rides when available.
+  {
+    const paidVid2 = paidVid || vid;
+    const recent = await paidEventRecent(paidVid2).catch(() => false);
+    if (!recent) {
+      const sess = await getSessionAttribution(paidVid2).catch(function () { return null; });
+      addEvent({
+        vid: paidVid2,
+        name: "paid",
+        plan: mapped.tier,
+        meta: { interval: mapped.interval, ...(sess?.source ? { source: sess.source, ...(sess.campaign ? { campaign: sess.campaign } : {}) } : {}) }
+      }).catch((err) => console.warn("[checkout] paid event failed:", err));
+    }
+  }
+  logPurchaseCompleted("subscription", mapped.tier, mapped.interval);
+  let introOffer = false;
+  if (session.metadata?.offer === "true") {
+    try {
+      const sched = await createIntroSchedule(stripe, session);
+      introOffer = !!sched;
+      if (!sched)
+        console.warn("[checkout] intro offer: no subscription on session, schedule skipped");
+    } catch (err) {
+      console.error("[checkout] intro schedule creation failed:", err);
+    }
+  }
+  return await finalize({ kind: "subscription", tier: mapped.tier, interval: mapped.interval }, { ok: true, tier: mapped.tier, interval: mapped.interval, paymentStatus: session.payment_status, introOffer });
 }
 async function handleCheckoutConfirm(req) {
   if (!process.env.STRIPE_SECRET_KEY)
@@ -4105,179 +4372,15 @@ async function handleCheckoutConfirm(req) {
     u = users.find((x2) => x2.id === sessionUserId) || null;
   if (!u)
     return json3({ error: "Sign in to link a purchase to your account." }, 401);
-  const processed = Array.isArray(u.profile?.processedSessions) ? u.profile.processedSessions : [];
-  if (processed.includes(sessionId)) {
-    const k2 = session.metadata?.plan === "sortpile" ? "sortpile" : undefined;
-    return json3({ ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0), ...(k2 ? { kind: k2, sortUntil: u.profile?.sortUntil } : {}) });
-  }
-  const now = new Date;
-  // Round-6 funnel: canonical "any verified paid grant" event (server-side
-  // single source of truth, mirroring the `paid` event's philosophy). Fires
-  // exactly once per Stripe session because the processedSessions early-return
-  // above gates every branch below. Meta carries kind/plan/interval only.
-  const logPurchaseCompleted = (kind: string, planName?: string, interval?: string) => {
-    addEvent({ vid: visitorVid(req) || "server", name: "purchase_completed", plan: planName || session.metadata?.plan || "payment", meta: { kind, ...(interval ? { interval } : {}) } }).catch((err) => console.warn("[checkout] purchase_completed event failed:", err));
-  };
-  if (session.mode === "payment") {
-    if (session.metadata?.plan === "topup") {
-      const n = Number(session.metadata?.credits || 10);
-      const grant = applyTopUpGrant(u.profile, n, sessionId);
-      u.profile = grant.profile;
-      await writeUsers(users);
-      logPurchaseCompleted("topup", "topup");
-      return json3({ ok: true, kind: "topup", credits: grant.credits });
-    }
-    if (session.metadata?.plan === "gift") {
-      // One-time payment verified -> mint the single-use code. The giver's own
-      // profile is untouched (no invented reward — owner decision §10 default).
-      // L3: the mint is atomic per Stripe session — bys_gift_codes.session_id
-      // is UNIQUE, so two parallel confirms (two tabs on the success URL) can
-      // never mint two codes: the pre-check returns an already-minted code and
-      // the second INSERT falls back to the first row on the constraint.
-      const already = await getGiftCodeBySession(sessionId);
-      let gRow = already;
-      if (!gRow) {
-        const code = makeGiftCode();
-        try {
-          gRow = await insertGiftCode({ id: code, giverId: u.id, months: 1, sessionId });
-        } catch {
-          gRow = await getGiftCodeBySession(sessionId);
-        }
-      }
-      if (!gRow) {
-        // Insert failed for a non-conflict reason — leave the session
-        // unprocessed so a retry can still mint; never fabricate a code.
-        console.error("[gift] code mint failed for session", sessionId);
-        return json3({ error: "We couldn't create your gift code right now — try again." }, 500);
-      }
-      u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
-      await writeUsers(users);
-      logPurchaseCompleted("gift", "gift");
-      const gCreated = gRow.createdAt ? new Date(gRow.createdAt).getTime() : Date.now();
-      return json3({ ok: true, kind: "gift", gift: { code: gRow.id, validUntil: new Date(gCreated + 90 * 24 * 60 * 60 * 1000).toISOString() } });
-    }
-    if (session.metadata?.plan === "sortpile") {
-      // Sort My Pile: grant 30 days of the live Organizer (sortUntil). Rolled
-      // forward from the latest of now / any existing sortUntil so a second
-      // purchase stacks instead of being wasted. Idempotent via processedSessions.
-      const base = Math.max(Date.now(), new Date(u.profile?.sortUntil || 0).getTime());
-      const sortUntil = new Date(base + 30 * 24 * 60 * 60 * 1000).toISOString();
-      u.profile = { ...u.profile || {}, sortUntil, processedSessions: [...processed, sessionId] };
-      await writeUsers(users);
-      logPurchaseCompleted("sortpile", "sortpile");
-      addEvent({ vid: visitorVid(req) || "server", name: "sortpile_purchase", plan: userTier(u), meta: { sortUntil } }).catch(function (err) { console.warn("[sortpile] purchase event failed:", err); });
-      return json3({ ok: true, kind: "sortpile", sortUntil });
-    }
-    if (session.metadata?.plan === "attorney_prep_pack") {
-      // Attorney Prep Pack (2026-08-12): durable grant on verified paid confirm.
-      // profile.attorneyPrep is the sync entitlement stamp (Ultimate OR stamp =
-      // entitled); the bys_attorney_packs row is the canonical durable record —
-      // ON CONFLICT (session_id) makes a double-confirm safe, and processedSessions
-      // guards the stamp. Re-download stays possible; pack generation/download is
-      // a later build.
-      u.profile = { ...u.profile || {}, attorneyPrep: true, processedSessions: [...processed, sessionId] };
-      await writeUsers(users);
-      logPurchaseCompleted("attorney_prep_pack", "attorney_prep_pack");
-      insertAttorneyPack({
-        userId: u.id,
-        email: u.email || "",
-        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
-        sessionId
-      }).catch((err) => console.warn("[attorney-prep] insert failed:", err));
-      addEvent({ vid: visitorVid(req) || "server", name: "attorney_prep_pack_purchase", plan: "attorney_prep_pack", meta: { sessionId } }).catch((err) => console.warn("[attorney-prep] event failed:", err));
-      return json3({ ok: true, kind: "attorney_prep_pack" });
-    }
-    if (session.metadata?.plan === "record_review") {
-      // Record Review (2026-08-13, Stage 1 money path): durable grant on verified
-      // paid confirm. profile.recordReview is the sync stamp; the
-      // bys_record_reviews row (kind='purchase') is the canonical durable record —
-      // ON CONFLICT (session_id) makes a double-confirm safe, and processedSessions
-      // guards the stamp. Ultimate members' 1/year allowance is a separate path:
-      // their redemption writes a kind='redemption' row (amount 0) when the review
-      // runs (Stage 2) — same table, same 365-day window.
-      u.profile = { ...u.profile || {}, recordReview: true, processedSessions: [...processed, sessionId] };
-      await writeUsers(users);
-      logPurchaseCompleted("record_review", "record_review");
-      insertRecordReview({
-        userId: u.id,
-        email: u.email || "",
-        kind: "purchase",
-        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
-        sessionId
-      }).catch((err) => console.warn("[record-review] insert failed:", err));
-      addEvent({ vid: visitorVid(req) || "server", name: "record_review_purchase", plan: "record_review", meta: { sessionId } }).catch((err) => console.warn("[record-review] event failed:", err));
-      return json3({ ok: true, kind: "record_review" });
-    }
-    u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
-    await writeUsers(users);
-    if (session.metadata?.plan === "consultation") {
-      // Durable consultation record (audit 25ffae58 H4): owner-facing surface is
-      // a post-freeze background item — the durable row is the deliverable.
-      // ON CONFLICT (session_id) makes a double-confirm safe. amount_total is
-      // cents; the session is a paid one-time payment here so it is set.
-      insertConsultation({
-        userId: u.id,
-        email: u.email || "",
-        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
-        sessionId
-      }).catch((err) => console.warn("[consultation] insert failed:", err));
-      logPurchaseCompleted("consultation", "consultation");
-      addEvent({ vid: visitorVid(req) || "server", name: "consultation_purchased", plan: "consultation", meta: { sessionId } }).catch((err) => console.warn("[consultation] event failed:", err));
-    }
-    return json3({ ok: true, kind: "payment" });
-  }
-  if (session.mode !== "subscription")
-    return json3({ error: "That session isn't a subscription." }, 400);
-  const mapped = tierFromCheckoutSession(session);
-  if (!mapped)
-    return json3({ error: "We couldn't match that session to a plan." }, 400);
-  const renews = new Date(now);
-  if (mapped.interval === "year")
-    renews.setFullYear(renews.getFullYear() + 1);
-  else
-    renews.setMonth(renews.getMonth() + 1);
-  u.profile = {
-    ...u.profile || {},
-    stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id || u.profile?.stripeCustomerId,
-    stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id || u.profile?.stripeSubscriptionId,
-    tier: mapped.tier,
-    tierSince: u.profile?.tierSince || now.toISOString(),
-    tierRenewsAt: renews.toISOString(),
-    processedSessions: [...processed, sessionId]
-  };
-  await writeUsers(users);
-  // Server-side funnel record — the owner dashboard's "paid" step no longer
-  // depends on client JS firing (which is what broke during the incident).
-  // Conversion-tracking Fixes 4+5 (audit 85fbc48d): stamp the buyer session's
-  // source/campaign (a Google Ads click survives checkout) and skip the write
-  // when a `paid` row for this vid landed in the last 5 minutes (single source
-  // of truth — no double-count when both paths ever fire).
-  {
-    const paidVid = req.headers.get("cookie")?.match(/(?:^|;\s*)bys_vid=([^;]+)/)?.[1] || "server";
-    const recent = await paidEventRecent(paidVid).catch(() => false);
-    if (!recent) {
-      const sess = await getSessionAttribution(paidVid).catch(function () { return null; });
-      addEvent({
-        vid: paidVid,
-        name: "paid",
-        plan: mapped.tier,
-        meta: { interval: mapped.interval, ...(sess?.source ? { source: sess.source, ...(sess.campaign ? { campaign: sess.campaign } : {}) } : {}) }
-      }).catch((err) => console.warn("[checkout] paid event failed:", err));
-    }
-  }
-  logPurchaseCompleted("subscription", mapped.tier, mapped.interval);
-  let introOffer = false;
-  if (session.metadata?.offer === "true") {
-    try {
-      const sched = await createIntroSchedule(stripe, session);
-      introOffer = !!sched;
-      if (!sched)
-        console.warn("[checkout] intro offer: no subscription on session, schedule skipped");
-    } catch (err) {
-      console.error("[checkout] intro schedule creation failed:", err);
-    }
-  }
-  return json3({ ok: true, tier: mapped.tier, interval: mapped.interval, paymentStatus: session.payment_status, introOffer });
+  // Shared durable fulfillment — the browser confirm is now UX/recovery, not
+  // the sole grant path: the verified webhook fulfills the same session with
+  // the same atomic claim (Track B items 4+5). ownership/paid checks above are
+  // unchanged.
+  const paidVid = req.headers.get("cookie")?.match(/(?:^|;\s*)bys_vid=([^;]+)/)?.[1] || "server";
+  const out = await fulfillCheckoutSession({ stripe, session, sessionId, users, u, vid: visitorVid(req) || "server", paidVid });
+  if (out.error)
+    return json3({ error: out.error }, out.status || 500);
+  return json3(out);
 }
 
 // Stripe webhook (H2): receives checkout.session.completed and
@@ -4287,78 +4390,141 @@ async function handleCheckoutConfirm(req) {
 // Fail-safe: with no STRIPE_WEBHOOK_SECRET configured we verify nothing and 200
 // WITHOUT processing — unsigned events are never trusted.
 async function handleStripeWebhook(req) {
+  // Track B item 6: signature verification is mandatory. Missing secret -> 503
+  // (non-2xx, Stripe retries with backoff — never silently 200). Invalid
+  // signature -> 400. Verified/duplicate events -> 2xx (idempotent via the
+  // atomic fulfillment claim).
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   const raw = await req.text();
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_missing", { apiVersion: "2025-02-24.acacia" });
+  if (!secret) {
+    console.warn("[webhook] STRIPE_WEBHOOK_SECRET not configured — returning 503 (Stripe will retry), nothing processed");
+    return json3({ error: "Webhook not configured." }, 503);
+  }
+  const sig = req.headers.get("stripe-signature") || "";
   let event;
-  if (secret) {
-    const sig = req.headers.get("stripe-signature") || "";
-    try {
-      event = stripe.webhooks.constructEvent(raw, sig, secret);
-    } catch {
-      console.warn("[webhook] signature verification failed");
-      return json3({ error: "Invalid signature." }, 400);
-    }
-  } else {
-    console.warn("[webhook] STRIPE_WEBHOOK_SECRET not configured — dropping event unprocessed:", raw.slice(0, 160));
-    return new Response(null, { status: 200 });
+  try {
+    event = stripe.webhooks.constructEvent(raw, sig, secret);
+  } catch {
+    console.warn("[webhook] signature verification failed");
+    return json3({ error: "Invalid signature." }, 400);
   }
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
+      // Card-only checkout completes paid; anything else is not grantable yet.
+      if (session.payment_status !== "paid") {
+        console.log("[webhook] checkout session not paid yet — no-op", session.id);
+        return json3({ ok: true });
+      }
       const users = await readUsers();
-      const u = users.find((x) => session.client_reference_id && x.id === session.client_reference_id) ||
-        users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === (typeof session.customer === "string" ? session.customer : session.customer?.id));
+      // Resolve the app user from the stamp (client_reference_id wins, then
+      // metadata.user_id, then Stripe customer). No stamp = no user to grant.
+      const sessionUserId = (typeof session.client_reference_id === "string" && session.client_reference_id)
+        ? session.client_reference_id
+        : (typeof session.metadata?.user_id === "string" && session.metadata.user_id ? session.metadata.user_id : "");
+      const sessionCust = typeof session.customer === "string" ? session.customer : (session.customer?.id || "");
+      const u = (sessionUserId ? users.find((x) => x.id === sessionUserId) : null) ||
+        (sessionCust ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === sessionCust) : null);
       if (!u) {
         console.warn("[webhook] checkout completed but no user matched session", session.id);
         return json3({ ok: true });
       }
-      const processed = Array.isArray(u.profile?.processedSessions) ? u.profile.processedSessions : [];
-      if (processed.includes(session.id))
-        return json3({ ok: true, idempotent: true });
-      // M1: one-time plans (gift 499c, topup 950c, consultation 3950c) are
-      // granted ONLY by the confirm path — the webhook must never map a gift
-      // session to steady/month (999c collision) or stamp processedSessions.
-      if (session.mode !== "subscription")
-        return json3({ ok: true });
-      const mapped = tierFromCheckoutSession(session);
-      if (!mapped) {
-        console.warn("[webhook] no tier mapping for session", session.id);
+      // Shared durable fulfillment for subscriptions AND all one-time products
+      // (attorney pack, record review, consultations, top-up, give-a-month).
+      const out = await fulfillCheckoutSession({ stripe, session, sessionId: session.id, users, u, vid: "webhook", paidVid: "webhook" });
+      if (out.error)
+        console.warn("[webhook] fulfillment refused:", out.error);
+      else
+        console.log("[webhook] fulfilled", session.id, "for", u.email, out.kind || out.tier || "payment", out.alreadyProcessed ? "(already processed)" : "");
+      return json3({ ok: true });
+    }
+    if (event.type === "invoice.paid") {
+      // Track B item 7 (renewals): a verified recurring payment advances the
+      // real Stripe current-period entitlement. Period end comes from the
+      // invoice's subscription lines (period.end, unix seconds) — the verified
+      // invoice IS the proof of payment, so no extra API call is needed.
+      const inv = event.data.object;
+      const customerId = typeof inv.customer === "string" ? inv.customer : inv.customer?.id;
+      const periodEnd = periodEndFromInvoice(inv);
+      if (!periodEnd) {
+        console.warn("[webhook] invoice.paid with no period — cannot advance", inv.id);
         return json3({ ok: true });
       }
-      const now = new Date();
-      const renews = new Date(now);
-      if (mapped.interval === "year") renews.setFullYear(renews.getFullYear() + 1);
-      else renews.setMonth(renews.getMonth() + 1);
-      u.profile = {
-        ...u.profile || {},
-        stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id || u.profile?.stripeCustomerId,
-        stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id || u.profile?.stripeSubscriptionId,
-        tier: mapped.tier,
-        tierSince: u.profile?.tierSince || now.toISOString(),
-        tierRenewsAt: renews.toISOString(),
-        processedSessions: [...processed, session.id]
-      };
+      const users = await readUsers();
+      const u = customerId ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId) : null;
+      if (!u) {
+        console.warn("[webhook] invoice.paid but no user matched customer", customerId || "(none)");
+        return json3({ ok: true });
+      }
+      u.profile = { ...u.profile || {}, subscriptionStatus: "active", lastRenewalAt: new Date().toISOString(), tierRenewsAt: new Date(periodEnd * 1000).toISOString() };
       await writeUsers(users);
-      if (session.metadata?.offer === "true" && mapped.tier === "ultimate") {
-        createIntroSchedule(stripe, session).catch((err) => console.warn("[webhook] intro schedule failed:", err));
+      console.log("[webhook] renewal advanced for", u.email, "until", new Date(periodEnd * 1000).toISOString());
+      return json3({ ok: true });
+    }
+    if (event.type === "invoice.payment_failed") {
+      // Failed renewal: explicit grace — keep the paid tier, mark past_due, do
+      // NOT downgrade. Stripe retries the invoice on its own schedule; a later
+      // invoice.paid or subscription.deleted (retries exhausted) resolves it.
+      const inv = event.data.object;
+      const customerId = typeof inv.customer === "string" ? inv.customer : inv.customer?.id;
+      const users = await readUsers();
+      const u = customerId ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId) : null;
+      if (!u) {
+        console.warn("[webhook] invoice.payment_failed but no user matched customer", customerId || "(none)");
+        return json3({ ok: true });
       }
-      console.log("[webhook] granted tier", mapped.tier, "to", u.email);
-    } else if (event.type === "customer.subscription.deleted" || event.type === "customer.subscription.canceled") {
+      u.profile = { ...u.profile || {}, subscriptionStatus: "past_due", lastPaymentFailedAt: new Date().toISOString() };
+      await writeUsers(users);
+      console.log("[webhook] renewal failed for", u.email, "— tier kept during grace (past_due)");
+      return json3({ ok: true });
+    }
+    if (event.type === "customer.subscription.canceled" || event.type === "customer.subscription.deleted") {
+      // Cancellation keeps paid-through access, then downgrades (lazily via
+      // userTier's tierRenewsAt expiry). An immediate cancel (current_period_end
+      // already past) downgrades now.
       const sub = event.data.object;
       const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
       const users = await readUsers();
-      const u = users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId);
-      if (!u) return json3({ ok: true });
-      u.profile = { ...u.profile || {}, tier: "free", tierSince: undefined, tierRenewsAt: undefined };
+      const u = customerId ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId) : null;
+      if (!u) {
+        console.warn("[webhook] subscription ended but no user matched customer", customerId || "(none)");
+        return json3({ ok: true });
+      }
+      const periodEnd = typeof sub.current_period_end === "number" ? sub.current_period_end * 1000 : 0;
+      const paidThrough = periodEnd > Date.now();
+      if (paidThrough) {
+        // Paid through period end — keep the tier until tierRenewsAt, then the
+        // existing lazy expiry in userTier() downgrades the account to free.
+        u.profile = { ...u.profile || {}, subscriptionStatus: "canceled", tierRenewsAt: new Date(periodEnd).toISOString() };
+        console.log("[webhook] subscription canceled —", u.email, "keeps paid access until", new Date(periodEnd).toISOString());
+      } else {
+        u.profile = { ...u.profile || {}, tier: "free", tierSince: undefined, tierRenewsAt: undefined, subscriptionStatus: "canceled" };
+        console.log("[webhook] subscription ended — downgraded", u.email, "to free");
+      }
       await writeUsers(users);
-      console.log("[webhook] subscription ended — downgraded", u.email, "to free");
+      return json3({ ok: true });
     }
   } catch (err) {
     console.error("[webhook] processing failed:", err);
+    // Processing error: retryable (non-2xx) so Stripe re-delivers — the
+    // atomic claim keeps any re-delivery idempotent.
+    return json3({ error: "Processing failed." }, 500);
   }
   return json3({ ok: true });
 }
+// Verified invoice period end (unix seconds): the max subscription-line period
+// end on the invoice — the real Stripe current-period entitlement boundary.
+function periodEndFromInvoice(inv) {
+  if (!inv || !Array.isArray(inv.lines?.data)) return null;
+  let maxEnd = 0;
+  for (const line of inv.lines.data) {
+    const end = line?.period?.end;
+    if (typeof end === "number" && end > maxEnd) maxEnd = end;
+  }
+  return maxEnd > 0 ? maxEnd : null;
+}
+
 function introPhaseEndSeconds(currentPeriodEnd) {
   const d2 = new Date(currentPeriodEnd * 1000);
   const day = d2.getUTCDate();
@@ -5060,3 +5226,21 @@ export async function handleApiRequest(req: Request): Promise<Response | null> {
   return null;
 }
 
+// ---- Track B test hooks (preview-only; used by /home/team/shared/track-b) --
+// Direct-invocation hooks for the Track B evidence suite. They expose the
+// durable-fulfillment and lifecycle internals so the preview can prove
+// behavior (atomic claim, webhook statuses, renewals, deletion) without ever
+// creating a live-mode Stripe Checkout Session. No-op in production: nothing
+// imports them except the evidence scripts.
+export const __trackB = {
+  fulfillCheckoutSession,
+  handleCheckoutConfirm,
+  handleStripeWebhook,
+  handleAccountDelete,
+  buildSubscriptionParams,
+  oneTimeCheckoutParams,
+  stampCheckoutParams,
+  qaPaymentsBlocked,
+  periodEndFromInvoice,
+  LOGIN_REQUIRED_MSG
+};

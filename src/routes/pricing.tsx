@@ -213,6 +213,15 @@ function Pricing() {
       });
       const d = await r.json();
       if (d.url) location.href = d.url;
+      else if (r.status === 401 || d.login_required) {
+        // Track B item 2: visible login handling on every public caller, with
+        // the purchase intent preserved in ?next= (and the URL kept intact so a
+        // checkout=success return re-fires confirm). No sensitive answers ride
+        // the URL — the check-in answers never leave the device.
+        setNeedLogin(true);
+        setNeedLoginHref(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+        setMsg("Sign in to start checkout — your purchase is linked to your account.");
+      }
       else setMsg(d.error || "Checkout is not available right now.");
     } catch {
       setMsg("Checkout is not available right now.");

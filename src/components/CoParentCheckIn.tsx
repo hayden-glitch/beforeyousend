@@ -44,6 +44,7 @@ export default function CoParentCheckIn() {
   const [skipped, setSkipped] = useState(false);
   const [rec, setRec] = useState<CheckinRec | null>(null);
   const [busy, setBusy] = useState(false);
+  const [needLogin, setNeedLogin] = useState(false);
   const [msg, setMsg] = useState("");
   const [paid, setPaid] = useState(false);
   const [animKey, setAnimKey] = useState(0); // re-mounts step content (120ms fade/slide)
@@ -270,15 +271,10 @@ export default function CoParentCheckIn() {
       const r = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan: rec.plan,
-          interval: "month",
-          checkin: true,
-          q1: q1 || undefined,
-          q2: q2 || undefined,
-          q3: q3 || undefined,
-          rec: rec.rec,
-        }),
+        // Track B items 2+3: only the plan + checkin marker ride the request —
+        // the answers (q1/q2/q3/rec) never leave this device, so nothing
+        // sensitive can reach Stripe metadata or any URL.
+        body: JSON.stringify({ plan: rec.plan, interval: "month", checkin: true }),
       });
       const d = await r.json();
       if (d.url) {
@@ -286,12 +282,17 @@ export default function CoParentCheckIn() {
         location.href = d.url;
         return;
       }
+      if (r.status === 401 || d.login_required) {
+        setMsg("Sign in to finish — your answers are still on this page, and your purchase will be linked to your account.");
+        setNeedLogin(true);
+        return;
+      }
       setMsg(d.error || "Checkout is not available right now.");
     } catch {
       setMsg("Checkout is not available right now.");
     }
     setBusy(false);
-  }, [rec, q1, q2, q3]);
+  }, [rec]);
 
   if (group !== "on") return null;
 
@@ -504,6 +505,11 @@ export default function CoParentCheckIn() {
                 {msg}
               </p>
             )}
+        {needLogin && (
+          <a href={`/login?next=${encodeURIComponent(pathname + window.location.search)}`} className="btn-primary mt-3 block w-full text-center">
+            Sign in to continue
+          </a>
+        )}
           </div>
         </div>
       )}

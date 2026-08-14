@@ -72,7 +72,17 @@ function Consultations() {
     try {
       const r = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: "consultation" }) });
       const data = await r.json();
-      if (!r.ok) { setMessage(data.error || "Checkout is not available right now. Please try again soon."); setBusy(false); return; }
+      if (!r.ok) {
+        if (r.status === 401 || data.login_required) {
+          setNeedLogin(true);
+          setNeedLoginHref(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+          setMessage("Sign in to book — your consultation is linked to your account.");
+        } else {
+          setMessage(data.error || "Checkout is not available right now. Please try again soon.");
+        }
+        setBusy(false);
+        return;
+      }
       if (data.url) location.href = data.url;
       else { setMessage("Checkout is not available right now. Please try again soon."); setBusy(false); }
     } catch { setMessage("Checkout is not available right now. Please try again soon."); setBusy(false); }

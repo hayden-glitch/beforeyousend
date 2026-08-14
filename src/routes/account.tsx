@@ -226,7 +226,7 @@ function AccountPage() {
 
   // Section 7 — Account (same copy + behavior as home.tsx L291-296).
   const deleteAccount = async () => {
-    if (!window.confirm("Delete your account permanently? This removes your saved reviews, communication log, and event timeline. It can't be undone.")) return;
+    if (!window.confirm("Delete your account permanently? This removes your saved reviews, communication log, and event timeline, and cancels any paid plan. It can't be undone.")) return;
     const r = await fetch("/api/account", { method: "DELETE" });
     if (r.ok) {
       setNotice("Your account and data have been deleted. Take care, and come back anytime.");
