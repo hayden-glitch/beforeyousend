@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { track, trackFunnelOnce } from "~/lib/analytics";
 import { authMeOnce } from "~/lib/checkin";
+import { modalOpen, claimModal, releaseModal } from "~/lib/trial";
 import { IconArrowLeft, IconCheck, IconClose } from "./icons";
 
 // Round-6 guided funnel (Codex R6-2, 2026-08-13): after the first free review
@@ -93,27 +94,63 @@ export default function GuidedFunnel() {
   stepRef.current = step;
   const needRef = useRef(need);
   needRef.current = need;
+  // Poll handle for the modal-lock deferral (FIX 1): cleared on unmount.
+  const deferTimerRef = useRef<number | null>(null);
 
   // Trigger: ReviewTool dispatches "bys:guided-funnel" ~1.4s after a review
   // (or the free example) completes. Eligibility: signed-out, not seen this
-  // tab. An interrupted flow (reload / back-navigation) resumes from its
-  // persisted state — reload can never corrupt it.
+  // tab — UNLESS a mid-flow state was saved (reload / back-navigation), in
+  // which case the funnel resumes from the persisted step even when the seen
+  // flag survived (R6-3: the resume path was unreachable because the seen
+  // check short-circuited the trigger). The funnel also defers to the shared
+  // modal lock (TrialModal / Special Offer): if another dialog is up when the
+  // trigger fires, it waits for the lock to clear, then opens in this same
+  // session — never two dialogs in the DOM at once.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onTrigger = () => {
-      if (seenThisTab()) return;
+    const openIfEligible = (saved: FlowState | null) => {
       authMeOnce().then((a) => {
         if (a.signedIn) return; // already has an account — nothing to capture
-        const saved = readState();
+        if (modalOpen()) return; // another dialog claimed the lock — never stack
         setNeed(saved?.need ?? null);
         setStep(saved?.step ?? 0);
         needFiredRef.current = !!saved?.need; // a resumed flow already picked
         markSeen();
-        setOpen(true);
+        setOpen(true); // the open effect claims the modal lock
       });
     };
+    const onTrigger = () => {
+      const saved = readState();
+      if (!saved && seenThisTab()) return;
+      if (modalOpen()) {
+        // TrialModal/SpecialOffer holds the shared window lock — the funnel
+        // must never stack on top. Wait for the lock to clear, then open in
+        // this same session. Give up quietly after 60s rather than ever
+        // stacking (the post-value moment has decayed by then).
+        const start = Date.now();
+        const iv = window.setInterval(() => {
+          if (!modalOpen()) {
+            window.clearInterval(iv);
+            deferTimerRef.current = null;
+            openIfEligible(saved);
+          } else if (Date.now() - start > 60000) {
+            window.clearInterval(iv);
+            deferTimerRef.current = null;
+          }
+        }, 250);
+        deferTimerRef.current = iv;
+      } else {
+        openIfEligible(saved);
+      }
+    };
     window.addEventListener("bys:guided-funnel", onTrigger);
-    return () => window.removeEventListener("bys:guided-funnel", onTrigger);
+    return () => {
+      window.removeEventListener("bys:guided-funnel", onTrigger);
+      if (deferTimerRef.current !== null) {
+        window.clearInterval(deferTimerRef.current);
+        deferTimerRef.current = null;
+      }
+    };
   }, []);
 
   // Funnel events: funnel_started once per tab (trackFunnelOnce guards it),
@@ -126,9 +163,13 @@ export default function GuidedFunnel() {
   }, [open, step]);
 
   // Dialog focus management: focus the panel on open, trap Tab inside it,
-  // close on Escape, lock body scroll, restore focus on close.
+  // close on Escape, lock body scroll, restore focus on close. Also claims
+  // the shared modal lock while open (TrialModal/Special Offer see it and
+  // defer — the funnel can never stack with another dialog, R6-3) and
+  // releases it on close AND on unmount via this effect's cleanup.
   useEffect(() => {
     if (!open) return;
+    claimModal();
     lastFocus.current = document.activeElement as HTMLElement | null;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -159,6 +200,7 @@ export default function GuidedFunnel() {
     };
     document.addEventListener("keydown", onKey, true);
     return () => {
+      releaseModal();
       document.body.style.overflow = prevOverflow;
       document.removeEventListener("keydown", onKey, true);
       lastFocus.current?.focus?.();
