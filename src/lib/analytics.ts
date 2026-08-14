@@ -331,7 +331,7 @@ export async function initAnalytics(cfg: AnalyticsConfig): Promise<void> {
     const heartbeat = () => {
       try {
         if (typeof document === "undefined" || document.visibilityState !== "visible") return;
-        persistEvent("sp_ping", { path: `${location.pathname}${location.search}` });
+        persistEvent("sp_ping", { path: location.pathname });
       } catch { /* tracking must never break the page */ }
     };
     window.setTimeout(heartbeat, 2000);
@@ -376,11 +376,129 @@ function persistEvent(event: string, data: Record<string, unknown>) {
 // click-source param. The funnel/playback paths stay clean ("/login"), while the
 // params still ride along for the session row's first-write-wins attribution.
 const AD_PARAMS = ["ttclid","gclid","gbraid","wbraid","gad_source","gad_campaignid","gad_campaign","gad_adgroupid","gad_creative","gad_network","gad_device","gad_targetid","gad_placement","gad_interest","gad_keyword","gad_loc_interest","gad_loc_physical","gad_extension","gad_feeditemid","gad_target","gad_aceid","gad_cell","gad_audience","gad_clickid"];
-function sanitizeSearch(raw: URLSearchParams): string {
-  const kept = new URLSearchParams();
-  raw.forEach((v, k) => { if (!AD_PARAMS.includes(k) && v !== "") kept.append(k, v); });
-  const s = kept.toString();
-  return s ? `?${s}` : "";
+
+// ── Track A security hotfix (Codex consolidated order 5294958539) ────────────
+// Analytics/pixel deny-by-default: generic track() persists first-party ONLY.
+// These coarse, non-sensitive events are the explicit allowlist that may ALSO
+// reach third-party ad measurement (TikTok ttq, gtag custom events, and the
+// third-party-facing dataLayer). Everything else — intake/check-in answers,
+// quiz grades, child/folder/rating/tone detail, organizer/sortpile/record
+// health, drafts — stays first-party no matter who calls track().
+const AD_MEASUREMENT_EVENTS = new Set<AnalyticsEvent>([
+  "landing_page_visit", "landing_module_click", "hero_view", "hero_cta_click",
+  "review_started", "review_completed", "review_failed",
+  "email_submitted", "account_created", "login_success", "password_set",
+  "pricing_viewed", "consultation_viewed", "checkout_started",
+  "subscription_purchased", "topup_purchased", "sortpile_purchase",
+  "attorney_prep_pack_purchase", "record_review_purchase", "consultation_purchased",
+  "gift_code_created", "gift_redeem_view", "gift_redeemed",
+  "special_offer_shown", "special_offer_accepted", "special_offer_dismissed",
+  "trial_modal_shown", "trial_modal_yes", "trial_modal_no", "trial_started",
+  "quota_cta_click", "plan_chip_click",
+  "mode_switched", "analyze_started", "analyze_completed",
+  "attach_locked_tap", "steady_sheet_shown", "attach_added", "attach_removed",
+]);
+
+// Keys that must never be persisted into first-party analytics rows: sensitive
+// situation answers, credentials/payment identifiers, child/family identifiers,
+// exchange assessments, raw continuation URLs, and cross-platform click IDs
+// (click IDs belong only in the page_view attribution object — never inside
+// another platform's event payload).
+const NEVER_PERSIST_KEYS = new Set<string>([
+  "q1", "q2", "q3", "answer", "answers", "email", "child", "gender", "next",
+  "token", "session_id", "sessionId", "code", "giftCode", "draft", "text",
+  "message", "value", "tone", "promo", "rec", "recommendation",
+  "landingPath", "rawPath",
+  ...AD_PARAMS,
+]);
+
+// Behavioral assessment keys stripped from third-party payloads even when the
+// event IS allowlisted (kept first-party only if the event persists them).
+const NEVER_AD_KEYS = new Set<string>(["score", "band", "folder", "gap", "label", "coverage", "missing"]);
+
+// Explicit per-event safe-key schema: ONLY these structural keys may persist
+// (unknown/future keys are dropped, not stored — never a silent denylist).
+const SAFE_PERSIST_KEYS = new Set<string>([
+  "dt", "t", "sp", "kind", "path", "referrer", "attribution",
+  "step", "variant", "source", "mode", "auth", "example", "status", "timeout",
+  "interval", "tier", "intro", "count", "n", "chars", "remaining", "module",
+  "edit", "target", "context", "item", "week", "plan", "q",
+  "score", "band", "label", "gap", "folder", "coverage", "gaps", "missing",
+  "dest", "filed", "needsSorting", "skipped", "total", "campaign",
+]);
+
+function pickSafeMeta(event: AnalyticsEvent, data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (NEVER_PERSIST_KEYS.has(k) || !SAFE_PERSIST_KEYS.has(k)) continue;
+    if (v === undefined || v === null) continue;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+      out[k] = v;
+    } else if (k === "attribution" && typeof v === "object" && !Array.isArray(v)) {
+      // Attribution object passes through allowlisted only (AD_PARAMS).
+      const att: Record<string, string> = {};
+      for (const [ak, av] of Object.entries(v as Record<string, unknown>)) {
+        if (AD_PARAMS.includes(ak) && typeof av === "string") att[ak] = av;
+      }
+      if (Object.keys(att).length) out.attribution = att;
+    }
+  }
+  // login_success: the raw `next` URL is NEVER stored — record only a safe
+  // destination category (pathname, query/hash stripped).
+  if (event === "login_success" && typeof data.next === "string") {
+    let dest = "home";
+    try {
+      const p = new URL(data.next, typeof location !== "undefined" ? location.origin : "https://beforeyousend.org").pathname;
+      dest = p === "/home" ? "home" : p.startsWith("/pricing") ? "pricing" : p.startsWith("/redeem") ? "redeem" : p.startsWith("/consultations") ? "consultations" : p.startsWith("/onboarding") ? "onboarding" : "other";
+    } catch { /* keep home */ }
+    if (dest !== "home") out.dest = dest;
+  }
+  // Intake/check-in answer events: record the structural step only — never the
+  // answer value itself.
+  const stepMatch = /^(login_intake|checkin)_q([123])_answered$/.exec(event);
+  if (stepMatch) out.step = Number(stepMatch[2]);
+  return out;
+}
+
+function toAdSafeMeta(safe: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(safe)) {
+    if (NEVER_AD_KEYS.has(k)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+// Sanitize document.referrer for persistence/attribution: same-origin
+// referrers reduce to pathname; external referrers reduce to origin — never
+// query or hash.
+function sanitizeReferrer(ref: string): string | undefined {
+  if (!ref) return undefined;
+  try {
+    const u = new URL(ref);
+    const same = typeof location !== "undefined" && u.origin === location.origin;
+    return same ? u.pathname : u.origin;
+  } catch {
+    return ref.split(/[?#]/)[0] || undefined;
+  }
+}
+
+// UI state params that are safe to keep in a page URL for third-party page
+// payloads. Everything else non-attribution (token/session_id/code/next/…)
+// suppresses third-party page payloads until the route scrubs the URL.
+const SAFE_UI_PARAMS = new Set(["tab", "checkin", "example", "source", "variant", "q", "plan", "ok", "sort", "from"]);
+
+function hasNonAttributionQuery(search: string): boolean {
+  if (!search || search === "?") return false;
+  try {
+    const q = new URLSearchParams(search);
+    for (const k of q.keys()) {
+      if (!AD_PARAMS.includes(k) && !SAFE_UI_PARAMS.has(k)) return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 export function trackPageView(path?: string): void {
@@ -399,53 +517,59 @@ export function trackPageView(path?: string): void {
         return;
       }
     } catch { /* sessionStorage unavailable — no suppression */ }
-    // Fix 1 (audit 85fbc48d): the persisted page name is pathname + sanitized
-    // search — known ad params move into meta.attribution. The RAW url still
-    // goes to gtag/dataLayer (Google's own tag reads gclid/gbraid from the
-    // actual page URL; only OUR persisted names are cleaned).
-    const rawPath = path ?? `${location.pathname}${location.search}`;
+    // Track A (Codex consolidated order §3): analytics/replay paths are
+    // PATHNAME ONLY — never raw URLs. Query strings never persist; ad
+    // attribution rides in the dedicated allowlisted attribution object.
+    const pathname = path ?? location.pathname;
     const raw = new URLSearchParams(location.search);
     const attribution: Record<string, string> = {};
     for (const k of AD_PARAMS) { const v = raw.get(k); if (v) attribution[k] = v; }
-    const cleanSearch = sanitizeSearch(raw);
-    const pagePath = path ?? `${location.pathname}${cleanSearch}`;
     // Fix 3: dedup on PATHNAME within 30s per tab (query variations collapse;
     // the ttclid redirect hop + final landing page collapse; a real revisit to a
     // DIFFERENT path still counts).
-    const pathname = pagePath.split("?")[0];
     const now = Date.now();
     if (lastPage && lastPage.pathname === pathname && now - lastPage.at < PAGE_DEDUP_MS) return;
     lastPage = { pathname, at: now };
-    if (typeof window.gtag === "function") {
-      window.gtag("event", "page_view", { page_path: rawPath });
+    // Pixel page-view guard: while the URL carries any non-attribution /
+    // non-UI query param (token, session_id, code, next, unknown on /confirm,
+    // /pricing, /consultations, /redeem, /login), ALL third-party page payloads
+    // are skipped until the route scrubs the URL. First-party persistence
+    // (pathname-only) is unaffected.
+    const dirty = hasNonAttributionQuery(location.search);
+    if (!dirty) {
+      if (typeof window.gtag === "function") {
+        window.gtag("event", "page_view", { page_path: pathname });
+      }
+      // TikTok ttclid landing (login.tsx): TikTok ad clicks land on
+      // /login?ttclid=… and are immediately window.location.replace'd to
+      // /?ttclid=… (full reload). Skip ttq.page() on that intermediate /login
+      // page so the pixel fires exactly ONCE — on the final landing page —
+      // instead of doubling every TikTok ad page_view. (The page_view event
+      // still persists for the funnel; only the pixel double-fire is wrong.)
+      const loginTtclidRedirect =
+        pathname === "/login" &&
+        /[?&]ttclid=/.test(location.search) &&
+        !/[?&]next=/.test(location.search);
+      if (typeof window.ttq?.page === "function" && !loginTtclidRedirect) {
+        window.ttq.page();
+      }
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ event: "page_view", page_path: pathname });
     }
-    // TikTok ttclid landing (login.tsx): TikTok ad clicks land on
-    // /login?ttclid=… and are immediately window.location.replace'd to
-    // /?ttclid=… (full reload). Skip ttq.page() on that intermediate /login
-    // page so the pixel fires exactly ONCE — on the final landing page —
-    // instead of doubling every TikTok ad page_view. (The page_view event
-    // still persists for the funnel; only the pixel double-fire is wrong.)
-    const loginTtclidRedirect =
-      rawPath.startsWith("/login") &&
-      /[?&]ttclid=/.test(rawPath) &&
-      !/[?&]next=/.test(rawPath);
-    if (typeof window.ttq?.page === "function" && !loginTtclidRedirect) {
-      window.ttq.page();
-    }
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push({ event: "page_view", page_path: rawPath });
     // True external referrer: the server-side session referrer is always the
     // current page URL (same-origin API calls), so the only honest external
     // referrer is document.referrer, captured here on the first page_view.
-    // Fix 1 (audit 85fbc48d): meta.path is the sanitized page name for the
-    // funnel/playback; the RAW full URL rides separately as meta.landingPath so
-    // bys_sessions.landing_path keeps the real landing URL (the spec keeps raw
-    // URLs ONLY there — never in the page-name fields).
-    persistEvent("page_view", { path: pagePath, landingPath: rawPath, referrer: document.referrer || undefined, ...(Object.keys(attribution).length ? { attribution } : {}) });
+    // Track A: referrer is sanitized (same-origin pathname / external origin —
+    // never query/hash); the raw landing URL is no longer persisted anywhere.
+    persistEvent("page_view", {
+      path: pathname,
+      referrer: sanitizeReferrer(document.referrer || ""),
+      ...(Object.keys(attribution).length ? { attribution } : {}),
+    });
     // Metrics 2.0: page enter for the playback timeline (deduped per pathname).
-    onPageEnter(pagePath, attribution);
+    onPageEnter(pathname, attribution);
     if (import.meta.env?.DEV) {
-      console.debug("[analytics] page_view", pagePath);
+      console.debug("[analytics] page_view", pathname);
     }
   } catch {
     /* tracking must never break the page */
@@ -469,21 +593,30 @@ export function track(event: AnalyticsEvent, data?: Record<string, unknown>): vo
     if (typeof window === "undefined") return;
     const w = window;
     const payload = data ?? {};
-    if (typeof w.ttq?.track === "function") {
-      try {
-        w.ttq.track(event, payload);
-      } catch {
-        /* noop */
+    // Track A (Codex consolidated order §1+§2): ALL events persist first-party
+    // only, after central metadata scrubbing (pickSafeMeta — per-event safe-key
+    // schema, not a giant denylist). Only the explicit AD_MEASUREMENT_EVENTS
+    // allowlist may also reach TikTok / gtag / the third-party-facing dataLayer,
+    // and even then with the further-reduced ad-safe payload.
+    const safe = pickSafeMeta(event, payload);
+    if (AD_MEASUREMENT_EVENTS.has(event)) {
+      const adSafe = toAdSafeMeta(safe);
+      if (typeof w.ttq?.track === "function") {
+        try {
+          w.ttq.track(event, adSafe);
+        } catch {
+          /* noop */
+        }
+      }
+      const label = CV[event];
+      if (label && typeof w.gtag === "function") w.gtag("event", event, { send_to: `${import.meta.env.VITE_GOOGLE_ADS_ID || "AW-18234635191"}/${label}`, ...adSafe });
+      if (Array.isArray(w.dataLayer)) {
+        w.dataLayer.push({ event, ...adSafe });
       }
     }
-    const label = CV[event];
-    if (label && typeof w.gtag === "function") w.gtag("event", event, { send_to: `${import.meta.env.VITE_GOOGLE_ADS_ID || "AW-18234635191"}/${label}`, ...payload });
-    if (Array.isArray(w.dataLayer)) {
-      w.dataLayer.push({ event, ...payload });
-    }
-    persistEvent(event, payload);
+    persistEvent(event, safe);
     if (import.meta.env?.DEV) {
-      console.debug("[analytics]", event, payload);
+      console.debug("[analytics]", event, safe);
     }
   } catch {
     /* noop */

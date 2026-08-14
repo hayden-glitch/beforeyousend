@@ -88,6 +88,20 @@ function Pricing() {
 
   useEffect(() => {
     track("pricing_viewed", {});
+    // Track A (Codex consolidated order §3): after the Stripe-return confirm
+    // flow resolves, scrub checkout/session_id/plan params from the URL so the
+    // payment identifier never lingers in the address bar or any later
+    // analytics capture. Only safe UI params (tab/checkin) survive. The 401
+    // "sign in to link" href is built from the raw URL BEFORE this runs.
+    const cleanCheckoutUrl = () => {
+      try {
+        const clean = new URLSearchParams();
+        const qq = new URLSearchParams(window.location.search);
+        for (const [k, v] of qq) { if (k === "tab" || k === "checkin") clean.set(k, v); }
+        const s = clean.toString();
+        window.history.replaceState(null, "", s ? `${window.location.pathname}?${s}` : window.location.pathname);
+      } catch { /* noop */ }
+    };
     fetch("/api/auth/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : { user: null }))
       .then((j) => { setIsUltimate(j.user?.profile?.tier === "ultimate"); setMyTier(j.quota?.tier || j.user?.profile?.tier || "free"); setAttorneyPrepOwned(!!j.entitlements?.attorneyPrep); setRecordReview(j.entitlements?.recordReview || { entitled: false, kind: "none" }); })
@@ -165,9 +179,11 @@ function Pricing() {
           }
         })
         .catch(() => setMsg("We couldn't confirm your purchase yet — it may take a minute."));
+      cleanCheckoutUrl();
     } else if (q.get("checkout") === "cancelled") {
       recordSurface("checkout_return");
       setMsg("No problem — nothing was charged. Come back whenever you're ready.");
+      cleanCheckoutUrl();
     } else {
       recordSurface("pricing");
     }

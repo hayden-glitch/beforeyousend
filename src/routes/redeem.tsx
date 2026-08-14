@@ -36,6 +36,11 @@ function Redeem() {
       const q = new URLSearchParams(window.location.search);
       const c = (q.get("code") || "").trim().toUpperCase();
       if (c) setCode(c);
+      // Track A (Codex consolidated order §3): the gift code is a redeemable
+      // credential — scrub it from the URL immediately after capture (it stays
+      // in component state for the flow) so it never reaches analytics, the
+      // referrer, or third-party navigation.
+      try { if (window.location.search) window.history.replaceState(null, "", window.location.pathname); } catch { /* noop */ }
     } catch {}
     fetch("/api/auth/me")
       .then(async (r) => {

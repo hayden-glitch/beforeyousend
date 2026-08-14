@@ -4139,7 +4139,7 @@ async function handleCheckoutConfirm(req) {
       if (!gRow) {
         // Insert failed for a non-conflict reason — leave the session
         // unprocessed so a retry can still mint; never fabricate a code.
-        console.error("[gift] code mint failed for session", sessionId);
+        console.error("[gift] code mint failed (session id redacted)");
         return json3({ error: "We couldn't create your gift code right now — try again." }, 500);
       }
       u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
@@ -4173,7 +4173,7 @@ async function handleCheckoutConfirm(req) {
         amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
         sessionId
       }).catch((err) => console.warn("[attorney-prep] insert failed:", err));
-      addEvent({ vid: visitorVid(req) || "server", name: "attorney_prep_pack_purchase", plan: "attorney_prep_pack", meta: { sessionId } }).catch((err) => console.warn("[attorney-prep] event failed:", err));
+      addEvent({ vid: visitorVid(req) || "server", name: "attorney_prep_pack_purchase", plan: "attorney_prep_pack", meta: {} }).catch((err) => console.warn("[attorney-prep] event failed:", err));
       return json3({ ok: true, kind: "attorney_prep_pack" });
     }
     if (session.metadata?.plan === "record_review") {
@@ -4193,7 +4193,7 @@ async function handleCheckoutConfirm(req) {
         amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
         sessionId
       }).catch((err) => console.warn("[record-review] insert failed:", err));
-      addEvent({ vid: visitorVid(req) || "server", name: "record_review_purchase", plan: "record_review", meta: { sessionId } }).catch((err) => console.warn("[record-review] event failed:", err));
+      addEvent({ vid: visitorVid(req) || "server", name: "record_review_purchase", plan: "record_review", meta: {} }).catch((err) => console.warn("[record-review] event failed:", err));
       return json3({ ok: true, kind: "record_review" });
     }
     u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
@@ -4209,7 +4209,7 @@ async function handleCheckoutConfirm(req) {
         amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
         sessionId
       }).catch((err) => console.warn("[consultation] insert failed:", err));
-      addEvent({ vid: visitorVid(req) || "server", name: "consultation_purchased", plan: "consultation", meta: { sessionId } }).catch((err) => console.warn("[consultation] event failed:", err));
+      addEvent({ vid: visitorVid(req) || "server", name: "consultation_purchased", plan: "consultation", meta: {} }).catch((err) => console.warn("[consultation] event failed:", err));
     }
     return json3({ ok: true, kind: "payment" });
   }
@@ -4286,7 +4286,7 @@ async function handleStripeWebhook(req) {
       return json3({ error: "Invalid signature." }, 400);
     }
   } else {
-    console.warn("[webhook] STRIPE_WEBHOOK_SECRET not configured — dropping event unprocessed:", raw.slice(0, 160));
+    console.warn("[webhook] STRIPE_WEBHOOK_SECRET not configured — dropping event unprocessed (raw body redacted)");
     return new Response(null, { status: 200 });
   }
   try {
@@ -4296,7 +4296,7 @@ async function handleStripeWebhook(req) {
       const u = users.find((x) => session.client_reference_id && x.id === session.client_reference_id) ||
         users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === (typeof session.customer === "string" ? session.customer : session.customer?.id));
       if (!u) {
-        console.warn("[webhook] checkout completed but no user matched session", session.id);
+        console.warn("[webhook] checkout.session.completed unmatched (no app user matched)");
         return json3({ ok: true });
       }
       const processed = Array.isArray(u.profile?.processedSessions) ? u.profile.processedSessions : [];
@@ -4309,7 +4309,7 @@ async function handleStripeWebhook(req) {
         return json3({ ok: true });
       const mapped = tierFromCheckoutSession(session);
       if (!mapped) {
-        console.warn("[webhook] no tier mapping for session", session.id);
+        console.warn("[webhook] checkout.session.completed no tier mapping");
         return json3({ ok: true });
       }
       const now = new Date();
@@ -4329,7 +4329,7 @@ async function handleStripeWebhook(req) {
       if (session.metadata?.offer === "true" && mapped.tier === "ultimate") {
         createIntroSchedule(stripe, session).catch((err) => console.warn("[webhook] intro schedule failed:", err));
       }
-      console.log("[webhook] granted tier", mapped.tier, "to", u.email);
+      console.log("[webhook] fulfilled tier=" + mapped.tier + " user=" + (typeof u.id === "string" ? u.id.slice(0, 8) : "?"));
     } else if (event.type === "customer.subscription.deleted" || event.type === "customer.subscription.canceled") {
       const sub = event.data.object;
       const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
@@ -4338,7 +4338,7 @@ async function handleStripeWebhook(req) {
       if (!u) return json3({ ok: true });
       u.profile = { ...u.profile || {}, tier: "free", tierSince: undefined, tierRenewsAt: undefined };
       await writeUsers(users);
-      console.log("[webhook] subscription ended — downgraded", u.email, "to free");
+      console.log("[webhook] subscription ended — downgraded user=" + (typeof u.id === "string" ? u.id.slice(0, 8) : "?") + " to free");
     }
   } catch (err) {
     console.error("[webhook] processing failed:", err);
@@ -4421,24 +4421,47 @@ async function handleEvents(req: Request) {
   if (!name) return new Response(null, { status: 400 });
   const plan = typeof body?.plan === "string" ? body.plan.slice(0,40) : undefined;
   let meta = body?.meta && typeof body.meta === "object" ? body.meta : {};
-  // PII (audit MED): /confirm?token=... and /redeem?code=... put one-time
-  // credentials in the URL search string, and the raw path is persisted in
-  // bys_events.meta.path AND bys_session_play.path. Strip token/code query
-  // params at ingest (before any persist point); ttclid/gclid and every other
-  // param are kept so source attribution and referrer data survive.
-  const scrubUrl = (u: string): string => {
-    const qIdx = u.indexOf("?");
-    if (qIdx === -1) return u;
-    const base = u.slice(0, qIdx);
-    const kept = u.slice(qIdx + 1).split("&").filter((seg: string) => !/^(token|code)=/i.test(seg));
-    return kept.length > 0 ? `${base}?${kept.join("&")}` : base;
+  // Track A (Codex consolidated order §2+§3+§4): safe-key ingestion. ONLY the
+  // explicit per-event schema below may persist — sensitive keys (situation
+  // answers, credentials, payment ids, child/family ids, assessments, raw
+  // URLs, cross-platform click ids in event payloads) are dropped even if a
+  // future client sends them. Paths are forced pathname-only; referrer is
+  // reduced (external origin / same-origin pathname — never query/hash);
+  // attribution is allowlisted to the known ad params.
+  const SAFE_META_KEYS = new Set(["dt","t","sp","kind","path","referrer","attribution","step","variant","source","mode","auth","example","status","timeout","interval","tier","intro","count","n","chars","remaining","module","edit","target","context","item","week","plan","q","score","band","label","gap","folder","coverage","gaps","missing","dest","filed","needsSorting","skipped","total","campaign","depthPct"]);
+  const NEVER_META_KEYS = new Set(["q1","q2","q3","answer","answers","email","child","gender","next","token","session_id","sessionId","code","giftCode","draft","text","message","value","tone","promo","rec","recommendation","landingPath","rawPath","ttclid","gclid","gbraid","wbraid","gad","gad_source","gad_campaignid","gad_campaign","gad_adgroupid","gad_creative","gad_network","gad_device","gad_targetid","gad_placement","gad_interest","gad_keyword","gad_loc_interest","gad_loc_physical","gad_extension","gad_feeditemid","gad_target","gad_aceid","gad_cell","gad_audience","gad_clickid"]);
+  const AD_PARAMS_INGEST = ["ttclid","gclid","gbraid","wbraid","gad_source","gad_campaignid","gad_campaign","gad_adgroupid","gad_creative","gad_network","gad_device","gad_targetid","gad_placement","gad_interest","gad_keyword","gad_loc_interest","gad_loc_physical","gad_extension","gad_feeditemid","gad_target","gad_aceid","gad_cell","gad_audience","gad_clickid"];
+  const pathnameOnly = (u: unknown): string | undefined => {
+    if (typeof u !== "string" || !u) return undefined;
+    try { const qIdx = u.indexOf("?"); return qIdx === -1 ? u : u.slice(0, qIdx); } catch { return u; }
   };
-  if (typeof meta.path === "string" && /[?&](token|code)=/i.test(meta.path)) {
-    meta = { ...meta, path: scrubUrl(meta.path) };
+  const safeReferrer = (r: unknown): string | undefined => {
+    if (typeof r !== "string" || !r) return undefined;
+    try {
+      const u = new URL(r);
+      const host = requestHost(req);
+      return u.hostname === host || u.hostname.endsWith("." + host) ? u.pathname : u.origin;
+    } catch { return String(r).split(/[?#]/)[0] || undefined; }
+  };
+  const p0 = pathnameOnly(meta.path);
+  if (p0 !== undefined) meta.path = p0.slice(0, 300);
+  const r0 = safeReferrer(meta.referrer);
+  if (r0 !== undefined) meta.referrer = r0;
+  if (meta.attribution && typeof meta.attribution === "object" && !Array.isArray(meta.attribution)) {
+    const att: Record<string, string> = {};
+    for (const [k, v] of Object.entries(meta.attribution as Record<string, unknown>)) {
+      if (AD_PARAMS_INGEST.includes(k) && typeof v === "string") att[k] = v;
+    }
+    if (Object.keys(att).length) meta.attribution = att; else delete meta.attribution;
   }
-  if (typeof meta.landingPath === "string" && /[?&](token|code)=/i.test(meta.landingPath)) {
-    meta = { ...meta, landingPath: scrubUrl(meta.landingPath) };
+  const scrubbedMeta: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(meta)) {
+    if (NEVER_META_KEYS.has(k) || !SAFE_META_KEYS.has(k)) continue;
+    if (v === undefined || v === null) continue;
+    if (k === "attribution" && typeof v === "object") { scrubbedMeta[k] = v; continue; }
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") scrubbedMeta[k] = v;
   }
+  meta = scrubbedMeta;
   // Metrics 2.0 — session play. sp_* rows (page enter/exit, scroll samples) are
   // replay-only: they land in bys_session_play but NEVER in bys_events, so the
   // funnel/hourly/depth panels stay clean. Regular events ALSO get a
@@ -4716,7 +4739,7 @@ async function tiktokTokenCall(params) {
     try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 400) }; }
     return { ok: res.ok, status: res.status, data };
   } catch (err) {
-    console.warn("[tiktok] token call failed:", err);
+    console.warn("[tiktok] token call failed:", String(err).slice(0, 200));
     return { ok: false, status: 0, data: { error: String(err) } };
   }
 }
@@ -4737,7 +4760,7 @@ async function tiktokValidToken() {
   if (!row.refreshToken) return null;
   const r = await tiktokRefresh(row.refreshToken);
   if (!r.ok || !r.data || !r.data.access_token) {
-    console.warn("[tiktok] refresh failed:", r.status, JSON.stringify(r.data).slice(0, 300));
+    console.warn("[tiktok] refresh failed: status=" + r.status + " (payload redacted)");
     return null;
   }
   await upsertTikTokToken({
@@ -4750,32 +4773,15 @@ async function tiktokValidToken() {
   return String(r.data.access_token);
 }
 // GET /api/tiktok/callback?code=...&state=... — OAuth redirect target.
-// Exchanges the code, stores tokens (single-row upsert), 302s to the friendly
-// connected page. On any failure it still 302s to the page with ?ok=0 — the
-// plain, factual "not connected" state — never a raw error dump.
-async function handleTikTokCallback(req) {
-  const url = new URL(req.url);
-  const code = url.searchParams.get("code") || "";
-  const state = url.searchParams.get("state") || "";
-  const errParam = url.searchParams.get("error") || "";
-  const base = "https://beforeyousend.org/tiktok-connected";
-  if (errParam || !code) {
-    console.warn("[tiktok] callback error:", errParam || "missing code", "state:", state ? "present" : "missing");
-    return Response.redirect(`${base}?ok=0`, 302);
-  }
-  const r = await tiktokExchangeCode(code);
-  if (!r.ok || !r.data || !r.data.access_token) {
-    console.warn("[tiktok] code exchange failed:", r.status, JSON.stringify(r.data).slice(0, 300));
-    return Response.redirect(`${base}?ok=0`, 302);
-  }
-  await upsertTikTokToken({
-    accessToken: String(r.data.access_token),
-    refreshToken: r.data.refresh_token ? String(r.data.refresh_token) : null,
-    openId: r.data.open_id ? String(r.data.open_id) : null,
-    scope: r.data.scope ? String(r.data.scope) : null,
-    expiresAt: Date.now() + Number(r.data.expires_in || 86400) * 1000,
-  });
-  return Response.redirect(`${base}?ok=1`, 302);
+// Track A (Codex consolidated order §5): TikTok Content Publishing is parked,
+// and this callback has no server-issued one-time state verification — an
+// unvalidated callback could overwrite the single stored token row via
+// login-CSRF/account substitution. Smallest safe option: disable the
+// callback/start surface entirely until an owner-bound state flow exists.
+// Nothing is exchanged or stored; the log line carries no code/state/token.
+async function handleTikTokCallback() {
+  console.warn("[tiktok] oauth callback disabled (parked — no state verification)");
+  return json3({ error: "TikTok connection is not available right now." }, 404);
 }
 // GET /api/tiktok/status — { connected, open_id, last_publish }. Public and
 // token-free by design (nothing sensitive leaks; tokens never leave the server).
@@ -4829,7 +4835,7 @@ async function handleTikTokPublish(req) {
       signal: AbortSignal.timeout(30000),
     });
   } catch (err) {
-    console.warn("[tiktok] publish call failed:", err);
+    console.warn("[tiktok] publish call failed:", String(err).slice(0, 200));
     return json3({ error: "TikTok publish request failed." }, 502);
   }
   const text = await res.text();
@@ -4839,7 +4845,7 @@ async function handleTikTokPublish(req) {
   const pubStatus = res.ok ? (data && data.data && data.data.status ? String(data.data.status) : "processing") : "error";
   await addTikTokPublish({ publishId, videoUrl, caption, status: pubStatus, apiStatus: res.ok ? String(res.status) : `error:${res.status}` });
   if (!res.ok) {
-    console.warn("[tiktok] publish rejected:", res.status, JSON.stringify(data).slice(0, 300));
+    console.warn("[tiktok] publish rejected: status=" + res.status + " (payload redacted)");
     return json3({ error: "TikTok rejected the publish.", detail: data && (data.error || data.raw) ? String(data.error || data.raw).slice(0, 300) : "unknown" }, 502);
   }
   return json3({ ok: true, publish_id: publishId, status: pubStatus }, 201);
