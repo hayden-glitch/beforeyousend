@@ -4125,6 +4125,16 @@ async function handlePortal(req) {
 // path), for subscriptions AND every one-time product. Atomic idempotency:
 // the bys_fulfillment_claims unique session_id claim (item 5) guarantees that
 // webhook/confirm/retries can never double-grant credits/entitlements/events.
+// Round 3 test hooks (NO-OP in production): set only by the Track B fixture
+// (run-tests.ts, via __trackB.setStaleReclaimHooks) to synchronize concurrent
+// webhook retries at the stale-reclaim boundary and to crash the reclaim
+// winner before grant/mark. They are module-local and never fed from requests
+// or env, so the deployed bundle is inert unless a test process sets them.
+type StaleReclaimHook = {
+  beforeReclaim?: (sessionId: string) => Promise<void>;
+  afterReclaim?: (sessionId: string) => Promise<void>;
+};
+let trackBStaleReclaimHook: StaleReclaimHook | null = null;
 async function fulfillCheckoutSession(opts) {
   const { stripe, session, sessionId, users, u, vid, paidVid, caller } = opts;
   // caller: "confirm" (browser return — UX/recovery) or "webhook" (Stripe
@@ -4172,9 +4182,44 @@ async function fulfillCheckoutSession(opts) {
     // reclaim and complete the grant.
     const age = Date.now() - new Date(claim.claimedAt || Date.now()).getTime();
     if (age > 5 * 60 * 1000) {
+      // Round 3 test hook (no-op in production): synchronize concurrent
+      // webhook retries so both read the stale claim before either reclaims.
+      if (isWebhook && trackBStaleReclaimHook) await trackBStaleReclaimHook.beforeReclaim?.(sessionId);
       const reclaimed = await reclaimFulfillment(sessionId).catch(() => false);
-      if (!reclaimed)
-        return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+      if (!reclaimed) {
+        // Round 3 (Codex 5299273144): losing the stale-reclaim UPDATE is NOT a
+        // basis for a webhook 2xx. Concrete race: A and B both see the stale
+        // claim; A wins reclaimFulfillment() and refreshes claimed_at; B's
+        // UPDATE returns 0 rows; the old code returned {ok:true,
+        // alreadyProcessed:true} -> webhook 200 -> if A then crashes before
+        // grant/mark, Stripe has a 200 from B and no remaining delivery to
+        // recover the order. Re-read the claim and branch by its CURRENT
+        // state — never 2xx merely because this invocation lost the UPDATE.
+        const fresh = await getFulfillmentClaim(sessionId).catch(() => null);
+        if (fresh && fresh.userId && fresh.userId !== u.id)
+          return { error: "This purchase belongs to a different account. Sign in with the account you bought it with.", status: 403 };
+        if (fresh && fresh.status === "processed")
+          return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+        if (!fresh) {
+          // Row vanished (e.g. a gift-mint failure released it mid-race): a
+          // retry must re-claim and re-run. Webhook retryable; browser soft.
+          if (isWebhook)
+            return { error: "Fulfillment state unavailable — retry.", status: 409 };
+          return { ok: true, alreadyProcessed: true, claimPending: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+        }
+        // fresh.status === 'processing': the winner refreshed the claim and is
+        // mid-grant (or will crash and be reclaimed by a later retry after the
+        // stale window). Webhook retryable; browser confirm soft claimPending.
+        if (isWebhook)
+          return { error: "Fulfillment already in progress by another request — retry later.", status: 409, claimProcessing: true };
+        return { ok: true, alreadyProcessed: true, claimPending: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+      }
+      // Round 3 test hook (no-op in production): pause/crash the reclaim
+      // winner BEFORE it grants or marks. A throw propagates out of
+      // fulfillCheckoutSession and the webhook's outer catch turns it into a
+      // retryable 500 — exactly the "crashed after reclaim" durability window
+      // that must stay non-2xx for every invocation that did not finish.
+      if (isWebhook && trackBStaleReclaimHook) await trackBStaleReclaimHook.afterReclaim?.(sessionId);
       // reclaimed: THIS invocation is now the grantor — fall through.
     } else if (isWebhook) {
       // Round 2 (chosen option, documented): retryable 409, not a bounded poll.
@@ -5306,5 +5351,6 @@ export const __trackB = {
   stampCheckoutParams,
   qaPaymentsBlocked,
   periodEndFromInvoice,
+  setStaleReclaimHooks(h: StaleReclaimHook | null) { trackBStaleReclaimHook = h; },
   LOGIN_REQUIRED_MSG
 };
