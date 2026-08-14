@@ -2103,7 +2103,6 @@ async function handleGiftPurchase(req) {
   const origin2 = new URL(req.url).origin;
   const giftSession = await stripe.checkout.sessions.create({
     mode: "payment",
-    automatic_payment_methods: { enabled: true },
     line_items: [{ price: giftPrice, quantity: 1 }],
     managed_payments: { enabled: false },
     client_reference_id: s.userId,
@@ -3941,7 +3940,7 @@ async function handleCheckout(req) {
   if (plan === "topup") {
     const topupPrice = await resolveStripePrice(stripe, "topup", "month");
     const origin2 = new URL(req.url).origin;
-    const topupSession = await stripe.checkout.sessions.create({ mode: "payment", automatic_payment_methods: { enabled: true }, line_items: [{ price: topupPrice, quantity: 1 }], managed_payments: { enabled: false }, metadata: { plan: "topup", credits: "10" }, success_url: `${origin2}/pricing?checkout=success&plan=topup&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin2}/pricing?checkout=cancelled` });
+    const topupSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: topupPrice, quantity: 1 }], managed_payments: { enabled: false }, metadata: { plan: "topup", credits: "10" }, success_url: `${origin2}/pricing?checkout=success&plan=topup&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin2}/pricing?checkout=cancelled` });
     return json3({ url: topupSession.url, plan: "topup", interval: "month" });
   }
   if (plan === "sortpile") {
@@ -3951,7 +3950,7 @@ async function handleCheckout(req) {
     const sortPrice = await resolveStripePrice(stripe, "sortpile", "month");
     const origin4 = new URL(req.url).origin;
     const sessionUser4 = getSession(req);
-    const sortSession = await stripe.checkout.sessions.create({ mode: "payment", automatic_payment_methods: { enabled: true }, line_items: [{ price: sortPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser4 ? sessionUser4.userId : undefined, metadata: { plan: "sortpile", ...sessionUser4 ? { user_id: sessionUser4.userId } : {} }, success_url: `${origin4}/pricing?checkout=success&plan=sortpile&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin4}/pricing?checkout=cancelled` });
+    const sortSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: sortPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser4 ? sessionUser4.userId : undefined, metadata: { plan: "sortpile", ...sessionUser4 ? { user_id: sessionUser4.userId } : {} }, success_url: `${origin4}/pricing?checkout=success&plan=sortpile&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin4}/pricing?checkout=cancelled` });
     return json3({ url: sortSession.url, plan: "sortpile", interval: "month" });
   }
   if (plan === "attorney_prep_pack") {
@@ -3963,7 +3962,7 @@ async function handleCheckout(req) {
     const appPrice = await resolveStripePrice(stripe, "attorney_prep_pack", "month");
     const origin5 = new URL(req.url).origin;
     const sessionUser5 = getSession(req);
-    const appSession = await stripe.checkout.sessions.create({ mode: "payment", automatic_payment_methods: { enabled: true }, line_items: [{ price: appPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser5 ? sessionUser5.userId : undefined, metadata: { plan: "attorney_prep_pack", ...sessionUser5 ? { user_id: sessionUser5.userId } : {} }, success_url: `${origin5}/pricing?checkout=success&plan=attorney_prep_pack&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin5}/pricing?checkout=cancelled` });
+    const appSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: appPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser5 ? sessionUser5.userId : undefined, metadata: { plan: "attorney_prep_pack", ...sessionUser5 ? { user_id: sessionUser5.userId } : {} }, success_url: `${origin5}/pricing?checkout=success&plan=attorney_prep_pack&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin5}/pricing?checkout=cancelled` });
     return json3({ url: appSession.url, plan: "attorney_prep_pack", interval: "month" });
   }
   if (plan === "record_review") {
@@ -3977,7 +3976,7 @@ async function handleCheckout(req) {
     const rrPrice = await resolveStripePrice(stripe, "record_review", "month");
     const origin6 = new URL(req.url).origin;
     const sessionUser6 = getSession(req);
-    const rrSession = await stripe.checkout.sessions.create({ mode: "payment", automatic_payment_methods: { enabled: true }, line_items: [{ price: rrPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser6 ? sessionUser6.userId : undefined, metadata: { plan: "record_review", ...sessionUser6 ? { user_id: sessionUser6.userId } : {} }, success_url: `${origin6}/pricing?checkout=success&plan=record_review&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin6}/pricing?checkout=cancelled` });
+    const rrSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: rrPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser6 ? sessionUser6.userId : undefined, metadata: { plan: "record_review", ...sessionUser6 ? { user_id: sessionUser6.userId } : {} }, success_url: `${origin6}/pricing?checkout=success&plan=record_review&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin6}/pricing?checkout=cancelled` });
     return json3({ url: rrSession.url, plan: "record_review", interval: "month" });
   }
   if (plan !== "consultation" && !SUBSCRIPTION_PLANS.includes(plan))
@@ -4001,7 +4000,6 @@ async function handleCheckout(req) {
     : {};
   const session = await stripe.checkout.sessions.create({
     mode: plan === "consultation" ? "payment" : "subscription",
-    automatic_payment_methods: { enabled: true },
     line_items: [{ price: priceId, quantity: 1 }],
     managed_payments: { enabled: false },
     client_reference_id: sessionUser ? sessionUser.userId : undefined,
