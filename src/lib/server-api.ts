@@ -4126,35 +4126,66 @@ async function handlePortal(req) {
 // the bys_fulfillment_claims unique session_id claim (item 5) guarantees that
 // webhook/confirm/retries can never double-grant credits/entitlements/events.
 async function fulfillCheckoutSession(opts) {
-  const { stripe, session, sessionId, users, u, vid, paidVid } = opts;
+  const { stripe, session, sessionId, users, u, vid, paidVid, caller } = opts;
+  // caller: "confirm" (browser return — UX/recovery) or "webhook" (Stripe
+  // delivery loop). The webhook is the durability path: it must NEVER 2xx
+  // while another invocation owns a fresh 'processing' claim, or it tells
+  // Stripe "delivered" with nobody guaranteed to finish the grant.
+  const isWebhook = caller === "webhook";
   const now = new Date();
   const processed = Array.isArray(u.profile?.processedSessions) ? u.profile.processedSessions : [];
   // Legacy/extra guard: sessions processed before the claim table existed
   // (or a claim row that was manually removed) no-op via the profile stamp.
   if (processed.includes(sessionId)) {
     const k2 = session.metadata?.plan === "sortpile" ? "sortpile" : undefined;
+    // Round 2 self-heal: if the grantor crashed AFTER the profile stamp but
+    // BEFORE markFulfillmentProcessed, the claim row is stuck 'processing'
+    // while the grant is already durable (every grant branch writes the stamp
+    // before finalize). The stamp proves completion — record the claim as
+    // processed so no later stale-reclaim can re-run the grant.
+    const claim = await getFulfillmentClaim(sessionId).catch(() => null);
+    if (claim && claim.status === "processing" && claim.userId === u.id)
+      await markFulfillmentProcessed(sessionId, { selfHealed: true }).catch((err) => console.warn("[checkout] claim self-heal mark failed:", err));
     return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0), ...(k2 ? { kind: k2, sortUntil: u.profile?.sortUntil } : {}) };
   }
-  // Atomic claim (DB unique constraint on session_id). Exactly one caller wins;
-  // the loser returns alreadyProcessed (the winner completes the grant).
+  // Atomic claim (DB unique constraint on session_id). Exactly one invocation
+  // wins; the loser inspects the claim and explicitly distinguishes
+  // 'processed' from a still-'processing' claim owned by someone else.
   const planName = typeof session.metadata?.plan === "string" ? session.metadata.plan : "payment";
   const claimed = await claimFulfillment(sessionId, u.id, planName);
   if (!claimed) {
     const claim = await getFulfillmentClaim(sessionId);
     if (claim && claim.userId && claim.userId !== u.id)
       return { error: "This purchase belongs to a different account. Sign in with the account you bought it with.", status: 403 };
-    if (!claim || claim.status === "processed")
+    if (claim && claim.status === "processed")
       return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
-    // Claim exists and is still 'processing': if it is stale (>5 min — the
-    // original grantor crashed), re-take it and grant; otherwise another
-    // request is in-flight — treat as already processed (it will complete).
+    if (!claim) {
+      // The row vanished between the failed claim and this read (e.g. a
+      // gift-mint failure released it mid-race): a retry must re-claim and
+      // re-run. The webhook returns retryable; the browser confirm soft-succeeds.
+      if (isWebhook)
+        return { error: "Fulfillment state unavailable — retry.", status: 409 };
+      return { ok: true, alreadyProcessed: true, claimPending: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+    }
+    // claim.status === 'processing' (explicit). Fresh = another invocation is
+    // mid-grant; stale (>5 min) = the original grantor crashed and a retry may
+    // reclaim and complete the grant.
     const age = Date.now() - new Date(claim.claimedAt || Date.now()).getTime();
     if (age > 5 * 60 * 1000) {
       const reclaimed = await reclaimFulfillment(sessionId).catch(() => false);
       if (!reclaimed)
         return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+      // reclaimed: THIS invocation is now the grantor — fall through.
+    } else if (isWebhook) {
+      // Round 2 (chosen option, documented): retryable 409, not a bounded poll.
+      // Stripe retries with backoff; the retry reclaims if the owner crashed
+      // (after the 5-min stale window) or sees 'processed' if the owner
+      // finished. Never 2xx a fresh 'processing' claim we don't own.
+      return { error: "Fulfillment already in progress by another request — retry later.", status: 409, claimProcessing: true };
     } else {
-      return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+      // Browser confirm: soft success — the owner (typically the webhook) will
+      // finish the grant momentarily; a reload re-runs this and self-heals.
+      return { ok: true, alreadyProcessed: true, claimPending: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
     }
   }
   // Canonical "any verified paid grant" event — fires exactly once per Stripe
@@ -4164,7 +4195,11 @@ async function fulfillCheckoutSession(opts) {
     addEvent({ vid, name: "purchase_completed", plan: planName2 || session.metadata?.plan || "payment", meta: { kind, ...(interval ? { interval } : {}) } }).catch((err) => console.warn("[checkout] purchase_completed event failed:", err));
   };
   const finalize = async (outcome, result) => {
-    await markFulfillmentProcessed(sessionId, outcome).catch((err) => console.warn("[checkout] claim mark failed:", err));
+    // A failed mark MUST surface (never log-and-2xx): the webhook's outer
+    // try/catch turns it into a retryable 500, and the retry self-heals via the
+    // profile stamp written before finalize in every grant branch — no double
+    // grant, no stranded order.
+    await markFulfillmentProcessed(sessionId, outcome);
     return result;
   };
   if (session.mode === "payment") {
@@ -4377,7 +4412,16 @@ async function handleCheckoutConfirm(req) {
   // the same atomic claim (Track B items 4+5). ownership/paid checks above are
   // unchanged.
   const paidVid = req.headers.get("cookie")?.match(/(?:^|;\s*)bys_vid=([^;]+)/)?.[1] || "server";
-  const out = await fulfillCheckoutSession({ stripe, session, sessionId, users, u, vid: visitorVid(req) || "server", paidVid });
+  let out;
+  try {
+    out = await fulfillCheckoutSession({ stripe, session, sessionId, users, u, vid: visitorVid(req) || "server", paidVid });
+  } catch (err) {
+    // The grant landed (stamp written before finalize) but the claim mark
+    // failed — tell the user it is settling; a reload self-heals to
+    // "already processed" via the stamp guard.
+    console.error("[checkout] confirm fulfillment failed:", err);
+    return json3({ error: "Your purchase is confirmed — the grant is still settling. Reload in a minute and it will show up." }, 500);
+  }
   if (out.error)
     return json3({ error: out.error }, out.status || 500);
   return json3(out);
@@ -4404,7 +4448,11 @@ async function handleStripeWebhook(req) {
   const sig = req.headers.get("stripe-signature") || "";
   let event;
   try {
-    event = stripe.webhooks.constructEvent(raw, sig, secret);
+    // Round 2: stripe >= 22 defaults to the WebCrypto (SubtleCrypto) provider,
+    // whose sync constructEvent() throws "cannot be used in a synchronous
+    // context" in both bun and Node >= 18 — every VALID webhook would 400.
+    // constructEventAsync is the correct call for this runtime.
+    event = await stripe.webhooks.constructEventAsync(raw, sig, secret);
   } catch {
     console.warn("[webhook] signature verification failed");
     return json3({ error: "Invalid signature." }, 400);
@@ -4427,16 +4475,32 @@ async function handleStripeWebhook(req) {
       const u = (sessionUserId ? users.find((x) => x.id === sessionUserId) : null) ||
         (sessionCust ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === sessionCust) : null);
       if (!u) {
-        console.warn("[webhook] checkout completed but no user matched session", session.id);
+        // Round 2: a PAID checkout that carries a stamp but whose user can't be
+        // resolved yet (account row lagging, eventual consistency) is retryable
+        // — never a silent 200. Only genuinely unstamped sessions (no user ever
+        // grantable) no-op with 200.
+        const stamped = Boolean(sessionUserId || sessionCust);
+        if (stamped) {
+          console.warn("[webhook] paid checkout completed but no user matched the stamp — 503 (retryable)", session.id);
+          return json3({ error: "User for this checkout not found yet — retry later.", retryable: true }, 503);
+        }
+        console.warn("[webhook] checkout completed with no user stamp — no-op", session.id);
         return json3({ ok: true });
       }
       // Shared durable fulfillment for subscriptions AND all one-time products
       // (attorney pack, record review, consultations, top-up, give-a-month).
-      const out = await fulfillCheckoutSession({ stripe, session, sessionId: session.id, users, u, vid: "webhook", paidVid: "webhook" });
-      if (out.error)
-        console.warn("[webhook] fulfillment refused:", out.error);
-      else
-        console.log("[webhook] fulfilled", session.id, "for", u.email, out.kind || out.tier || "payment", out.alreadyProcessed ? "(already processed)" : "");
+      const out = await fulfillCheckoutSession({ stripe, session, sessionId: session.id, users, u, vid: "webhook", paidVid: "webhook", caller: "webhook" });
+      // Round 2: never log-and-200. Any fulfillment error/refusal is a
+      // retryable non-2xx so Stripe re-delivers; the claim keeps re-delivery
+      // idempotent. A fresh 'processing' claim owned by another invocation
+      // arrives here as {error, status:409} and returns 409.
+      if (out.error) {
+        console.warn("[webhook] fulfillment refused:", out.error, "->", out.status || 500, "(retryable, NOT 200)");
+        return json3({ error: out.error }, out.status || 500);
+      }
+      // 2xx ONLY when this invocation marked the claim processed, or the claim
+      // was already processed (out.alreadyProcessed).
+      console.log("[webhook] fulfilled", session.id, "for", u.email, out.kind || out.tier || "payment", out.alreadyProcessed ? "(already processed)" : "");
       return json3({ ok: true });
     }
     if (event.type === "invoice.paid") {

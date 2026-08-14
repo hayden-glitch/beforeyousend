@@ -224,14 +224,20 @@ export async function deleteUserData(userId:string, email:string){
 export async function claimFulfillment(sessionId: string, userId: string, plan: string): Promise<boolean> {
   await ready(); const sql = db();
   if (sql) {
+    let rows: any[];
     try {
-      await sql`INSERT INTO bys_fulfillment_claims(session_id,user_id,plan,status) VALUES(${sessionId},${userId},${plan},'processing') ON CONFLICT(session_id) DO NOTHING`;
+      // Claim succeeds ONLY when THIS invocation created the row. RETURNING
+      // with ON CONFLICT DO NOTHING returns the inserted row (1) or nothing (0)
+      // — a pre-existing row (even for the same user, even 'processing') is NOT
+      // re-claimed here. The caller inspects the row's status explicitly and
+      // reclaims only when it is stale (Track B Round 2: processed vs
+      // processing are distinct states).
+      rows = await sql`INSERT INTO bys_fulfillment_claims(session_id,user_id,plan,status) VALUES(${sessionId},${userId},${plan},'processing') ON CONFLICT(session_id) DO NOTHING RETURNING session_id`;
     } catch (err) {
       console.warn("[storage] claim insert failed:", err);
       return false;
     }
-    const rows = await sql`SELECT session_id FROM bys_fulfillment_claims WHERE session_id=${sessionId} AND user_id=${userId}`;
-    return rows.length > 0;
+    return rows.length === 1;
   }
   const rows: any[] = await json(files.fulfillmentClaims);
   if (rows.some((r: any) => r.session_id === sessionId)) return false;
