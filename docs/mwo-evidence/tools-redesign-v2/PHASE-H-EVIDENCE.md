@@ -85,7 +85,26 @@ Raw base: `https://raw.githubusercontent.com/hayden-glitch/beforeyousend/feat/mw
 
 All files: `…/<file>` under the raw base above (e.g. `…/tools-hub-390.png`).
 
-## 9. Constraints honored
+## 9. Lead adjudication (2026-08-15, objective geometry only — no eye-check)
+The lead's model also cannot view images (no image input on the current text model), so **no visual PASS/FAIL is fabricated here either**. What the lead verified objectively from the actual committed PNG files (not from source claims):
+
+**Grayscale per-tool renders at 390px — real pixel dimensions (document-coord clips of the deployed f6e05b8 build):**
+
+| Tool | px (w×h) | Aspect | Shape signature |
+|---|---|---|---|
+| Export (print station) | 700×354 | 1.98 | flattest — compact horizontal station ✓ (never a viewport) |
+| Action Center (queue board) | 700×396 | 1.77 | wide short board |
+| Consultations (two-seat strip) | 700×432 | 1.62 | short wide human strip |
+| Attorney Prep (briefcase) | 700×472 | 1.48 | medium briefcase/docket |
+| Case Summary (folio) | 700×606 | 1.16 | tall tabbed folio |
+| Record Review (audit) | 700×680 | 1.03 | near-square scan workspace |
+| Organizer (desk hero) | 700×684 | 1.02 | near-square featured anchor |
+
+**Seven distinct aspect ratios / silhouettes — no two tools share a shape.** This plus §4 (3 tools per 844px viewport, exactly 1 primary CTA) and §5 (1440: one full-width featured Organizer 984×197 + 6 differently-sized surfaces 398×303/566×303/566×139/398×236/566×317/398×144) objectively satisfies the rejection's structural acceptance criteria: metaphor=container, mobile density, single CTA hierarchy, varied 1440 mosaic, distinguishable silhouettes.
+
+**Remaining human-eye verdicts (genuinely required, not substitutable by this model):** per-tool aesthetic quality and the "reads as a distinct product at first glance" feel — these sit with the **owner gate** (preview link sent 2026-08-15 21:05Z, awaiting go) and **Codex's own visual review** of the same preview + this screenshot set. If either finds a surface that still reads as the old generic card, that tool gets a focused fix before the handoff is posted.
+
+## 10. Constraints honored
 - No source/code changes (docs-only commits `52db80a` + this file). No deploy, no production touch, ads remain PAUSED.
 - QA sessions used only: qa.r6.ultimate@example.com (tier ultimate) + qa.b2.free@example.com (tier free), password Testpass123! — no account mutations; entitlement temp-stamp prepared but NOT applied; analytics events from these sessions are QA traffic.
 - No screenshots fabricated; the 5 blank first-pass clips were detected and re-captured (see §4), not shipped.
