@@ -31,3 +31,8 @@
 {"file":"tray-export-locked-free-390.png","w":169,"h":216,"bytes":40363}
 {"file":"briefcase-attorney-prep-locked-free-390.png","w":169,"h":216,"bytes":80158}
 {"file":"bench-record-review-locked-free-390.png","w":169,"h":286,"bytes":104941}
+{"probe":"hub-1440","desktopProbe":{"desk-organizer":{"x":100,"y":564,"w":640,"h":310},"folio-case-summary":{"x":1046,"y":862,"w":280,"h":207},"console-action-center":{"x":1020,"y":454,"w":320,"h":178},"tray-export":{"x":100,"y":884,"w":270,"h":192},"briefcase-attorney-prep":{"x":766,"y":844,"w":210,"h":195},"bench-record-review":{"x":400,"y":884,"w":250,"h":286},"seats-consultations":{"x":1090,"y":884,"w":250,"h":182},"_scene":{"x":44,"y":414,"w":1352,"h":640},"_ctaPrimary":1,"_shelfDisplay":"contents"}}
+{"file":"tools-hub-1440.png","w":1440,"h":820,"bytes":261676}
+{"probe":"gs-html-filter-1440","gsApplied":"grayscale(1)"}
+{"file":"tools-hub-gs-1440.png","w":1440,"h":820,"bytes":163741}
+{"probe":"hub-390","density":{"visible":["desk-organizer","folio-case-summary","console-action-center","tray-export","briefcase-attorney-prep"],"ctaPrimary":1,"btnPrimary":0,"deskCta":"Open the desk →"}}
