@@ -495,7 +495,9 @@ const NEVER_PERSIST_KEYS = new Set<string>([
 // structural usage ONLY — they never leave the app at all (see SAFE_PERSIST_KEYS).
 const NEVER_AD_KEYS = new Set<string>(["score", "band", "folder", "gap", "label", "coverage", "gaps", "missing"]);
 
-// Explicit per-event safe-key schema: ONLY these structural keys may persist
+// GLOBAL key allowlist for persisted metadata — NOT a per-event schema (Codex
+// final-fold Blocker 3, comment 5300418383): only these structural keys may
+// persist, and the generic scrubber below accepts primitive values only
 // (unknown/future keys are dropped, not stored — never a silent denylist).
 // Track A P0 #2 (Codex final-fold comment 5300270649 Blocker 2): quiz/assessment
 // VALUES (score/band) and assessment-detail keys (label/gap/coverage/gaps/
@@ -510,6 +512,19 @@ const SAFE_PERSIST_KEYS = new Set<string>([
   "edit", "target", "context", "item", "week", "plan", "q", "folder",
   "dest", "filed", "needsSorting", "skipped", "total", "campaign",
 ]);
+
+// Bounded per-event metadata (Codex final-fold Blocker 3, comment 5300418383):
+// the ONLY places a non-primitive / constrained-string value may persist —
+// layered on top of the global allowlist above, never a generic array/object
+// pass-through. Enumerations are EXACTLY what the emitting code sends (no
+// wildcards):
+//   checkout_wallet_available.methods — detectWalletMethods() emits apple_pay /
+//     google_pay (method category only; Link is a Stripe-hosted-side method and
+//     cannot be probed client-side).
+//   funnel_started.entry — the four funnel call sites emit review (ReviewTool),
+//     post-review (GuidedFunnel), intake (login), pricing (pricing).
+const CHECKOUT_WALLET_METHODS = new Set(["apple_pay", "google_pay"]);
+const FUNNEL_ENTRY_SLUGS = new Set(["review", "post-review", "intake", "pricing"]);
 
 function pickSafeMeta(event: AnalyticsEvent, data: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -526,6 +541,17 @@ function pickSafeMeta(event: AnalyticsEvent, data: Record<string, unknown>): Rec
       }
       if (Object.keys(att).length) out.attribution = att;
     }
+  }
+  // Narrow event-specific validation (Codex final-fold Blocker 3, comment
+  // 5300418383): the ONLY arrays/constrained strings that may persist, and only
+  // on the exact events that emit them. Anything else — even a plausible-
+  // looking slug or method name — is dropped. The generic boundary above stays
+  // primitive-only; this is the single documented exception.
+  if (event === "checkout_wallet_available" && Array.isArray(data.methods)) {
+    const methods = [...new Set(data.methods.filter((m): m is string => typeof m === "string" && CHECKOUT_WALLET_METHODS.has(m)))];
+    if (methods.length) out.methods = methods;
+  } else if (event === "funnel_started" && typeof data.entry === "string" && FUNNEL_ENTRY_SLUGS.has(data.entry)) {
+    out.entry = data.entry;
   }
   // login_success: the raw `next` URL is NEVER stored — record only a safe
   // destination category (pathname, query/hash stripped).
@@ -693,10 +719,11 @@ export function track(event: AnalyticsEvent, data?: Record<string, unknown>): vo
     const w = window;
     const payload = data ?? {};
     // Track A (Codex consolidated order §1+§2): ALL events persist first-party
-    // only, after central metadata scrubbing (pickSafeMeta — per-event safe-key
-    // schema, not a giant denylist). Only the explicit AD_MEASUREMENT_EVENTS
-    // allowlist may also reach TikTok / gtag / the third-party-facing dataLayer,
-    // and even then with the further-reduced ad-safe payload.
+    // only, after central metadata scrubbing (pickSafeMeta — a global key
+    // allowlist plus narrow per-event additions, not a giant denylist and not
+    // an ad-facing schema). Only the explicit AD_MEASUREMENT_EVENTS allowlist
+    // may also reach TikTok / gtag / the third-party-facing dataLayer, and even
+    // then with the further-reduced ad-safe payload.
     const safe = pickSafeMeta(event, payload);
     if (AD_MEASUREMENT_EVENTS.has(event)) {
       const adSafe = toAdSafeMeta(safe);
@@ -717,12 +744,16 @@ export function track(event: AnalyticsEvent, data?: Record<string, unknown>): vo
     // Round-6: when a checkout starts, record whether this browser could pay
     // with a wallet — method category only, never customer data. Fired as a
     // separate event name so checkout_started's Google conversion mapping is
-    // untouched; persist + dataLayer only (no pixel mapping for this one).
+    // untouched. FIRST-PARTY ONLY (Codex final-fold Blocker 3, comment
+    // 5300418383): checkout_wallet_available is deliberately NOT in
+    // AD_MEASUREMENT_EVENTS — the coarse allowlist is the only path to TikTok /
+    // gtag / dataLayer, so this event never touches third-party measurement and
+    // persists through the same narrow event-specific validation as everything
+    // else (pickSafeMeta bounds methods to the emitted method-category enum).
     if (event === "checkout_started") {
       const methods = detectWalletMethods();
       if (methods.length > 0) {
-        persistEvent("checkout_wallet_available", { methods });
-        if (Array.isArray(w.dataLayer)) w.dataLayer.push({ event: "checkout_wallet_available", methods });
+        persistEvent("checkout_wallet_available", pickSafeMeta("checkout_wallet_available", { methods }));
       }
     }
     if (import.meta.env?.DEV) {

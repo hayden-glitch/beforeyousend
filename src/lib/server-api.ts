@@ -4705,13 +4705,15 @@ async function handleEvents(req: Request) {
   if (!name) return new Response(null, { status: 400 });
   const plan = typeof body?.plan === "string" ? body.plan.slice(0,40) : undefined;
   let meta = body?.meta && typeof body.meta === "object" ? body.meta : {};
-  // Track A (Codex consolidated order §2+§3+§4): safe-key ingestion. ONLY the
-  // explicit per-event schema below may persist — sensitive keys (situation
-  // answers, credentials, payment ids, child/family ids, assessments, raw
-  // URLs, cross-platform click ids in event payloads) are dropped even if a
-  // future client sends them. Paths are forced pathname-only; referrer is
-  // reduced (external origin / same-origin pathname — never query/hash);
-  // attribution is allowlisted to the known ad params.
+  // Track A (Codex consolidated order §2+§3+§4): safe-key ingestion. SAFE_META_KEYS
+  // is a GLOBAL key allowlist, not a per-event schema (Codex final-fold Blocker 3,
+  // comment 5300418383) — sensitive keys (situation answers, credentials,
+  // payment ids, child/family ids, assessments, raw URLs, cross-platform click
+  // ids in event payloads) are dropped even if a future client sends them.
+  // Paths are forced pathname-only; referrer is reduced (external origin /
+  // same-origin pathname — never query/hash); attribution is allowlisted to the
+  // known ad params. The generic scrubber accepts primitives only; the narrow
+  // per-event additions below are the sole exception.
   const SAFE_META_KEYS = new Set(["dt","t","sp","kind","path","referrer","attribution","step","variant","source","mode","auth","example","status","timeout","interval","tier","intro","count","n","chars","remaining","module","edit","target","context","item","week","plan","q","folder","dest","filed","needsSorting","skipped","total","campaign","depthPct"]);
   const NEVER_META_KEYS = new Set(["q1","q2","q3","answer","answers","email","child","gender","next","token","session_id","sessionId","code","giftCode","draft","text","message","value","tone","promo","rec","recommendation","landingPath","rawPath","ttclid","gclid","gbraid","wbraid","gad","gad_source","gad_campaignid","gad_campaign","gad_adgroupid","gad_creative","gad_network","gad_device","gad_targetid","gad_placement","gad_interest","gad_keyword","gad_loc_interest","gad_loc_physical","gad_extension","gad_feeditemid","gad_target","gad_aceid","gad_cell","gad_audience","gad_clickid"]);
   const AD_PARAMS_INGEST = ["ttclid","gclid","gbraid","wbraid","gad_source","gad_campaignid","gad_campaign","gad_adgroupid","gad_creative","gad_network","gad_device","gad_targetid","gad_placement","gad_interest","gad_keyword","gad_loc_interest","gad_loc_physical","gad_extension","gad_feeditemid","gad_target","gad_aceid","gad_cell","gad_audience","gad_clickid"];
@@ -4744,6 +4746,19 @@ async function handleEvents(req: Request) {
     if (v === undefined || v === null) continue;
     if (k === "attribution" && typeof v === "object") { scrubbedMeta[k] = v; continue; }
     if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") scrubbedMeta[k] = v;
+  }
+  // Narrow event-specific validation (Codex final-fold Blocker 3, comment
+  // 5300418383) — mirrors the client's bounded per-event schema (analytics.ts
+  // CHECKOUT_WALLET_METHODS / FUNNEL_ENTRY_SLUGS): the ONLY array/constrained-
+  // string meta values that may persist, and only for the exact events that
+  // emit them. Enums are exactly what the client sends (no wildcards).
+  const CHECKOUT_WALLET_METHODS = new Set(["apple_pay", "google_pay"]);
+  const FUNNEL_ENTRY_SLUGS = new Set(["review", "post-review", "intake", "pricing"]);
+  if (name === "checkout_wallet_available" && Array.isArray(meta.methods)) {
+    const methods = [...new Set(meta.methods.filter((m: unknown): m is string => typeof m === "string" && CHECKOUT_WALLET_METHODS.has(m)))];
+    if (methods.length) scrubbedMeta.methods = methods;
+  } else if (name === "funnel_started" && typeof meta.entry === "string" && FUNNEL_ENTRY_SLUGS.has(meta.entry)) {
+    scrubbedMeta.entry = meta.entry;
   }
   meta = scrubbedMeta;
   // Metrics 2.0 — session play. sp_* rows (page enter/exit, scroll samples) are
