@@ -1465,48 +1465,222 @@ main[id]:focus {
 }
 
 /* ============================================================
-   PART IId — TOOLS HUB: SEVEN DISTINCT SILHOUETTES (HOLD 5303879888)
-   The Command Center foyer no longer repeats one card grammar: every
-   room preview is recognizable by shape alone (grayscale/blur safe).
-   Art is pure CSS, aria-hidden, pointer-events none, clipped inside
-   its own layer where absolute (never inflates scrollWidth). NO 3D
-   transforms (MWO Phase-E lesson: perspective projections widen the
-   scrollable overflow box). Decorative art carries no text, so the
-   mechanical clip/tap gates ignore it. All colors ride the world
-   tokens (--bys-accent/--bys-line/--bys-card), so every room keeps
-   its world tint in Forest/Midnight/Sand.
+   PART IId — THE FOYER: SEVEN GENUINELY DIFFERENT SURFACES
+   (HOLD 5303879888 + REJECT 5304133183 — second, structural pass)
+   No repeated card grammar. Each tool's metaphor IS its container
+   and layout: desk hero, tabbed folio, queue board, split print
+   station, briefcase/docket, lens-over-evidence audit, two-seat
+   conversation strip. Art is pure CSS, aria-hidden, pointer-events
+   none, clipped inside overflow:hidden parents (never inflates
+   scrollWidth). NO 3D transforms (MWO Phase-E lesson). All colors
+   ride the world tokens (--bys-accent/--bys-line/--bys-card), so
+   every surface keeps its world tint in Forest/Midnight/Sand.
    ============================================================ */
-.tool-room {
-  position: relative;
+.world-export {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 42%, #7c6a2e 58%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 26%, #5d4f1f 74%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 56%, #b7a04f 44%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 92%, #f3ecd6 8%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 80%, #ece2c4 20%);
+  --section-line: color-mix(in srgb, var(--bys-line) 72%, #cfc08a 28%);
+  --section-glow: color-mix(in srgb, #d9c27a 18%, transparent);
+  --section-glow-2: color-mix(in srgb, #b9d6cf 12%, transparent);
+  --section-glow-strength: 0.9;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
 }
-/* Absolute art layer — used only where art must sit behind content.
-   Clips its own children so nothing can widen the page. */
-.tool-art {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-  border-radius: inherit;
+@keyframes bys-case-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
-/* ---- 1. Organizer — the filing-desk anchor: desk band + file tray ----
-   Mobile: the tray is an in-flow "drawer" strip under the CTA (full
-   width, three hanging files). sm+: it floats as a right-side tray on
-   the desk surface. */
-.org-deskband {
+/* ---- 1. Organizer — the filing-desk hero (the ONE primary CTA) ----
+   The whole surface is the desk: a front edge band with drawer pulls,
+   a header, then a real file tray (hanging files with tab labels —
+   the dad's own kids' names when set) and the single full-width
+   primary CTA. Mobile: tray + CTA stack; lg+: tray left, CTA right. */
+.org-desk {
+  position: relative;
+  margin-top: 1.25rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 1.4rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bys-accent) 9%, var(--bys-card)),
+    var(--bys-card) 48%
+  );
+  box-shadow: var(--bys-shadow-card);
+  overflow: hidden;
+}
+.org-edge {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 42%;
-  border-top: 1px solid color-mix(in srgb, var(--bys-line) 55%, transparent);
+  height: 1.05rem;
+  border-top: 1px solid color-mix(in srgb, var(--bys-line) 60%, transparent);
   background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--bys-accent) 7%, transparent),
-    transparent
+    to bottom,
+    color-mix(in srgb, var(--bys-accent) 12%, var(--bys-bg-soft)),
+    color-mix(in srgb, var(--bys-accent) 24%, var(--bys-bg-soft))
   );
-  border-radius: 0 0 1.5rem 1.5rem;
 }
+.org-edge-cap {
+  position: absolute;
+  top: 0.3rem;
+  left: 20%;
+  width: 3.4rem;
+  height: 0.32rem;
+  border: 1px solid color-mix(in srgb, var(--bys-line) 55%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-accent) 26%, var(--bys-card));
+}
+.org-edge-cap.r {
+  left: auto;
+  right: 20%;
+}
+.org-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 1.2rem 1.25rem 0;
+}
+.org-mark {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.9rem;
+  background: var(--bys-accent);
+  color: var(--bys-bg);
+}
+.org-head-text {
+  min-width: 0;
+}
+.org-kicker {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bys-accent-deep);
+}
+.org-title {
+  margin-top: 0.12rem;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--bys-accent-deep);
+}
+.org-copy {
+  margin-top: 0.3rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--bys-ink);
+  opacity: 0.9;
+}
+.org-drawers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.25rem 1.55rem;
+}
+.org-desk-tray {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+  height: 4.1rem;
+  padding: 0.95rem 0.7rem 0.5rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--bys-bg-soft) 58%, transparent);
+  box-shadow: inset 0 -0.85rem 0 color-mix(in srgb, var(--bys-accent) 9%, transparent);
+}
+.org-desk-file {
+  position: relative;
+  width: 22%;
+  max-width: 4.8rem;
+  height: 100%;
+  border: 1px solid var(--bys-line);
+  border-bottom: none;
+  border-radius: 0.4rem 0.4rem 0 0;
+  background: var(--bys-card);
+}
+.org-desk-tab {
+  position: absolute;
+  top: -0.82rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 92%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.16rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--bys-accent) 60%, var(--bys-line));
+  border-bottom: none;
+  border-radius: 0.32rem 0.32rem 0 0;
+  background: color-mix(in srgb, var(--bys-accent) 78%, var(--bys-card));
+  color: var(--bys-bg);
+  font-size: 0.6rem;
+  font-weight: 700;
+  font-style: normal;
+  letter-spacing: 0.03em;
+}
+.org-desk-file.waiting {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bys-accent) 16%, transparent);
+}
+.org-desk-file.waiting .org-desk-tab {
+  background: var(--bys-accent);
+}
+.org-act {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+}
+.org-pill {
+  align-self: flex-start;
+  border: 1px solid color-mix(in srgb, var(--bys-accent) 45%, var(--bys-line));
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-accent) 10%, var(--bys-card));
+  padding: 0.32rem 0.8rem;
+  color: var(--bys-accent-deep);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+@media (min-width: 1024px) {
+  .org-drawers {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 1.4rem;
+  }
+  .org-desk-tray {
+    flex: 1;
+  }
+  .org-act {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.9rem;
+    padding-bottom: 0.2rem;
+  }
+  .org-pill {
+    align-self: center;
+  }
+}
+
+/* Locked/trial variant of the Organizer (OrganizerLocked.tsx) — kept
+   intact from the earlier layout; the tray stays an in-flow strip. */
 .org-tray {
   display: flex;
   align-items: flex-end;
@@ -1522,6 +1696,19 @@ main[id]:focus {
   box-shadow:
     inset 0 -0.55rem 0 color-mix(in srgb, var(--bys-accent) 9%, transparent),
     var(--bys-shadow-card);
+}
+.org-tray-compact {
+  width: 11.5rem;
+  margin: 0 0 1.1rem;
+}
+@media (min-width: 640px) {
+  .org-tray-compact {
+    position: static;
+    right: auto;
+    bottom: auto;
+    width: 11.5rem;
+    margin: 0 0 1.1rem;
+  }
 }
 .org-file {
   position: relative;
@@ -1569,10 +1756,175 @@ main[id]:focus {
   }
 }
 
-/* ---- 2. Case Summary — the dossier: index-tab band + peeking sheets ----
-   The tile opens like a manila file: a header band with two index tabs,
-   two sheets peeking behind the top edge, and skeleton report lines
-   under the copy (a report sheet, not a software card). */
+/* ---- 2. Case Summary — the FOLIO IS the container ----
+   An index-tab strip across the top, a stacked-sheet edge peeking
+   behind the report sheet, and a compact report preview (real
+   excerpt + record counts when loaded) inside. CTA is a compact
+   footer/tab action, never a giant button. */
+.folio {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin-top: 1.25rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 1.1rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bys-accent) 8%, var(--bys-card)),
+    var(--bys-card) 44%
+  );
+  box-shadow: var(--bys-shadow-card);
+  overflow: hidden;
+  padding-top: 2.05rem;
+}
+.folio-tabs {
+  position: absolute;
+  top: 0.62rem;
+  left: 0.85rem;
+  right: 0.85rem;
+  display: flex;
+  gap: 0.35rem;
+}
+.folio-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.6rem;
+  height: 1.45rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.45rem 0.45rem 0 0;
+  background: color-mix(in srgb, var(--bys-card) 80%, var(--bys-bg-soft) 20%);
+}
+.folio-tab i {
+  width: 55%;
+  height: 0.3rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-line) 68%, transparent);
+}
+.folio-tab.on {
+  border-color: var(--bys-accent);
+  background: var(--bys-accent);
+}
+.folio-tab.on i {
+  background: color-mix(in srgb, var(--bys-bg) 78%, transparent);
+}
+.folio-body {
+  position: relative;
+  margin: 0 0.6rem 0.5rem;
+  padding: 0.85rem 0.95rem 0.75rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.8rem;
+  background: var(--bys-card);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  transform: rotate(-0.35deg);
+}
+.folio-body::before {
+  content: "";
+  position: absolute;
+  top: -0.44rem;
+  left: 1.1rem;
+  right: 1.1rem;
+  height: 0.44rem;
+  border: 1px solid var(--bys-line);
+  border-bottom: none;
+  border-radius: 0.5rem 0.5rem 0 0;
+  background: color-mix(in srgb, var(--bys-card) 62%, var(--bys-bg-soft) 38%);
+}
+.folio-title {
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--bys-accent-deep);
+}
+.folio-sub {
+  margin-top: 0.18rem;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--bys-ink);
+  opacity: 0.9;
+}
+.folio-report {
+  margin-top: 0.55rem;
+}
+.folio-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+}
+.folio-lines span {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-line) 62%, transparent);
+}
+.folio-excerpt {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--bys-ink);
+  opacity: 0.88;
+  max-height: 3.4rem;
+  overflow: hidden;
+}
+.folio-counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+}
+.folio-counts span {
+  border: 1px solid color-mix(in srgb, var(--bys-line) 70%, transparent);
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--bys-card) 78%, var(--bys-bg-soft) 22%);
+  padding: 0.3rem 0.2rem;
+  text-align: center;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bys-accent-deep);
+}
+.folio-counts b {
+  display: block;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  color: var(--bys-ink);
+}
+.folio-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-top: auto;
+  padding: 0.6rem 1rem 0.9rem;
+}
+.folio-stamp {
+  border: 1.5px dashed color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
+  border-radius: 0.5rem;
+  padding: 0.26rem 0.6rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--bys-accent-deep);
+}
+.folio-stamp.filled {
+  border-style: solid;
+  border-color: var(--bys-accent);
+  background: var(--bys-accent);
+  color: var(--bys-bg);
+}
+.folio-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--bys-accent-deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* Inset variant of the dossier band for full-page locked views. */
 .dossier-band {
   display: flex;
   align-items: flex-start;
@@ -1595,64 +1947,183 @@ main[id]:focus {
 .dossier-band-tab.active {
   background: color-mix(in srgb, var(--bys-accent) 30%, var(--bys-card));
 }
-/* Inset variant for full-page locked views (p-6 sm:p-8 sections). */
 .dossier-band-inset {
   margin: 0 0 1.1rem;
   border-radius: 0.85rem;
 }
-.dossier-sheet {
-  position: absolute;
-  top: -0.65rem;
-  height: 0.8rem;
-  background: var(--bys-card);
-  border: 1px solid var(--bys-line);
-  border-radius: 0.4rem 0.4rem 0 0;
-}
-.dossier-sheet.back {
-  left: 1.1rem;
-  width: 56%;
-  transform: rotate(-2deg);
-}
-.dossier-sheet.mid {
-  left: 3.4rem;
-  width: 52%;
-  top: -0.5rem;
-  transform: rotate(1.5deg);
-}
-.dossier-lines {
+
+/* ---- 3. Action Center — the QUEUE IS the layout ----
+   A control rail (title + radar/attention indicator), then REAL
+   priority rows (status dot, item text, section tag) from the dad's
+   own saved data; footer is a compact open action + status line. */
+.ac-board {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 1rem;
+  margin-top: 1.25rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 1.1rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bys-accent) 7%, var(--bys-card)),
+    var(--bys-card) 42%
+  );
+  box-shadow: var(--bys-shadow-card);
+  overflow: hidden;
 }
-.dossier-line {
+.ac-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--bys-line) 55%, transparent);
+}
+.ac-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--bys-accent-deep);
+}
+.ac-radar {
+  position: relative;
+  flex-shrink: 0;
+  width: 3.4rem;
+  height: 1.7rem;
+}
+.ac-sweep {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 45%, transparent);
+  border-bottom: none;
+  border-radius: 9999px 9999px 0 0;
+}
+.ac-sweep::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 1px;
+  height: 68%;
+  background: color-mix(in srgb, var(--bys-accent) 55%, transparent);
+  transform-origin: 50% 100%;
+  transform: rotate(30deg);
+}
+.ac-core {
+  position: absolute;
+  left: 50%;
+  bottom: 0.2rem;
+  width: 0.44rem;
+  height: 0.44rem;
+  margin-left: -0.22rem;
+  border-radius: 9999px;
+  background: var(--bys-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bys-accent) 16%, transparent);
+}
+.ac-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.6rem 0.8rem;
+}
+.ac-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--bys-line) 75%, transparent);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--bys-card) 78%, var(--bys-bg-soft) 22%);
+  padding: 0.52rem 0.65rem;
+}
+.ac-dot {
+  flex-shrink: 0;
+  width: 0.55rem;
   height: 0.55rem;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-line) 62%, transparent);
+  background: var(--bys-line);
 }
-/* The dossier's status reads as a rubber stamp, not a pill. */
-.dossier-stamp {
-  display: inline-block;
-  border: 2px dashed color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
-  border-radius: 0.55rem;
-  padding: 0.22rem 0.65rem;
-  font-size: 0.78rem;
+.ac-dot.unresolved {
+  background: var(--bys-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bys-accent) 15%, transparent);
+}
+.ac-dot.upcoming {
+  background: var(--bys-accent-soft);
+}
+.ac-dot.missing {
+  background: color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
+}
+.ac-dot.needs_documentation {
+  background: color-mix(in srgb, var(--bys-accent) 35%, var(--bys-line));
+}
+.ac-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: var(--bys-ink);
+}
+.ac-tag {
+  flex-shrink: 0;
+  font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--bys-accent-deep);
 }
-.dossier-stamp.filled {
-  border-style: solid;
-  background: var(--bys-accent);
-  border-color: var(--bys-accent);
-  color: var(--bys-bg);
+.ac-empty {
+  padding: 0.65rem 0.7rem 0.85rem;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--bys-ink);
+  opacity: 0.8;
+}
+.ac-locked {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem 0.85rem;
+}
+.ac-locked span {
+  height: 0.85rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-line) 55%, transparent);
+}
+.ac-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: auto;
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--bys-line) 50%, transparent);
+}
+.ac-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--bys-accent-deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.ac-status {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bys-accent-deep);
+  opacity: 0.82;
 }
 
-/* ---- 3. Action Center — the priority queue: beacon + stacked rows ----
-   A control-room list: a radar arc with a ping at top-right, then three
-   queue rows of shrinking width (the top one "active"). Reads as a
-   queue/priority track, never a card-with-icon. */
+/* Queue rows for the full-page locked Action Center view. */
 .action-queue {
   display: flex;
   flex-direction: column;
@@ -1690,431 +2161,572 @@ main[id]:focus {
   border-radius: 9999px;
   background: color-mix(in srgb, var(--bys-line) 70%, transparent);
 }
-.action-beacon {
-  position: absolute;
-  top: 1.05rem;
-  right: 1.05rem;
-  width: 3.1rem;
-  height: 1.55rem;
-  border: 2px solid color-mix(in srgb, var(--bys-accent) 32%, transparent);
-  border-bottom: none;
-  border-radius: 1.6rem 1.6rem 0 0;
-  opacity: 0.95;
-}
-.action-ping {
-  position: absolute;
-  top: 0.95rem;
-  right: 1.55rem;
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 9999px;
-  background: var(--bys-accent);
-}
 
-/* ---- 4. Export your record — the print package: sheet fan + box ----
-   Its own identity: a fan of three sheets on top of a taped package
-   with a down-chevron (the printed output tray). Deliberately NOT the
-   Timeline's ribbon. */
-.world-export {
-  /* neutral print room — no world tint, no ambient glow */
-  --section-glow-strength: 0;
-}
-.export-stack {
+/* ---- 4. Export — the compact print/package station ----
+   A horizontal split: the output stack (sheets + taped package)
+   owns the left pane; contents + the download action own the right.
+   Deliberately short — never a full viewport. */
+.exp-station {
   position: relative;
-  height: 5.6rem;
-  margin-bottom: 0.35rem;
-}
-.x-sheet {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 7.4rem;
-  height: 3.5rem;
-  margin-left: -3.7rem;
+  display: flex;
+  align-items: stretch;
+  margin-top: 1.25rem;
   border: 1px solid var(--bys-line);
-  border-radius: 0.4rem;
-  background: var(--bys-card);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-}
-.x-sheet:nth-child(1) {
-  transform: translateY(0.5rem) rotate(-5deg);
-}
-.x-sheet:nth-child(2) {
-  transform: translateY(0.3rem) rotate(2.5deg);
-}
-.x-sheet:nth-child(3) {
-  transform: translateY(0.12rem);
-}
-.x-package {
-  position: absolute;
-  left: 50%;
-  bottom: 0.1rem;
-  width: 5.6rem;
-  height: 3.5rem;
-  margin-left: -2.8rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 0.6rem;
+  border-radius: 1.1rem;
   background: linear-gradient(
-    165deg,
-    var(--bys-bg-soft),
-    var(--bys-card)
+    180deg,
+    color-mix(in srgb, var(--bys-accent) 6%, var(--bys-card)),
+    var(--bys-card) 46%
   );
   box-shadow: var(--bys-shadow-card);
+  overflow: hidden;
 }
-.x-tape {
-  position: absolute;
-  top: 0.65rem;
-  left: 50%;
-  width: 2.7rem;
-  height: 0.5rem;
-  margin-left: -1.35rem;
-  border-radius: 0.14rem;
-  background: color-mix(in srgb, var(--bys-accent) 15%, var(--bys-line));
+.exp-out {
+  position: relative;
+  flex-shrink: 0;
+  width: 44%;
+  max-width: 11.5rem;
+  min-height: 8.6rem;
+  border-right: 1px dashed color-mix(in srgb, var(--bys-line) 60%, transparent);
+  background: color-mix(in srgb, var(--bys-bg-soft) 42%, transparent);
+  overflow: hidden;
 }
-.x-arrow {
+.exp-sheet {
   position: absolute;
-  bottom: 0.55rem;
   left: 50%;
-  width: 0.72rem;
-  height: 0.72rem;
-  margin-left: -0.36rem;
-  border-right: 2px solid var(--bys-accent);
-  border-bottom: 2px solid var(--bys-accent);
+  width: 60%;
+  height: 2.6rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.2rem;
+  background: var(--bys-card);
+}
+.exp-sheet:nth-child(1) {
+  bottom: 2.75rem;
+  transform: translateX(-50%) rotate(-3deg);
+}
+.exp-sheet:nth-child(2) {
+  bottom: 2.6rem;
+  transform: translateX(-50%) rotate(1.5deg);
+}
+.exp-sheet:nth-child(3) {
+  bottom: 2.45rem;
+  transform: translateX(-50%) rotate(-0.6deg);
+}
+.exp-pack {
+  position: absolute;
+  left: 50%;
+  bottom: 0.5rem;
+  width: 56%;
+  height: 2.15rem;
+  transform: translateX(-50%);
+  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 62%, var(--bys-line));
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--bys-accent) 12%, var(--bys-card));
+}
+.exp-tape {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1.5rem;
+  height: 1rem;
+  margin: -0.5rem 0 0 -0.75rem;
+  border: 1px solid color-mix(in srgb, var(--bys-line) 55%, transparent);
+  border-radius: 0.15rem;
+  background: color-mix(in srgb, #ead9a8 78%, var(--bys-card));
+}
+.exp-arrow {
+  position: absolute;
+  left: 50%;
+  top: -0.6rem;
+  width: 0.48rem;
+  height: 0.48rem;
+  margin-left: -0.24rem;
+  border-left: 2px solid var(--bys-accent-deep);
+  border-top: 2px solid var(--bys-accent-deep);
   transform: rotate(45deg);
 }
+.exp-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.8rem 0.95rem;
+}
+.exp-title {
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--bys-accent-deep);
+}
+.exp-sub {
+  margin-top: 0.15rem;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--bys-ink);
+  opacity: 0.88;
+}
+.exp-meta {
+  margin-top: 0.4rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bys-accent-soft);
+}
+.exp-act {
+  margin-top: auto;
+  padding-top: 0.4rem;
+}
+.exp-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--bys-accent-deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
 
-/* ---- 5. Attorney Prep Pack — the briefcase: handle, latch, docket ----
-   A real briefcase silhouette: handle over a case body with a center
-   seam, brass latch + clasp and keyholes. Locked = clasp closed, no
-   docket. Unlocked (.case-open) = clasp lifted, a docket sheet pokes
-   out of the top. Generating (.case-generating) = calm clasp pulse
-   (reduced-motion zeroes it). */
-.case-art {
+/* ---- 5. Attorney Prep — the briefcase IS the surface ----
+   The lid edge with a center latch forms the top of the container;
+   the body is a docket list. Locked = latch closed + honest price;
+   unlocked = latch open; generating = latch pulses. */
+.brief {
   position: relative;
-  height: 6.4rem;
-  margin-bottom: 0.35rem;
-}
-.case-docket {
-  position: absolute;
-  top: 0.4rem;
-  left: 50%;
-  width: 4.4rem;
-  height: 2.7rem;
-  margin-left: -2.2rem;
+  margin-top: 1.25rem;
   border: 1px solid var(--bys-line);
-  border-radius: 0.3rem;
-  background: var(--bys-card);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.07);
-  transform: translateY(-0.5rem) rotate(-2deg);
-  opacity: 0;
-  transition:
-    opacity 240ms ease,
-    transform 240ms ease;
-  z-index: 1;
-}
-.case-docket::before {
-  content: "";
-  position: absolute;
-  top: 0.75rem;
-  left: 0.6rem;
-  right: 0.6rem;
-  height: 0.35rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-line) 70%, transparent);
-}
-.case-docket::after {
-  content: "";
-  position: absolute;
-  top: 1.4rem;
-  left: 0.6rem;
-  width: 55%;
-  height: 0.3rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-line) 58%, transparent);
-}
-.case-open .case-docket {
-  opacity: 1;
-  transform: translateY(-1.25rem) rotate(-3deg);
-}
-.case-handle {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 3.5rem;
-  height: 0.95rem;
-  margin-left: -1.75rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 0.8rem;
-  background: color-mix(in srgb, var(--bys-accent) 20%, var(--bys-bg-soft));
-  z-index: 2;
-}
-.case-handle::before,
-.case-handle::after {
-  content: "";
-  position: absolute;
-  top: 0.9rem;
-  width: 0.6rem;
-  height: 0.5rem;
-  background: inherit;
-  border-left: 1px solid var(--bys-line);
-  border-right: 1px solid var(--bys-line);
-}
-.case-handle::before {
-  left: 0.55rem;
-}
-.case-handle::after {
-  right: 0.55rem;
-}
-.case-body {
-  position: absolute;
-  top: 1.2rem;
-  left: 50%;
-  width: 9.6rem;
-  height: 4.15rem;
-  margin-left: -4.8rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 0.85rem;
+  border-radius: 1.45rem 1.45rem 1rem 1rem;
   background: linear-gradient(
-    160deg,
+    180deg,
     color-mix(in srgb, var(--bys-accent) 9%, var(--bys-card)),
-    color-mix(in srgb, var(--bys-accent) 20%, var(--bys-bg-soft))
+    var(--bys-card) 46%
   );
   box-shadow: var(--bys-shadow-card);
-  z-index: 3;
+  overflow: hidden;
 }
-.case-seam {
+.brief-lid {
+  position: relative;
+  height: 1.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--bys-line) 70%, transparent);
+  background: color-mix(in srgb, var(--bys-accent) 15%, var(--bys-bg-soft));
+}
+.brief-latch {
   position: absolute;
-  top: 0.75rem;
-  bottom: 0.75rem;
   left: 50%;
-  width: 2px;
-  margin-left: -1px;
-  background: color-mix(in srgb, var(--bys-line) 85%, transparent);
+  top: 0.4rem;
+  width: 2.1rem;
+  height: 0.92rem;
+  margin-left: -1.05rem;
+  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
+  border-radius: 0.32rem;
+  background: color-mix(in srgb, var(--bys-accent) 22%, var(--bys-card));
+  transition: background 220ms ease;
 }
-.case-latch {
-  position: absolute;
-  top: 1.35rem;
-  left: 50%;
-  width: 2.15rem;
-  height: 0.78rem;
-  margin-left: -1.07rem;
-  border: 1px solid color-mix(in srgb, #8a6a24 50%, transparent);
-  border-radius: 0.35rem;
-  background: color-mix(in srgb, var(--bys-accent) 30%, #c9a24b);
-}
-.case-latch::after {
+.brief-latch::after {
   content: "";
   position: absolute;
-  top: 0.62rem;
   left: 50%;
-  width: 0.95rem;
-  height: 0.5rem;
-  margin-left: -0.47rem;
-  border: 1px solid color-mix(in srgb, #8a6a24 42%, transparent);
+  top: 0.74rem;
+  width: 0.9rem;
+  height: 0.55rem;
+  margin-left: -0.45rem;
+  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 50%, var(--bys-line));
   border-top: none;
-  border-radius: 0 0 0.3rem 0.3rem;
-  background: color-mix(in srgb, #c9a24b 55%, var(--bys-bg-soft));
+  border-radius: 0 0 0.25rem 0.25rem;
+  background: color-mix(in srgb, var(--bys-accent) 18%, var(--bys-card));
   transition: transform 220ms ease;
 }
-.case-open .case-latch::after {
-  transform: translateY(0.35rem) rotate(18deg);
+.brief.unlocked .brief-latch {
+  background: var(--bys-accent);
 }
-.case-keys::before,
-.case-keys::after {
-  content: "";
-  position: absolute;
-  bottom: 0.85rem;
-  width: 0.3rem;
-  height: 0.3rem;
-  border: 1px solid color-mix(in srgb, #8a6a24 45%, transparent);
-  border-radius: 9999px;
-  background: color-mix(in srgb, #c9a24b 55%, var(--bys-bg-soft));
+.brief.unlocked .brief-latch::after {
+  transform: translateY(0.28rem) rotate(15deg);
 }
-.case-keys::before {
-  left: 1.15rem;
-}
-.case-keys::after {
-  right: 1.15rem;
-}
-.case-generating .case-latch {
+.brief.generating .brief-latch {
   animation: bys-case-pulse 1.6s ease-in-out infinite;
 }
-@keyframes bys-case-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
-  }
+.brief-body {
+  padding: 0.85rem 1rem 0.95rem;
 }
-
-/* ---- 6. Record Review — the audit lens over a record stack ----
-   A fanned stack of documents with a round lens + crosshair over the
-   middle and a scan line across — reads as an audit/scan, not a card. */
-.audit-art {
-  position: relative;
-  height: 5.7rem;
-  margin-bottom: 0.4rem;
+.brief-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--bys-accent-deep);
 }
-.audit-stack {
-  position: absolute;
-  left: 50%;
-  bottom: 0.3rem;
-  width: 7.6rem;
-  height: 3.5rem;
-  margin-left: -3.8rem;
+.brief-docket {
+  margin-top: 0.55rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
 }
-.audit-stack i {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 2.9rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 0.3rem;
+.brief-docket li {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.85rem;
+  color: var(--bys-ink);
+}
+.brief-docket li::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1.5px solid var(--bys-line);
+  border-radius: 0.15rem;
   background: var(--bys-card);
 }
-.audit-stack i:nth-child(1) {
-  transform: translate(-0.55rem, 0.25rem) rotate(-3deg);
-}
-.audit-stack i:nth-child(2) {
-  transform: translate(0.45rem, 0.15rem) rotate(2deg);
-}
-.audit-lens {
-  position: absolute;
-  top: 0.15rem;
-  left: 50%;
-  width: 3.15rem;
-  height: 3.15rem;
-  margin-left: -1.57rem;
-  border: 0.18rem solid color-mix(in srgb, var(--bys-accent) 52%, var(--bys-bg-soft));
+.brief-docket li i {
+  flex: 1;
+  height: 0.32rem;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-accent) 7%, var(--bys-card));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: color-mix(in srgb, var(--bys-line) 55%, transparent);
 }
-.audit-cross::before,
-.audit-cross::after {
+.brief-state {
+  margin-top: 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bys-accent-deep);
+}
+.brief-act {
+  margin-top: 0.3rem;
+}
+.brief-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--bys-accent-deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.brief-err {
+  margin-top: 0.45rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, #b3261e 80%, var(--bys-ink));
+}
+
+/* ---- 6. Record Review — the audit workspace ----
+   A lens/scan pane sits over real evidence record strips (bar
+   lengths scale with the dad's own counts when loaded); the side
+   carries the copy + counts; footer holds state + compact action. */
+.rr-audit {
+  position: relative;
+  margin-top: 1.25rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 1.1rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bys-accent) 7%, var(--bys-card)),
+    var(--bys-card) 44%
+  );
+  box-shadow: var(--bys-shadow-card);
+  overflow: hidden;
+}
+.rr-scan {
+  position: relative;
+  height: 4.9rem;
+  border-bottom: 1px dashed color-mix(in srgb, var(--bys-line) 55%, transparent);
+  background: color-mix(in srgb, var(--bys-bg-soft) 46%, transparent);
+  overflow: hidden;
+}
+.rr-bar {
+  position: absolute;
+  left: 1rem;
+  height: 0.42rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-line) 60%, transparent);
+}
+.rr-bar:nth-child(1) {
+  top: 0.8rem;
+}
+.rr-bar:nth-child(2) {
+  top: 1.6rem;
+}
+.rr-bar:nth-child(3) {
+  top: 2.4rem;
+}
+.rr-lens {
+  position: absolute;
+  right: 1rem;
+  top: 0.6rem;
+  width: 3.1rem;
+  height: 3.1rem;
+  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 65%, var(--bys-line));
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-accent) 9%, var(--bys-card));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--bys-accent) 10%, transparent);
+}
+.rr-lens i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: -0.45rem 0 0 -0.45rem;
+}
+.rr-lens i::before,
+.rr-lens i::after {
   content: "";
   position: absolute;
   left: 50%;
   top: 50%;
-  background: color-mix(in srgb, var(--bys-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--bys-accent) 72%, transparent);
 }
-.audit-cross::before {
-  width: 0.16rem;
-  height: 1.25rem;
-  transform: translate(-50%, -50%);
+.rr-lens i::before {
+  width: 0.9rem;
+  height: 2px;
+  margin: -1px 0 0 -0.45rem;
 }
-.audit-cross::after {
-  width: 1.25rem;
-  height: 0.16rem;
-  transform: translate(-50%, -50%);
+.rr-lens i::after {
+  width: 2px;
+  height: 0.9rem;
+  margin: -0.45rem 0 0 -1px;
 }
-.audit-scan {
+.rr-beam {
   position: absolute;
-  top: 2.75rem;
-  left: 50%;
-  width: 6.6rem;
-  height: 0.13rem;
-  margin-left: -3.3rem;
-  border-radius: 9999px;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
   background: linear-gradient(
     90deg,
     transparent,
-    var(--bys-accent),
+    color-mix(in srgb, var(--bys-accent) 55%, transparent) 28%,
+    color-mix(in srgb, var(--bys-accent) 55%, transparent) 72%,
     transparent
   );
+}
+.rr-side {
+  padding: 0.8rem 1rem 0.55rem;
+}
+.rr-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--bys-accent-deep);
+}
+.rr-sub {
+  margin-top: 0.15rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--bys-ink);
+  opacity: 0.88;
+}
+.rr-strips {
+  margin-top: 0.55rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.rr-strips li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--bys-line) 70%, transparent);
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--bys-card) 80%, var(--bys-bg-soft) 20%);
+  padding: 0.34rem 0.6rem;
+  font-size: 0.82rem;
+  color: var(--bys-ink);
+}
+.rr-strips b {
+  font-weight: 700;
+  color: var(--bys-accent-deep);
+}
+.rr-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.35rem 1rem 0.8rem;
+  border-top: 1px solid color-mix(in srgb, var(--bys-line) 50%, transparent);
+}
+.rr-state {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bys-accent-deep);
   opacity: 0.85;
 }
+.rr-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--bys-accent-deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.rr-err {
+  padding: 0 1rem 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #b3261e;
+}
 
-/* ---- 7. Consultations — the two-seat conversation surface ----
-   Two speech bubbles facing each other with the brand's three typing
-   dots in each and a warm glow between them. The tile spans both grid
-   columns on sm+ (horizontal room). */
-.human-art {
+/* ---- 7. Consultations — the two-seat conversation strip ----
+   Two seats facing a shared speech bubble; on mobile a compact
+   horizontal pill-strip, not a tall card. Clearly warmer/rounder
+   than any software tile. */
+.cons-strip {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 1.15rem;
-  height: 4.7rem;
-  margin-bottom: 0.35rem;
-}
-.bubble {
-  position: relative;
-  width: 3.5rem;
-  height: 2.55rem;
+  gap: 0.85rem;
+  margin-top: 1.25rem;
+  min-height: 5.5rem;
+  padding: 0.7rem 1rem;
   border: 1px solid var(--bys-line);
-  border-radius: 1.1rem;
-  background: var(--bys-card);
+  border-radius: 9999px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bys-accent) 10%, var(--bys-card)),
+    var(--bys-card) 55%
+  );
   box-shadow: var(--bys-shadow-card);
+  overflow: hidden;
+  text-align: left;
+  text-decoration: none;
 }
-.bubble::after {
-  content: "";
+.cons-seats {
+  position: relative;
+  flex-shrink: 0;
+  width: 6.6rem;
+  height: 3.3rem;
+}
+.cons-seat {
   position: absolute;
-  bottom: -0.42rem;
-  width: 0.8rem;
-  height: 0.8rem;
-  background: inherit;
-  border-right: 1px solid var(--bys-line);
-  border-bottom: 1px solid var(--bys-line);
+  bottom: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 2px solid color-mix(in srgb, var(--bys-accent) 60%, var(--bys-line));
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-accent) 16%, var(--bys-card));
 }
-.b-l::after {
-  left: 0.95rem;
-  transform: rotate(45deg);
+.cons-seat.you {
+  left: 0;
 }
-.b-r::after {
-  right: 0.95rem;
-  transform: rotate(225deg);
+.cons-seat.them {
+  right: 0;
+  background: color-mix(in srgb, var(--bys-accent) 28%, var(--bys-card));
 }
-.bubble i {
+.cons-bubble {
   position: absolute;
   left: 50%;
-  top: 50%;
-  width: 0.32rem;
-  height: 0.32rem;
-  margin: -0.16rem 0 0 -0.16rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-accent) 55%, var(--bys-bg-soft));
+  top: 0.45rem;
+  width: 3rem;
+  height: 1.7rem;
+  margin-left: -1.5rem;
+  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
+  border-radius: 0.85rem;
+  background: var(--bys-card);
 }
-.bubble i::before,
-.bubble i::after {
+.cons-bubble::after {
   content: "";
   position: absolute;
-  top: 0;
-  width: 0.32rem;
-  height: 0.32rem;
-  border-radius: 9999px;
-  background: inherit;
+  left: 50%;
+  bottom: -0.36rem;
+  width: 0.62rem;
+  height: 0.62rem;
+  margin-left: -0.31rem;
+  border-right: 1.5px solid color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
+  border-bottom: 1.5px solid color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
+  background: var(--bys-card);
+  transform: rotate(45deg);
 }
-.bubble i::before {
-  left: -0.52rem;
+.cons-side {
+  flex: 1;
+  min-width: 0;
 }
-.bubble i::after {
-  right: -0.52rem;
+.cons-title {
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--bys-accent-deep);
 }
-.human-halo {
+.cons-sub {
+  margin-top: 0.1rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: var(--bys-ink);
+  opacity: 0.88;
+}
+.cons-go {
+  display: block;
+  margin-top: 0.28rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--bys-accent-deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.cons-live {
   flex-shrink: 0;
-  width: 2.3rem;
-  height: 1.15rem;
+  align-self: flex-start;
+  margin-top: 0.12rem;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-accent) 15%, transparent);
+  padding: 0.28rem 0.62rem;
+  background: var(--bys-accent);
+  color: var(--bys-bg);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-/* Locked/trial variant of the Organizer: the tray stays an in-flow strip
-   at every size (never absolute), so it can't collide with the upgrade
-   boxes in the full-page locked view. */
-.org-tray-compact {
-  width: 11.5rem;
-  margin: 0 0 1.1rem;
+/* ---- The workbench mosaic (desktop foyer) ----
+   Mobile: one calm column, several tools per viewport. lg+: a
+   deliberate grid of differently sized/shaped surfaces — 5/7 split,
+   then 7/5, then 7/5, with the compact stations kept to their own
+   height (ragged edges on purpose, not uniform tiles). */
+.foyer {
+  display: flex;
+  flex-direction: column;
 }
-@media (min-width: 640px) {
-  .org-tray-compact {
-    position: static;
-    right: auto;
-    bottom: auto;
-    width: 11.5rem;
-    margin: 0 0 1.1rem;
+@media (min-width: 1024px) {
+  .foyer {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.25rem;
+    align-items: stretch;
+  }
+  .foyer > * {
+    margin-top: 0;
+  }
+  .folio {
+    grid-column: span 5;
+  }
+  .ac-board {
+    grid-column: span 7;
+  }
+  .exp-station {
+    grid-column: span 7;
+    align-self: start;
+  }
+  .brief {
+    grid-column: span 5;
+  }
+  .rr-audit {
+    grid-column: span 7;
+  }
+  .cons-strip {
+    grid-column: span 5;
+    align-self: start;
   }
 }
