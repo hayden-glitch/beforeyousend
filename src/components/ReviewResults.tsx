@@ -6,6 +6,7 @@ import { ensureCaptureVariant, readCaptureVariant, type CaptureVariant } from "~
 import { computeImpactScore, type ScoreLabel } from "~/lib/impactScore";
 import { isLateNight } from "~/lib/tomorrowDrafts";
 import { prefersReducedMotion } from "~/lib/motion";
+import { claimModal, modalOpen, releaseModal } from "~/lib/trial";
 import { IconChevronDown, IconClose } from "./icons";
 import TomorrowLamp from "./TomorrowLamp";
 
@@ -245,11 +246,31 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
     if (!done || sheetOpen || sheetDismissed || emailDone) return;
     if (typeof document !== "undefined" && document.querySelector(".bys-sheet")) return;
     const t = setTimeout(() => {
+      // Shared modal lock (R6 QA P1, r6-6): the guided funnel fires ~1.4s after
+      // a review completes — before this 1.7s sheet — and claims the lock, so
+      // when this timer runs the lock is normally held. Yield for THIS
+      // completion: the funnel's ending ("Continue free" → account) is the ask,
+      // and stacking a second dialog would break the one-dialog invariant. A
+      // fresh review re-arms the sheet (streaming resets sheetDismissed).
+      if (modalOpen()) {
+        setSheetDismissed(true);
+        return;
+      }
       setSheetOpen(true);
       window.dispatchEvent(new CustomEvent("bys:capture-ask-open"));
     }, 1700);
     return () => clearTimeout(t);
   }, [done, sheetOpen, sheetDismissed, emailDone]);
+
+  // Shared modal lock (R6 QA P1): while the sheet is up it claims the same
+  // window-level lock TrialModal/SpecialOffer/GuidedFunnel use, so no other
+  // dialog can stack on it — and releases on close (dismiss/stream re-arm)
+  // and unmount. One dialog in the DOM at a time, always.
+  useEffect(() => {
+    if (!sheetOpen) return;
+    claimModal();
+    return () => releaseModal();
+  }, [sheetOpen]);
 
   // A new review stream re-arms the sheet (dismissal is per completion);
   // a converted email stays done for the whole page session. The 11pm lamp

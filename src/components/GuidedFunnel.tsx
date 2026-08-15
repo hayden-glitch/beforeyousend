@@ -374,14 +374,29 @@ export default function GuidedFunnel() {
 
         <div className="shrink-0 border-t border-line px-6 pb-[max(20px,env(safe-area-inset-bottom))] pt-4">
           {step < 2 ? (
-            <button
-              type="button"
-              onClick={continueFrom}
-              disabled={step === 0 && !need}
-              className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {step === 0 ? (need ? "Continue" : "Pick one to continue") : "Continue"}
-            </button>
+            <div>
+              <button
+                type="button"
+                onClick={continueFrom}
+                disabled={step === 0 && !need}
+                className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {step === 0 ? (need ? "Continue" : "Pick one to continue") : "Continue"}
+              </button>
+              {/* "Continue free" is ALWAYS visible (owner work order, R6): the
+                  free path is one tap away on every step — no card needed.
+                  Kept visually secondary (quiet text link) so the primary
+                  choice stays clear. Same handler as step 2 — identical event
+                  behavior, exactly once per tap. */}
+              <button
+                type="button"
+                onClick={goFree}
+                className="mt-1 block w-full min-h-11 text-center text-sm font-semibold text-stone transition-colors hover:text-forest"
+              >
+                Continue free
+              </button>
+              <p className="mt-0.5 text-center text-xs leading-relaxed text-stone/85">Free account · no card needed · in about 10 seconds.</p>
+            </div>
           ) : (
             <div>
               <button type="button" onClick={goFree} className="btn-primary w-full">
