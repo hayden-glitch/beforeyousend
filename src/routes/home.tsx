@@ -19,7 +19,7 @@ import ModeSwitch, { type ToolMode } from "~/components/ModeSwitch";
 import AttachControl, { AttachChips } from "~/components/AttachControl";
 import UserMenu from "~/components/UserMenu";
 import TomorrowDraftsList from "~/components/TomorrowDraftsList";
-import { IconAction, IconAnalyze, IconArrowDown, IconArrowUp, IconBook, IconClose, IconDownload, IconGavel, IconHistory, IconLog, IconOrganizer, IconPlus, IconReview, IconTimeline } from "~/components/icons";
+import { IconAnalyze, IconArrowDown, IconArrowUp, IconClose, IconLog, IconOrganizer, IconPlus, IconReview, IconTimeline } from "~/components/icons";
 import { fetchActionCenter, type ActionItem, type ActionCenterCounts } from "~/lib/actionCenter";
 import { fetchCaseSummary } from "~/lib/caseSummary";
 // Lazy-mounted so "The Organizer" trial UI ships as its own chunk — the main
