@@ -83,7 +83,7 @@ function SheetFrame({ onClose, label, children }: { onClose: () => void; label: 
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="bys-sheet absolute inset-x-0 bottom-0 max-h-[80dvh] overflow-y-auto rounded-t-[2rem] border-t-2 border-forest bg-card px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-3 shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[2rem] sm:border-2"
+        className="bys-sheet absolute inset-x-0 bottom-0 max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t border-forest bg-card px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-3 shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-2xl sm:border"
       >
         <div className="bys-grabber" aria-hidden="true" />
         {children}
@@ -353,7 +353,7 @@ export default function AttachControl({
         onClick={() => openSheet("steady")}
         disabled={disabled}
         aria-label="Attach a photo or document with Steady"
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-semibold text-stone transition-colors duration-150 select-none hover:bg-cream-deep disabled:opacity-40 disabled:hover:bg-transparent"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold text-stone transition-colors duration-150 select-none hover:bg-cream-deep disabled:opacity-40 disabled:hover:bg-transparent"
       >
         <IconAttach className="h-5 w-5 shrink-0 text-forest-soft" />
         <span>Steady</span>
@@ -383,7 +383,7 @@ export function AttachChips({
       {attachments.map((a) => (
         <span
           key={a.name}
-          className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-line bg-cream-deep px-3 py-1.5 text-sm text-ink"
+          className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-line bg-cream-deep px-2.5 py-1 text-[13px] text-ink"
         >
           <IconAttach className="h-4 w-4 shrink-0 text-forest-soft" />
           <span className="min-w-0 truncate">{a.name}</span>

@@ -267,6 +267,21 @@
   .bys-mode-settle {
     animation: bys-mode-settle-kf 200ms ease-out;
   }
+  /* D2 review results — calm streaming indication (5304729186 §4): one small
+     dot breathing at ~1.6s, opacity only, next to the working line. No bright
+     spinner; the global prefers-reduced-motion rule zeroes it instantly. */
+  @keyframes bys-stream-pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  .bys-stream-pulse {
+    animation: bys-stream-pulse 1.6s ease-in-out infinite;
+  }
 }
 
 @layer components {

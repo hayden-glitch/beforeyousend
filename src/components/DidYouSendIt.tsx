@@ -202,7 +202,7 @@ export default function DidYouSendIt({ draft, blocks, eventId, score, tier, onGo
   if (state === "sent") {
     const label = pickedTone ? TONE_LABELS[pickedTone] : null;
     return (
-      <div className="rounded-3xl border border-line bg-card p-6 shadow-card">
+      <div className="card p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-base font-semibold text-forest">
             {label ? `Sent — ${label}. It's on your record.` : "Sent. It's on your record."}
@@ -222,7 +222,7 @@ export default function DidYouSendIt({ draft, blocks, eventId, score, tier, onGo
 
   if (state === "confirmed") {
     return (
-      <div className="rounded-3xl border border-line bg-card p-6 shadow-card">
+      <div className="card p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-lg font-semibold text-forest">Logged — it&apos;s on your record.</p>
@@ -256,7 +256,7 @@ export default function DidYouSendIt({ draft, blocks, eventId, score, tier, onGo
 
   // state === "ask"
   return (
-    <div className="rounded-3xl border border-line bg-card p-6 shadow-card">
+    <div className="card p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-lg font-semibold text-forest">Did you send it?</p>
         <button type="button" onClick={() => setState("hidden")} className="icon-btn min-h-11 shrink-0 text-stone" aria-label="Dismiss">

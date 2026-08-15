@@ -497,9 +497,9 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
 
 
   return (
-    <div className="mt-8 space-y-6">
+    <div className="mt-6 space-y-4">
       {mode === "demo" && (
-        <p className="rounded-2xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-base font-semibold text-amber-900">
+        <p className="rounded-xl border border-amber-500/50 bg-amber-50 px-4 py-3 text-base font-semibold text-amber-900">
           SAMPLE — this is canned demo output, NOT a live {isAnalyze ? "analysis" : "review"} of your {isAnalyze ? "situation" : "message"}.
           It is only shown when the server runs without a live AI key (dev setups).
           It cannot be saved to an account.
@@ -507,7 +507,7 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
       )}
 
       {draft === EXAMPLE_DRAFT && (
-        <p className="rounded-2xl border border-forest/20 bg-forest/5 px-4 py-3 text-base font-medium text-forest">
+        <p className="rounded-xl border border-forest/20 bg-forest/5 px-4 py-3 text-base font-medium text-forest">
           Example review — this is a sample message, not your draft.
         </p>
       )}
@@ -518,20 +518,16 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
       {sections.rewrites.length > 0 && (
         <div>
           {!isAnalyze && (
-            <h3 className="text-lg font-semibold tracking-tight text-forest">
-              Rewrites to send
-            </h3>
+            <h3 className="text-base font-semibold text-forest">Rewrites to send</h3>
           )}
           <div className={isAnalyze ? "" : "mt-4 space-y-4"}>
             {sections.rewrites.map((r, ri) => (
               <div
                 key={r.id}
-                className={`rounded-3xl border border-line bg-card p-6 shadow-card${ri < seq.rw ? " bys-wizard-settle" : ""}`}
+                className={`rounded-xl border border-line bg-card p-5${ri < seq.rw ? " bys-wizard-settle" : ""}`}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="inline-flex rounded-full bg-cream-deep px-3 py-1 text-base font-semibold text-forest">
-                    {r.title}
-                  </span>
+                  <span className="text-base font-semibold text-forest">{r.title}</span>
                   <button
                     type="button"
                     onClick={() => copy(`rw-${r.id}`, r.text)}
@@ -576,7 +572,7 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
                   </button>
                 </div>
                 <p
-                  className={`mt-3 whitespace-pre-line text-base leading-relaxed text-ink ${
+                  className={`mt-2 whitespace-pre-line text-base leading-relaxed text-ink ${
                     streaming && r === sections.rewrites[sections.rewrites.length - 1]
                       ? "stream-caret"
                       : ""
@@ -597,9 +593,9 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
           the capture ask. Honest, deterministic, from this review's own flags.
           The footer line is mandatory on every render — never remove it. */}
       {scoreVisible && impact && (
-        <div className="bys-wizard-in rounded-3xl border border-line bg-card p-5 shadow-card">
+        <div className="bys-wizard-in rounded-xl border border-line bg-card p-4">
           <div className="flex items-start justify-between gap-3">
-            <p className="text-lg font-semibold tracking-tight text-forest">How this message reads</p>
+            <p className="text-base font-semibold text-forest">How this message reads</p>
             <div className="shrink-0 text-right">
               <span className="text-2xl font-semibold leading-none text-forest">{impact.score}</span>
               <span className={`ml-2 inline-flex translate-y-[-2px] rounded-full px-2.5 py-1 text-sm font-semibold ${SCORE_CHIP[impact.label]}`}>
@@ -607,9 +603,9 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
               </span>
             </div>
           </div>
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-cream-deep">
+          <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-cream-deep">
             <div
-              className={`h-2 rounded-full transition-[width] duration-[420ms] ease-out ${SCORE_BAR[impact.label]}`}
+              className={`h-1.5 rounded-full transition-[width] duration-[420ms] ease-out ${SCORE_BAR[impact.label]}`}
               style={{ width: `${fillPct === null ? impact.score : fillPct}%` }}
               role="img"
               aria-label={`${impact.score} out of 100`}
@@ -656,15 +652,15 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
           <details
             key={id}
             ref={ai === 0 ? firstDetailsRef : undefined}
-            className={`group rounded-3xl border border-line bg-card shadow-card${ai < seq.analysis ? " bys-wizard-settle" : ""}`}
+            className={`group rounded-xl border border-line bg-card${ai < seq.analysis ? " bys-wizard-settle" : ""}`}
           >
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-6 py-4 text-lg font-semibold tracking-tight text-forest [&::-webkit-details-marker]:hidden">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3.5 text-base font-semibold text-forest [&::-webkit-details-marker]:hidden">
               <span>{title}</span>
               <span aria-hidden="true" className="shrink-0">
                 <IconChevronDown className="h-5 w-5 text-forest-soft transition-transform duration-200 group-open:rotate-180" />
               </span>
             </summary>
-            <div className="px-6 pb-6">
+            <div className="px-5 pb-5">
               {s.paras.length > 0 && (
                 <p className="text-base leading-relaxed text-ink">
                   {s.paras.join("\n\n")}
@@ -693,15 +689,15 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
 
       {streaming ? (
         <>
-          <p className="rounded-2xl border border-line bg-cream-deep px-4 py-3 text-base text-stone">{isAnalyze ? "Reading the situation — how it may look, and what to do next…" : "Reading the tone, conflict risks, and calmer rewrites…"}</p>
+          <div className="flex items-center gap-2.5 rounded-xl border border-line bg-cream-deep/70 px-4 py-3"><span aria-hidden="true" className="bys-stream-pulse h-1.5 w-1.5 shrink-0 rounded-full bg-forest-soft" /><p className="text-base text-stone">{isAnalyze ? "Reading the situation — how it may look, and what to do next…" : "Reading the tone, conflict risks, and calmer rewrites…"}</p></div>
           {stalled && (
-            <p className="rounded-2xl border border-forest/15 bg-card px-4 py-3 text-base text-stone">
+            <p className="rounded-xl border border-forest/15 bg-card px-4 py-3 text-base text-stone">
               Still working — this can take up to a minute when things are slow. Nothing's lost.
             </p>
           )}
         </>
       ) : mode === "demo" ? (
-        <p className="rounded-2xl border border-line bg-cream-deep px-4 py-3 text-base text-stone">
+        <p className="rounded-xl border border-line bg-cream-deep px-4 py-3 text-base text-stone">
           {isAnalyze ? "Sample output is never saved to an account. Describe a real situation and get a live analysis." : "Sample output is never saved to an account. Paste a real draft and get a live AI review."}
         </p>
       ) : !captureAsk && !hideCapture ? (
@@ -710,7 +706,7 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
       ) : null}
 
       {!streaming && mode === "live" && !example && (
-        <div className="rounded-3xl border border-line bg-cream-deep/50 p-5">
+        <div className="rounded-xl border border-line bg-cream-deep/50 p-4">
           <p className="text-base font-semibold text-forest">{isAnalyze ? "Did this help?" : "Did this review help?"}</p>
           {feedback === "idle" ? (
             <div className="mt-3 flex flex-wrap gap-2">
@@ -829,7 +825,7 @@ function EmailCapture({ draft, reviewText, noun = REVIEW_NOUN, onSubmitted }: { 
   const { email, setEmail, state, setState, error, setError, confirmLink, submit: onSubmit } = useCaptureSubmit(draft, reviewText, variant, onSubmitted);
   if (state === "saved") {
     return (
-      <div className="rounded-3xl border border-forest/25 bg-forest p-6 text-cream">
+      <div className="rounded-xl border border-forest/25 bg-forest p-5 text-cream">
         <p className="text-lg font-semibold">{noun.savedHeading}</p>
         <p className="mt-2 text-base text-cream/85">
           {noun.savedSub}
@@ -842,7 +838,7 @@ function EmailCapture({ draft, reviewText, noun = REVIEW_NOUN, onSubmitted }: { 
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-3xl border border-line bg-card p-6 shadow-card"
+      className="rounded-xl border border-line bg-card p-5 shadow-card"
       noValidate
     >
       {variant === "b" ? (
@@ -878,7 +874,7 @@ function EmailCapture({ draft, reviewText, noun = REVIEW_NOUN, onSubmitted }: { 
               setError("");
             }
           }}
-          className="min-h-12 w-full rounded-full border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+          className="min-h-12 w-full rounded-xl border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
           required
         />
         <button
@@ -915,7 +911,7 @@ function CaptureSheet({ draft, reviewText, nudge, noun = REVIEW_NOUN, onDismiss,
   if (state === "saved") {
     return (
       <div id="bys-capture-sheet" className="fixed inset-x-0 bottom-0 z-[36] md:hidden" role="dialog" aria-label={noun.savedHeading}>
-        <div className="bys-sheet mx-auto w-full max-w-3xl rounded-t-[2rem] border-t-2 border-forest bg-card px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-3 shadow-2xl">
+        <div className="bys-sheet mx-auto w-full max-w-3xl rounded-t-2xl border-t border-forest bg-card px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-3 shadow-2xl">
           <div className="bys-grabber" aria-hidden="true" />
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -970,7 +966,7 @@ function CaptureSheet({ draft, reviewText, nudge, noun = REVIEW_NOUN, onDismiss,
                 setError("");
               }
             }}
-            className="min-h-12 w-full rounded-full border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+            className="min-h-12 w-full rounded-xl border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
             required
           />
           <button type="submit" disabled={state === "saving"} className="btn-primary mt-3 w-full">
@@ -997,7 +993,7 @@ function CaptureSheet({ draft, reviewText, nudge, noun = REVIEW_NOUN, onDismiss,
 // box back to the dad so his own (real) review can run free.
 function ExampleAsk({ onUseOwnMessage }: { onUseOwnMessage?: () => void }) {
   return (
-    <div className="rounded-3xl border-2 border-forest/25 bg-forest/5 p-6">
+    <div className="rounded-xl border border-forest/25 bg-forest/5 p-5">
       <p className="text-lg font-semibold leading-snug tracking-tight text-forest">
         That's the shape of it. Paste YOUR message — your first review is free, no account.
       </p>
