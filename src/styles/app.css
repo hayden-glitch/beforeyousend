@@ -144,7 +144,6 @@ html[data-hero-variant="c"] .hero-variant-b {
     @apply bg-cream font-sans text-ink antialiased;
     font-size: 16px;
     line-height: 1.6;
-    overflow-x: clip;
   }
   /* Never allow horizontal overflow from long words or wide children. */
   img,

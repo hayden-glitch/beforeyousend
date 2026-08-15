@@ -52,7 +52,7 @@ export function TabBar({
                 className="flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center px-1"
               >
                 <span
-                  className={`flex flex-col items-center gap-1 rounded-full px-3 py-1 transition-colors duration-150 ${
+                  className={`flex max-w-full flex-col items-center gap-1 rounded-full px-3 py-1 transition-colors duration-150 max-[384px]:px-1 ${
                     isActive ? "bg-forest/10 text-forest" : "text-stone"
                   }`}
                 >
