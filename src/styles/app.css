@@ -1465,1268 +1465,1022 @@ main[id]:focus {
 }
 
 /* ============================================================
-   PART IId — THE FOYER: SEVEN GENUINELY DIFFERENT SURFACES
-   (HOLD 5303879888 + REJECT 5304133183 — second, structural pass)
-   No repeated card grammar. Each tool's metaphor IS its container
-   and layout: desk hero, tabbed folio, queue board, split print
-   station, briefcase/docket, lens-over-evidence audit, two-seat
-   conversation strip. Art is pure CSS, aria-hidden, pointer-events
-   none, clipped inside overflow:hidden parents (never inflates
-   scrollWidth). NO 3D transforms (MWO Phase-E lesson). All colors
-   ride the world tokens (--bys-accent/--bys-line/--bys-card), so
-   every surface keeps its world tint in Forest/Midnight/Sand.
+   PART IId — THE ROOM (DECISION.md pick B · design-first comp)
+   Spatial / room-based foyer: every tool is a genuinely different
+   surface whose art is STRUCTURAL (desk with file tray + legs,
+   tabbed folio with gold ribbon, queue console with lit LED,
+   export tray with stacked sheets, latched briefcase, lens bench,
+   two-chair consultation room). Statuses live INSIDE each metaphor
+   (gold LIVE, LED + N TO DO, READY, price chips, ● NOW) — never a
+   repeated pill. Exactly ONE .cta-primary (the desk's). Mobile =
+   single-column room (desk → shelves → floor → foot); >=900px the
+   room breaks out to a full-viewport scene with wall+floor bands
+   and six absolutely positioned objects (proportional 900–1199,
+   contract px at >=1200). This is a fixed-palette scene (the comp's
+   exact hexes — a designed "lit foyer"); it does not re-tint with
+   the Midnight/Sand themes, so it stays legible everywhere.
+   Art is pure CSS, aria-hidden, pointer-events none. NO 3D
+   transforms (MWO Phase-E lesson). The blanket prefers-reduced-
+   motion rule zeroes the LED pulse + latch transition.
    ============================================================ */
-.world-export {
-  --section-accent: color-mix(in oklab, var(--bys-accent) 42%, #7c6a2e 58%);
-  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 26%, #5d4f1f 74%);
-  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 56%, #b7a04f 44%);
-  --section-surface: color-mix(in srgb, var(--bys-card) 92%, #f3ecd6 8%);
-  --section-surface-strong: color-mix(in srgb, var(--bys-card) 80%, #ece2c4 20%);
-  --section-line: color-mix(in srgb, var(--bys-line) 72%, #cfc08a 28%);
-  --section-glow: color-mix(in srgb, #d9c27a 18%, transparent);
-  --section-glow-2: color-mix(in srgb, #b9d6cf 12%, transparent);
-  --section-glow-strength: 0.9;
-  --bys-accent: var(--section-accent);
-  --bys-accent-deep: var(--section-accent-deep);
-  --bys-accent-soft: var(--section-accent-soft);
-  --bys-card: var(--section-surface);
-  --bys-line: var(--section-line);
-  --bys-bg-soft: var(--section-surface-strong);
-}
-@keyframes bys-case-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
-}
 
-/* ---- 1. Organizer — the filing-desk hero (the ONE primary CTA) ----
-   The whole surface is the desk: a front edge band with drawer pulls,
-   a header, then a real file tray (hanging files with tab labels —
-   the dad's own kids' names when set) and the single full-width
-   primary CTA. Mobile: tray + CTA stack; lg+: tray left, CTA right. */
-.org-desk {
+/* ---- 0. Room scaffold (mobile-first, single column) ----
+   The app shell's <main> already provides the 20px gutters, so the
+   room itself is edge-to-edge inside the column — the comp's 20px
+   padding is the main's px-5, reproducing the same visual rhythm. */
+.room {
   position: relative;
-  margin-top: 1.25rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 1.4rem;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bys-accent) 9%, var(--bys-card)),
-    var(--bys-card) 48%
-  );
-  box-shadow: var(--bys-shadow-card);
-  overflow: hidden;
+  padding: 22px 0 0;
+  background:
+    radial-gradient(120% 60% at 20% 0%, rgba(232, 207, 154, 0.34), rgba(232, 207, 154, 0) 60%),
+    radial-gradient(90% 50% at 85% 4%, rgba(188, 220, 234, 0.26), rgba(188, 220, 234, 0) 62%),
+    linear-gradient(180deg, #faf7f1 0%, #f6f0e2 74%, #efe7d4 100%);
 }
-.org-edge {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1.05rem;
-  border-top: 1px solid color-mix(in srgb, var(--bys-line) 60%, transparent);
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--bys-accent) 12%, var(--bys-bg-soft)),
-    color-mix(in srgb, var(--bys-accent) 24%, var(--bys-bg-soft))
-  );
-}
-.org-edge-cap {
-  position: absolute;
-  top: 0.3rem;
-  left: 20%;
-  width: 3.4rem;
-  height: 0.32rem;
-  border: 1px solid color-mix(in srgb, var(--bys-line) 55%, transparent);
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-accent) 26%, var(--bys-card));
-}
-.org-edge-cap.r {
-  left: auto;
-  right: 20%;
-}
-.org-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.9rem;
-  padding: 1.2rem 1.25rem 0;
-}
-.org-mark {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.6rem;
-  height: 2.6rem;
-  border-radius: 0.9rem;
-  background: var(--bys-accent);
-  color: var(--bys-bg);
-}
-.org-head-text {
-  min-width: 0;
-}
-.org-kicker {
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+.room .room-kick {
+  font-size: 10.5px;
+  letter-spacing: 0.26em;
   text-transform: uppercase;
-  color: var(--bys-accent-deep);
-}
-.org-title {
-  margin-top: 0.12rem;
-  font-family: var(--font-display);
-  font-size: 1.45rem;
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.01em;
-  color: var(--bys-accent-deep);
-}
-.org-copy {
-  margin-top: 0.3rem;
-  font-size: 0.88rem;
-  line-height: 1.45;
-  color: var(--bys-ink);
-  opacity: 0.9;
-}
-.org-drawers {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  padding: 1rem 1.25rem 1.55rem;
-}
-.org-desk-tray {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: 0.55rem;
-  height: 4.1rem;
-  padding: 0.95rem 0.7rem 0.5rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 0.9rem;
-  background: color-mix(in srgb, var(--bys-bg-soft) 58%, transparent);
-  box-shadow: inset 0 -0.85rem 0 color-mix(in srgb, var(--bys-accent) 9%, transparent);
-}
-.org-desk-file {
-  position: relative;
-  width: 22%;
-  max-width: 4.8rem;
-  height: 100%;
-  border: 1px solid var(--bys-line);
-  border-bottom: none;
-  border-radius: 0.4rem 0.4rem 0 0;
-  background: var(--bys-card);
-}
-.org-desk-tab {
-  position: absolute;
-  top: -0.82rem;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 92%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0.16rem 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--bys-accent) 60%, var(--bys-line));
-  border-bottom: none;
-  border-radius: 0.32rem 0.32rem 0 0;
-  background: color-mix(in srgb, var(--bys-accent) 78%, var(--bys-card));
-  color: var(--bys-bg);
-  font-size: 0.6rem;
-  font-weight: 700;
-  font-style: normal;
-  letter-spacing: 0.03em;
-}
-.org-desk-file.waiting {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bys-accent) 16%, transparent);
-}
-.org-desk-file.waiting .org-desk-tab {
-  background: var(--bys-accent);
-}
-.org-act {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.65rem;
-}
-.org-pill {
-  align-self: flex-start;
-  border: 1px solid color-mix(in srgb, var(--bys-accent) 45%, var(--bys-line));
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-accent) 10%, var(--bys-card));
-  padding: 0.32rem 0.8rem;
-  color: var(--bys-accent-deep);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-@media (min-width: 1024px) {
-  .org-drawers {
-    flex-direction: row;
-    align-items: flex-end;
-    gap: 1.4rem;
-  }
-  .org-desk-tray {
-    flex: 1;
-  }
-  .org-act {
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.9rem;
-    padding-bottom: 0.2rem;
-  }
-  .org-pill {
-    align-self: center;
-  }
-}
-
-/* Locked/trial variant of the Organizer (OrganizerLocked.tsx) — kept
-   intact from the earlier layout; the tray stays an in-flow strip. */
-.org-tray {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0.55rem;
-  width: 100%;
-  height: 3.5rem;
-  margin-top: 1.1rem;
-  padding: 0 0.8rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 0.9rem;
-  background: color-mix(in srgb, var(--bys-bg-soft) 72%, transparent);
-  box-shadow:
-    inset 0 -0.55rem 0 color-mix(in srgb, var(--bys-accent) 9%, transparent),
-    var(--bys-shadow-card);
-}
-.org-tray-compact {
-  width: 11.5rem;
-  margin: 0 0 1.1rem;
-}
-@media (min-width: 640px) {
-  .org-tray-compact {
-    position: static;
-    right: auto;
-    bottom: auto;
-    width: 11.5rem;
-    margin: 0 0 1.1rem;
-  }
-}
-.org-file {
-  position: relative;
-  width: 2.4rem;
-  max-width: 24%;
-  border: 1px solid var(--bys-line);
-  border-bottom: none;
-  border-radius: 0.32rem 0.32rem 0 0;
-  background: var(--bys-card);
-  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
-}
-.org-file i {
-  position: absolute;
-  top: -0.6rem;
-  left: 0.25rem;
-  width: 1.55rem;
-  height: 0.62rem;
-  border-radius: 0.3rem 0.3rem 0 0;
-  background: color-mix(in srgb, var(--bys-accent) 72%, #fff);
-}
-.org-file:nth-child(2) i {
-  background: color-mix(in srgb, var(--bys-accent) 52%, #fff);
-}
-.org-file:nth-child(3) i {
-  background: color-mix(in srgb, var(--bys-accent) 32%, #fff);
-}
-.org-file.waiting {
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--bys-accent) 13%, transparent),
-    0 -1px 3px rgba(0, 0, 0, 0.05);
-}
-@media (min-width: 640px) {
-  .org-tray {
-    position: absolute;
-    right: 1.9rem;
-    bottom: 1.9rem;
-    width: 8.8rem;
-    height: 3.6rem;
-    margin-top: 0;
-    padding: 0 0.6rem;
-  }
-  .org-file {
-    width: 2rem;
-    max-width: none;
-  }
-}
-
-/* ---- 2. Case Summary — the FOLIO IS the container ----
-   An index-tab strip across the top, a stacked-sheet edge peeking
-   behind the report sheet, and a compact report preview (real
-   excerpt + record counts when loaded) inside. CTA is a compact
-   footer/tab action, never a giant button. */
-.folio {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  margin-top: 1.25rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 1.1rem;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bys-accent) 8%, var(--bys-card)),
-    var(--bys-card) 44%
-  );
-  box-shadow: var(--bys-shadow-card);
-  overflow: hidden;
-  padding-top: 2.05rem;
-}
-.folio-tabs {
-  position: absolute;
-  top: 0.62rem;
-  left: 0.85rem;
-  right: 0.85rem;
-  display: flex;
-  gap: 0.35rem;
-}
-.folio-tab {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.6rem;
-  height: 1.45rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 0.45rem 0.45rem 0 0;
-  background: color-mix(in srgb, var(--bys-card) 80%, var(--bys-bg-soft) 20%);
-}
-.folio-tab i {
-  width: 55%;
-  height: 0.3rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-line) 68%, transparent);
-}
-.folio-tab.on {
-  border-color: var(--bys-accent);
-  background: var(--bys-accent);
-}
-.folio-tab.on i {
-  background: color-mix(in srgb, var(--bys-bg) 78%, transparent);
-}
-.folio-body {
-  position: relative;
-  margin: 0 0.6rem 0.5rem;
-  padding: 0.85rem 0.95rem 0.75rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 0.8rem;
-  background: var(--bys-card);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
-  transform: rotate(-0.35deg);
-}
-.folio-body::before {
-  content: "";
-  position: absolute;
-  top: -0.44rem;
-  left: 1.1rem;
-  right: 1.1rem;
-  height: 0.44rem;
-  border: 1px solid var(--bys-line);
-  border-bottom: none;
-  border-radius: 0.5rem 0.5rem 0 0;
-  background: color-mix(in srgb, var(--bys-card) 62%, var(--bys-bg-soft) 38%);
-}
-.folio-title {
-  font-family: var(--font-display);
-  font-size: 1.08rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--bys-accent-deep);
-}
-.folio-sub {
-  margin-top: 0.18rem;
-  font-size: 0.84rem;
-  line-height: 1.4;
-  color: var(--bys-ink);
-  opacity: 0.9;
-}
-.folio-report {
-  margin-top: 0.55rem;
-}
-.folio-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 0.38rem;
-}
-.folio-lines span {
-  height: 0.5rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-line) 62%, transparent);
-}
-.folio-excerpt {
-  font-size: 0.82rem;
-  line-height: 1.5;
-  color: var(--bys-ink);
-  opacity: 0.88;
-  max-height: 3.4rem;
-  overflow: hidden;
-}
-.folio-counts {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.35rem;
-  margin-top: 0.6rem;
-}
-.folio-counts span {
-  border: 1px solid color-mix(in srgb, var(--bys-line) 70%, transparent);
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--bys-card) 78%, var(--bys-bg-soft) 22%);
-  padding: 0.3rem 0.2rem;
-  text-align: center;
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--bys-accent-deep);
-}
-.folio-counts b {
-  display: block;
-  font-size: 0.95rem;
-  letter-spacing: 0;
-  color: var(--bys-ink);
-}
-.folio-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-  margin-top: auto;
-  padding: 0.6rem 1rem 0.9rem;
-}
-.folio-stamp {
-  border: 1.5px dashed color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
-  border-radius: 0.5rem;
-  padding: 0.26rem 0.6rem;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--bys-accent-deep);
-}
-.folio-stamp.filled {
-  border-style: solid;
-  border-color: var(--bys-accent);
-  background: var(--bys-accent);
-  color: var(--bys-bg);
-}
-.folio-open {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  font-size: 0.92rem;
+  color: #6f6a5e;
   font-weight: 600;
-  color: var(--bys-accent-deep);
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
-
-/* Inset variant of the dossier band for full-page locked views. */
-.dossier-band {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
-  height: 1.8rem;
-  margin: -1.5rem -1.5rem 1.15rem;
-  padding: 0.32rem 1.25rem 0;
-  border-bottom: 1px solid var(--bys-line);
-  border-radius: 1.35rem 1.35rem 0 0;
-  background: color-mix(in srgb, var(--bys-accent) 8%, var(--bys-bg-soft));
-}
-.dossier-band-tab {
-  height: 0.95rem;
-  width: 3rem;
-  border: 1px solid var(--bys-line);
-  border-bottom: none;
-  border-radius: 0.45rem 0.45rem 0 0;
-  background: color-mix(in srgb, var(--bys-accent) 16%, var(--bys-card));
-}
-.dossier-band-tab.active {
-  background: color-mix(in srgb, var(--bys-accent) 30%, var(--bys-card));
-}
-.dossier-band-inset {
-  margin: 0 0 1.1rem;
-  border-radius: 0.85rem;
-}
-
-/* ---- 3. Action Center — the QUEUE IS the layout ----
-   A control rail (title + radar/attention indicator), then REAL
-   priority rows (status dot, item text, section tag) from the dad's
-   own saved data; footer is a compact open action + status line. */
-.ac-board {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  margin-top: 1.25rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 1.1rem;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bys-accent) 7%, var(--bys-card)),
-    var(--bys-card) 42%
-  );
-  box-shadow: var(--bys-shadow-card);
-  overflow: hidden;
-}
-.ac-rail {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.8rem 1rem 0.55rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--bys-line) 55%, transparent);
-}
-.ac-title {
+.room h1.room-title {
   font-family: var(--font-display);
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--bys-accent-deep);
+  font-size: 26px;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  margin-top: 7px;
+  line-height: 1.12;
+  color: #26221c;
 }
-.ac-radar {
+.room .room-lede {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: #6f6a5e;
+  line-height: 1.45;
+  max-width: 34em;
+}
+.room-scene {
   position: relative;
-  flex-shrink: 0;
-  width: 3.4rem;
-  height: 1.7rem;
 }
-.ac-sweep {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 45%, transparent);
-  border-bottom: none;
-  border-radius: 9999px 9999px 0 0;
+
+/* ---- 1. THE DESK — Organizer (the ONE primary CTA) ---- */
+.desk {
+  position: relative;
+  margin-top: 20px;
+  border-radius: 6px 6px 18px 18px;
+  background: linear-gradient(180deg, #f2e8cc, #e9dcb6);
+  box-shadow: 0 18px 34px rgba(88, 70, 30, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.55);
+  padding: 0 0 14px;
 }
-.ac-sweep::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  width: 1px;
-  height: 68%;
-  background: color-mix(in srgb, var(--bys-accent) 55%, transparent);
-  transform-origin: 50% 100%;
-  transform: rotate(30deg);
+.desk .desk-top {
+  padding: 16px 16px 10px;
+  position: relative;
 }
-.ac-core {
-  position: absolute;
-  left: 50%;
-  bottom: 0.2rem;
-  width: 0.44rem;
-  height: 0.44rem;
-  margin-left: -0.22rem;
-  border-radius: 9999px;
-  background: var(--bys-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bys-accent) 16%, transparent);
-}
-.ac-queue {
+.desk .desk-files {
   display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.6rem 0.8rem;
+  gap: 7px;
 }
-.ac-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  border: 1px solid color-mix(in srgb, var(--bys-line) 75%, transparent);
-  border-radius: 0.7rem;
-  background: color-mix(in srgb, var(--bys-card) 78%, var(--bys-bg-soft) 22%);
-  padding: 0.52rem 0.65rem;
-}
-.ac-dot {
-  flex-shrink: 0;
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 9999px;
-  background: var(--bys-line);
-}
-.ac-dot.unresolved {
-  background: var(--bys-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bys-accent) 15%, transparent);
-}
-.ac-dot.upcoming {
-  background: var(--bys-accent-soft);
-}
-.ac-dot.missing {
-  background: color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
-}
-.ac-dot.needs_documentation {
-  background: color-mix(in srgb, var(--bys-accent) 35%, var(--bys-line));
-}
-.ac-text {
+.desk .desk-file {
+  position: relative;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.88rem;
-  line-height: 1.35;
-  color: var(--bys-ink);
+  height: 34px;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #fffdf4, #f4ead2);
+  border: 1px solid #d9c48e;
+  box-shadow: 0 2px 4px rgba(88, 70, 30, 0.12);
 }
-.ac-tag {
-  flex-shrink: 0;
-  font-size: 0.64rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--bys-accent-deep);
-}
-.ac-empty {
-  padding: 0.65rem 0.7rem 0.85rem;
-  font-size: 0.88rem;
-  line-height: 1.4;
-  color: var(--bys-ink);
-  opacity: 0.8;
-}
-.ac-locked {
+.desk .desk-tab {
+  position: absolute;
+  top: -8px;
+  left: 4px;
+  right: 4px;
+  height: 11px;
+  border-radius: 4px 4px 0 0;
+  background: #1a5c4d;
+  font-style: normal;
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.6rem 0.7rem 0.85rem;
+  align-items: center;
+  justify-content: center;
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #fdf8ec;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 3px;
 }
-.ac-locked span {
-  height: 0.85rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-line) 55%, transparent);
+.desk .desk-file:nth-child(2) .desk-tab {
+  background: #8a5a13;
 }
-.ac-foot {
+.desk .desk-file:nth-child(3) .desk-tab {
+  background: #2f4f78;
+}
+.desk .desk-file:nth-child(4) .desk-tab {
+  background: #7a4a12;
+}
+.desk .desk-file.waiting {
+  box-shadow: 0 0 0 3px rgba(216, 180, 92, 0.45);
+}
+.desk .desk-file.waiting .desk-tab {
+  background: #d8b45c;
+  color: #5c470f;
+}
+.desk .desk-line {
+  position: absolute;
+  top: 13px;
+  left: 8px;
+  right: 8px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: #e2d5b2;
+  box-shadow: 0 5px 0 #e2d5b2;
+}
+.desk .desk-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.desk h2 {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 580;
+  letter-spacing: -0.01em;
+  color: #5c4a1e;
+}
+.desk .desk-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #6b5d3c;
+  letter-spacing: 0.06em;
+  background: #faf4e2;
+  border: 1px solid #dccfae;
+  border-radius: 6px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.desk .desk-copy {
+  font-size: 12px;
+  color: #6f6040;
+  margin-top: 5px;
+  line-height: 1.45;
+}
+.desk .desk-note {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.6rem;
-  margin-top: auto;
-  padding: 0.5rem 1rem 0.75rem;
-  border-top: 1px solid color-mix(in srgb, var(--bys-line) 50%, transparent);
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 11px;
+  background: #fdfaf0;
+  border: 1px solid #ddd0ae;
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 6px 14px rgba(88, 70, 30, 0.14);
 }
-.ac-open {
+.desk .desk-note-t b {
+  display: block;
+  font-size: 12.5px;
+  color: #6b5d3c;
+  font-weight: 700;
+}
+.desk .desk-note-t span {
+  font-size: 10.5px;
+  color: #8d7c52;
+}
+.cta-primary {
   display: inline-flex;
   align-items: center;
-  min-height: 2.75rem;
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: var(--bys-accent-deep);
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  background: #1e4236;
+  color: #f7f2e6;
+  font-size: 13.5px;
+  font-weight: 650;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  box-shadow: 0 8px 16px rgba(30, 66, 54, 0.3);
 }
-.ac-status {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--bys-accent-deep);
+.desk .desk-legs {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 18px;
+  margin-top: 2px;
+}
+.desk .desk-legs i {
+  width: 10px;
+  height: 16px;
+  border-radius: 0 0 4px 4px;
+  background: #cbb88b;
+  font-style: normal;
+}
+
+/* ---- 2. Shelf rows — two objects per row ---- */
+.shelf {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+.obj {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(50, 42, 26, 0.14);
+  min-height: 178px;
+  display: flex;
+  flex-direction: column;
+}
+.obj .o-in {
+  flex: 1;
+  padding: 12px 13px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 2;
+}
+.obj h3 {
+  font-family: var(--font-display);
+  font-size: 15.5px;
+  font-weight: 590;
+  letter-spacing: -0.005em;
+  line-height: 1.15;
+}
+.obj .o-sub {
+  font-size: 10.5px;
+  line-height: 1.35;
+  margin-top: 4px;
   opacity: 0.82;
 }
-
-/* Queue rows for the full-page locked Action Center view. */
-.action-queue {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  margin-bottom: 1.05rem;
-}
-.a-row {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  height: 1.7rem;
-  padding: 0 0.65rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 0.65rem;
-  background: var(--bys-card);
-}
-.a-row.active {
-  border-color: color-mix(in srgb, var(--bys-accent) 34%, var(--bys-line));
-  background: color-mix(in srgb, var(--bys-accent) 11%, var(--bys-card));
-}
-.a-dot {
-  flex-shrink: 0;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 9999px;
-  background: var(--bys-line);
-}
-.a-row.active .a-dot {
-  background: var(--bys-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bys-accent) 14%, transparent);
-}
-.a-row b {
-  flex: 1;
-  height: 0.4rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-line) 70%, transparent);
-}
-
-/* ---- 4. Export — the compact print/package station ----
-   A horizontal split: the output stack (sheets + taped package)
-   owns the left pane; contents + the download action own the right.
-   Deliberately short — never a full viewport. */
-.exp-station {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  margin-top: 1.25rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 1.1rem;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bys-accent) 6%, var(--bys-card)),
-    var(--bys-card) 46%
-  );
-  box-shadow: var(--bys-shadow-card);
-  overflow: hidden;
-}
-.exp-out {
-  position: relative;
-  flex-shrink: 0;
-  width: 44%;
-  max-width: 11.5rem;
-  min-height: 8.6rem;
-  border-right: 1px dashed color-mix(in srgb, var(--bys-line) 60%, transparent);
-  background: color-mix(in srgb, var(--bys-bg-soft) 42%, transparent);
-  overflow: hidden;
-}
-.exp-sheet {
-  position: absolute;
-  left: 50%;
-  width: 60%;
-  height: 2.6rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 0.2rem;
-  background: var(--bys-card);
-}
-.exp-sheet:nth-child(1) {
-  bottom: 2.75rem;
-  transform: translateX(-50%) rotate(-3deg);
-}
-.exp-sheet:nth-child(2) {
-  bottom: 2.6rem;
-  transform: translateX(-50%) rotate(1.5deg);
-}
-.exp-sheet:nth-child(3) {
-  bottom: 2.45rem;
-  transform: translateX(-50%) rotate(-0.6deg);
-}
-.exp-pack {
-  position: absolute;
-  left: 50%;
-  bottom: 0.5rem;
-  width: 56%;
-  height: 2.15rem;
-  transform: translateX(-50%);
-  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 62%, var(--bys-line));
-  border-radius: 0.3rem;
-  background: color-mix(in srgb, var(--bys-accent) 12%, var(--bys-card));
-}
-.exp-tape {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 1.5rem;
-  height: 1rem;
-  margin: -0.5rem 0 0 -0.75rem;
-  border: 1px solid color-mix(in srgb, var(--bys-line) 55%, transparent);
-  border-radius: 0.15rem;
-  background: color-mix(in srgb, #ead9a8 78%, var(--bys-card));
-}
-.exp-arrow {
-  position: absolute;
-  left: 50%;
-  top: -0.6rem;
-  width: 0.48rem;
-  height: 0.48rem;
-  margin-left: -0.24rem;
-  border-left: 2px solid var(--bys-accent-deep);
-  border-top: 2px solid var(--bys-accent-deep);
-  transform: rotate(45deg);
-}
-.exp-side {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 0.8rem 0.95rem;
-}
-.exp-title {
-  font-family: var(--font-display);
-  font-size: 1.02rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--bys-accent-deep);
-}
-.exp-sub {
-  margin-top: 0.15rem;
-  font-size: 0.84rem;
-  line-height: 1.35;
-  color: var(--bys-ink);
-  opacity: 0.88;
-}
-.exp-meta {
-  margin-top: 0.4rem;
-  font-size: 0.64rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--bys-accent-soft);
-}
-.exp-act {
+.obj .o-act {
   margin-top: auto;
-  padding-top: 0.4rem;
-}
-.exp-open {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--bys-accent-deep);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
-/* ---- 5. Attorney Prep — the briefcase IS the surface ----
-   The lid edge with a center latch forms the top of the container;
-   the body is a docket list. Locked = latch closed + honest price;
-   unlocked = latch open; generating = latch pulses. */
-.brief {
-  position: relative;
-  margin-top: 1.25rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 1.45rem 1.45rem 1rem 1rem;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bys-accent) 9%, var(--bys-card)),
-    var(--bys-card) 46%
-  );
-  box-shadow: var(--bys-shadow-card);
-  overflow: hidden;
-}
-.brief-lid {
-  position: relative;
-  height: 1.75rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--bys-line) 70%, transparent);
-  background: color-mix(in srgb, var(--bys-accent) 15%, var(--bys-bg-soft));
-}
-.brief-latch {
-  position: absolute;
-  left: 50%;
-  top: 0.4rem;
-  width: 2.1rem;
-  height: 0.92rem;
-  margin-left: -1.05rem;
-  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
-  border-radius: 0.32rem;
-  background: color-mix(in srgb, var(--bys-accent) 22%, var(--bys-card));
-  transition: background 220ms ease;
-}
-.brief-latch::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 0.74rem;
-  width: 0.9rem;
-  height: 0.55rem;
-  margin-left: -0.45rem;
-  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 50%, var(--bys-line));
-  border-top: none;
-  border-radius: 0 0 0.25rem 0.25rem;
-  background: color-mix(in srgb, var(--bys-accent) 18%, var(--bys-card));
-  transition: transform 220ms ease;
-}
-.brief.unlocked .brief-latch {
-  background: var(--bys-accent);
-}
-.brief.unlocked .brief-latch::after {
-  transform: translateY(0.28rem) rotate(15deg);
-}
-.brief.generating .brief-latch {
-  animation: bys-case-pulse 1.6s ease-in-out infinite;
-}
-.brief-body {
-  padding: 0.85rem 1rem 0.95rem;
-}
-.brief-title {
-  font-family: var(--font-display);
-  font-size: 1.05rem;
+  padding-top: 8px;
+  font-size: 12px;
   font-weight: 700;
-  line-height: 1.2;
-  color: var(--bys-accent-deep);
-}
-.brief-docket {
-  margin-top: 0.55rem;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.32rem;
-}
-.brief-docket li {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.85rem;
-  color: var(--bys-ink);
-}
-.brief-docket li::before {
-  content: "";
-  flex-shrink: 0;
-  width: 0.5rem;
-  height: 0.5rem;
-  border: 1.5px solid var(--bys-line);
-  border-radius: 0.15rem;
-  background: var(--bys-card);
-}
-.brief-docket li i {
-  flex: 1;
-  height: 0.32rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-line) 55%, transparent);
-}
-.brief-state {
-  margin-top: 0.55rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--bys-accent-deep);
-}
-.brief-act {
-  margin-top: 0.3rem;
-}
-.brief-open {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--bys-accent-deep);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-.brief-err {
-  margin-top: 0.45rem;
-  font-size: 0.82rem;
-  line-height: 1.35;
-  color: color-mix(in srgb, #b3261e 80%, var(--bys-ink));
-}
-
-/* ---- 6. Record Review — the audit workspace ----
-   A lens/scan pane sits over real evidence record strips (bar
-   lengths scale with the dad's own counts when loaded); the side
-   carries the copy + counts; footer holds state + compact action. */
-.rr-audit {
-  position: relative;
-  margin-top: 1.25rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 1.1rem;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bys-accent) 7%, var(--bys-card)),
-    var(--bys-card) 44%
-  );
-  box-shadow: var(--bys-shadow-card);
-  overflow: hidden;
-}
-.rr-scan {
-  position: relative;
-  height: 4.9rem;
-  border-bottom: 1px dashed color-mix(in srgb, var(--bys-line) 55%, transparent);
-  background: color-mix(in srgb, var(--bys-bg-soft) 46%, transparent);
-  overflow: hidden;
-}
-.rr-bar {
-  position: absolute;
-  left: 1rem;
-  height: 0.42rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-line) 60%, transparent);
-}
-.rr-bar:nth-child(1) {
-  top: 0.8rem;
-}
-.rr-bar:nth-child(2) {
-  top: 1.6rem;
-}
-.rr-bar:nth-child(3) {
-  top: 2.4rem;
-}
-.rr-lens {
-  position: absolute;
-  right: 1rem;
-  top: 0.6rem;
-  width: 3.1rem;
-  height: 3.1rem;
-  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 65%, var(--bys-line));
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-accent) 9%, var(--bys-card));
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--bys-accent) 10%, transparent);
-}
-.rr-lens i {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 0.9rem;
-  height: 0.9rem;
-  margin: -0.45rem 0 0 -0.45rem;
-}
-.rr-lens i::before,
-.rr-lens i::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  background: color-mix(in srgb, var(--bys-accent) 72%, transparent);
-}
-.rr-lens i::before {
-  width: 0.9rem;
-  height: 2px;
-  margin: -1px 0 0 -0.45rem;
-}
-.rr-lens i::after {
-  width: 2px;
-  height: 0.9rem;
-  margin: -0.45rem 0 0 -1px;
-}
-.rr-beam {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--bys-accent) 55%, transparent) 28%,
-    color-mix(in srgb, var(--bys-accent) 55%, transparent) 72%,
-    transparent
-  );
-}
-.rr-side {
-  padding: 0.8rem 1rem 0.55rem;
-}
-.rr-title {
-  font-family: var(--font-display);
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--bys-accent-deep);
-}
-.rr-sub {
-  margin-top: 0.15rem;
-  font-size: 0.82rem;
-  line-height: 1.4;
-  color: var(--bys-ink);
-  opacity: 0.88;
-}
-.rr-strips {
-  margin-top: 0.55rem;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-.rr-strips li {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.6rem;
-  border: 1px solid color-mix(in srgb, var(--bys-line) 70%, transparent);
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--bys-card) 80%, var(--bys-bg-soft) 20%);
-  padding: 0.34rem 0.6rem;
-  font-size: 0.82rem;
-  color: var(--bys-ink);
+  gap: 6px 10px;
+  flex-wrap: wrap;
+  min-height: 44px;
 }
-.rr-strips b {
-  font-weight: 700;
-  color: var(--bys-accent-deep);
-}
-.rr-foot {
-  display: flex;
+.obj .o-act button,
+.obj .o-act a {
+  min-height: 44px;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  padding: 0.35rem 1rem 0.8rem;
-  border-top: 1px solid color-mix(in srgb, var(--bys-line) 50%, transparent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-decoration: none;
+  text-align: left;
+  white-space: nowrap;
 }
-.rr-state {
-  font-size: 0.68rem;
+.obj .o-state {
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--bys-accent-deep);
-  opacity: 0.85;
-}
-.rr-open {
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  min-height: 2.75rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--bys-accent-deep);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-.rr-err {
-  padding: 0 1rem 0.5rem;
-  font-size: 0.82rem;
-  line-height: 1.35;
-  color: #b3261e;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ---- 7. Consultations — the two-seat conversation strip ----
-   Two seats facing a shared speech bubble; on mobile a compact
-   horizontal pill-strip, not a tall card. Clearly warmer/rounder
-   than any software tile. */
-.cons-strip {
-  position: relative;
+/* ---- 3. Folio — Case Summary (navy, gold ribbon, LIVE) ---- */
+.folio {
+  background: linear-gradient(160deg, #2c4a6e, #22395a 70%);
+  border: 1px solid #1a2d47;
+  color: #f4f1e6;
+}
+.folio .o-in {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.1));
+}
+.folio h3 {
+  color: #f0ecdd;
+}
+.folio .o-sub {
+  color: #c9d6e6;
+}
+.folio .folio-ribbon {
+  position: absolute;
+  top: 10px;
+  right: -2px;
+  width: 20px;
+  height: 34px;
+  background: #d8b45c;
+  border-radius: 3px 0 0 3px;
+  z-index: 3;
+}
+.folio .folio-pager {
+  margin-top: 9px;
+  background: #fbf8ee;
+  border-radius: 8px;
+  padding: 8px 10px;
+  border: 1px solid #c8c2ae;
+}
+.folio .folio-pager span {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: #d5cfbb;
+  margin-bottom: 5px;
+}
+.folio .folio-pager span:nth-child(2) {
+  width: 78%;
+  background: #e0dac6;
+}
+.folio .folio-excerpt {
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: #57544a;
+  margin: 0;
+}
+.folio .folio-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.folio .folio-counts span {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 9.5px;
+  color: #e8eef6;
+  font-variant-numeric: tabular-nums;
+}
+.folio .folio-counts b {
+  font-family: var(--font-display);
+  font-size: 12px;
+  margin-right: 3px;
+  font-weight: 600;
+}
+.folio .folio-counts .skeleton {
+  width: 42px;
+  height: 14px;
+  padding: 0;
+  display: inline-block;
+}
+.folio .o-act {
+  color: #f4f1e6;
+}
+.folio .o-state {
+  color: #d8b45c;
+}
+
+/* ---- 4. Console — Action Center (amber board, LED rail, N TO DO) ---- */
+.console {
+  background: linear-gradient(180deg, #fdf3dd, #f7e7c4);
+  border: 1px solid #e2c184;
+  color: #3e3515;
+}
+.console .rail {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  margin-top: 1.25rem;
-  min-height: 5.5rem;
-  padding: 0.7rem 1rem;
-  border: 1px solid var(--bys-line);
-  border-radius: 9999px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bys-accent) 10%, var(--bys-card)),
-    var(--bys-card) 55%
-  );
-  box-shadow: var(--bys-shadow-card);
-  overflow: hidden;
-  text-align: left;
-  text-decoration: none;
+  justify-content: space-between;
+  padding: 9px 13px;
+  background: #7a4a12;
+  color: #fdf3dd;
 }
-.cons-seats {
-  position: relative;
-  flex-shrink: 0;
-  width: 6.6rem;
-  height: 3.3rem;
-}
-.cons-seat {
-  position: absolute;
-  bottom: 0;
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 2px solid color-mix(in srgb, var(--bys-accent) 60%, var(--bys-line));
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--bys-accent) 16%, var(--bys-card));
-}
-.cons-seat.you {
-  left: 0;
-}
-.cons-seat.them {
-  right: 0;
-  background: color-mix(in srgb, var(--bys-accent) 28%, var(--bys-card));
-}
-.cons-bubble {
-  position: absolute;
-  left: 50%;
-  top: 0.45rem;
-  width: 3rem;
-  height: 1.7rem;
-  margin-left: -1.5rem;
-  border: 1.5px solid color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
-  border-radius: 0.85rem;
-  background: var(--bys-card);
-}
-.cons-bubble::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -0.36rem;
-  width: 0.62rem;
-  height: 0.62rem;
-  margin-left: -0.31rem;
-  border-right: 1.5px solid color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
-  border-bottom: 1.5px solid color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
-  background: var(--bys-card);
-  transform: rotate(45deg);
-}
-.cons-side {
-  flex: 1;
-  min-width: 0;
-}
-.cons-title {
-  font-family: var(--font-display);
-  font-size: 1.02rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--bys-accent-deep);
-}
-.cons-sub {
-  margin-top: 0.1rem;
-  font-size: 0.8rem;
-  line-height: 1.3;
-  color: var(--bys-ink);
-  opacity: 0.88;
-}
-.cons-go {
-  display: block;
-  margin-top: 0.28rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--bys-accent-deep);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-.cons-live {
-  flex-shrink: 0;
-  align-self: flex-start;
-  margin-top: 0.12rem;
-  border-radius: 9999px;
-  padding: 0.28rem 0.62rem;
-  background: var(--bys-accent);
-  color: var(--bys-bg);
-  font-size: 0.66rem;
+.console .rail h3 {
+  font-family: var(--font-sans);
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  color: #fdf3dd;
 }
-
-/* ---- The workbench mosaic (desktop foyer) ----
-   Mobile: one calm column, several tools per viewport. lg+: a
-   deliberate grid of differently sized/shaped surfaces — 5/7 split,
-   then 7/5, then 7/5, with the compact stations kept to their own
-   height (ragged edges on purpose, not uniform tiles). */
-.foyer {
+.console .led {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f0b35c;
+  box-shadow: 0 0 0 3px rgba(240, 179, 92, 0.35);
+  flex: none;
+}
+.console .led.lit {
+  animation: room-led-pulse 2.4s ease-in-out infinite;
+}
+@keyframes room-led-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.console .qwrap {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  padding: 12px 13px;
 }
-@media (min-width: 1024px) {
-  .foyer {
-    display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: 1.25rem;
-    align-items: stretch;
+.console .qrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 0;
+  border-bottom: 1px dashed rgba(122, 74, 18, 0.25);
+}
+.console .qrow:last-child {
+  border-bottom: none;
+}
+.console .qrow .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.console .qrow .dot.unresolved {
+  background: #a13a2f;
+}
+.console .qrow .dot.upcoming {
+  background: #c98a2d;
+}
+.console .qrow .dot.missing {
+  background: #1e4a6e;
+}
+.console .qrow .dot.needs_documentation {
+  background: #1e4a6e;
+}
+.console .qrow p {
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: #5c470f;
+  flex: 1;
+  min-width: 0;
+}
+/* Mobile preview shows two queue rows; desktop three (comp). */
+.console .qwrap > .qrow:nth-child(3) {
+  display: none;
+}
+.console .ac-empty {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: #7a5c1e;
+  margin: 6px 0 2px;
+}
+.console .ac-locked {
+  margin: 6px 0 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.console .ac-locked span {
+  display: block;
+  height: 7px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, rgba(122, 74, 18, 0.28) 0 10px, transparent 10px 16px);
+}
+.console .o-act {
+  color: #7a4a12;
+}
+.console .o-state {
+  color: #9a6b1e;
+}
+
+/* ---- 5. Tray — Export your record (stacked sheets, READY) ---- */
+.tray {
+  background: linear-gradient(180deg, #f6f0da, #ede3c6);
+  border: 1px solid #d6c48e;
+  color: #3e3515;
+}
+.tray .tray-sheets {
+  position: relative;
+  height: 56px;
+  margin: 6px 0 8px;
+}
+.tray .tray-sheet {
+  position: absolute;
+  left: 14%;
+  width: 72%;
+  height: 44px;
+  background: #fffdf6;
+  border: 1px solid #ddd2ae;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(88, 70, 30, 0.15);
+}
+.tray .tray-sheet.s1 {
+  top: 0;
+  transform: rotate(2deg);
+}
+.tray .tray-sheet.s2 {
+  top: 7px;
+  transform: rotate(-1.5deg);
+}
+.tray .tray-sheet.s3 {
+  top: 13px;
+  transform: rotate(1deg);
+}
+.tray .tray-sheet .tray-tape {
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 30px;
+  height: 13px;
+  margin-left: -15px;
+  background: #d8b45c;
+  border-radius: 2px;
+  opacity: 0.9;
+}
+.tray .o-act {
+  color: #5d4f1f;
+}
+.tray .o-state {
+  color: #7c6a2e;
+}
+.tray .o-state.ready {
+  color: #557a48;
+}
+
+/* ---- 6. Briefcase — Attorney Prep (latched, price chip) ---- */
+.brief {
+  background: linear-gradient(180deg, #6b1f2a, #541721 60%);
+  border: 1px solid #451019;
+  color: #f6ece2;
+  box-shadow: 0 10px 22px rgba(60, 15, 22, 0.35);
+}
+.brief .o-in {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.12));
+}
+.brief .brief-lidline {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.28);
+}
+.brief .brief-latch {
+  position: absolute;
+  top: 29px;
+  left: 50%;
+  margin-left: -11px;
+  width: 22px;
+  height: 12px;
+  border-radius: 3px;
+  background: #c9a86a;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  transform-origin: center top;
+  transition: transform 0.3s ease;
+  z-index: 2;
+}
+.brief .brief-latch.open {
+  transform: rotate(-18deg);
+}
+.brief .brief-latch.half {
+  transform: rotate(-9deg);
+}
+.brief h3 {
+  color: #f6ece2;
+}
+.brief .o-sub {
+  color: #ddc0a6;
+}
+.brief .brief-docket {
+  list-style: none;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.brief .brief-docket li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: #f0e2d2;
+}
+.brief .brief-docket li::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #c9a86a;
+  border-radius: 3px;
+  flex: none;
+}
+.brief .brief-price {
+  margin-top: 8px;
+  background: #f3e6d6;
+  color: #541721;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  align-self: flex-start;
+  white-space: nowrap;
+}
+.brief .o-act {
+  color: #f0d5a8;
+}
+.brief .brief-err {
+  font-size: 10.5px;
+  color: #f6d9c4;
+  margin-top: 6px;
+  line-height: 1.35;
+}
+
+/* ---- 7. Bench — Record Review (lens over evidence, $29.50) ---- */
+.bench {
+  background: linear-gradient(180deg, #eaf2f7, #dce9f2);
+  border: 1px solid #b9d0e0;
+  color: #12334d;
+}
+.bench .bench-lens {
+  position: relative;
+  width: 74px;
+  height: 74px;
+  margin: 4px auto 8px;
+  border-radius: 50%;
+  border: 9px solid #1e4a6e;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4), 0 6px 14px rgba(18, 51, 77, 0.3);
+  background: radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.85), rgba(210, 231, 245, 0.35) 60%, rgba(160, 200, 228, 0.5));
+  flex: none;
+}
+.bench .bench-strip {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10.5px;
+  padding: 4px 2px;
+  border-bottom: 1px solid rgba(30, 74, 110, 0.18);
+  color: #1d4363;
+}
+.bench .bench-strip b {
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.bench .o-act {
+  color: #1e4a6e;
+}
+.bench .o-state {
+  color: #34678f;
+}
+.bench .bench-err {
+  font-size: 10.5px;
+  color: #12334d;
+  margin-top: 6px;
+  line-height: 1.35;
+}
+
+/* ---- 8. Seats — Consultations (two chairs, ● NOW) ---- */
+.seats {
+  background: linear-gradient(180deg, #f9e9e2, #f3d9cf);
+  border: 1px solid #e0b4a6;
+  color: #7e2f2a;
+  text-decoration: none;
+}
+.seats .seats-two {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 8px;
+  flex: 1;
+  min-height: 52px;
+}
+.seats .seats-chair {
+  width: 52px;
+  height: 46px;
+  border-radius: 16px 16px 8px 8px;
+  background: linear-gradient(180deg, #b3544a, #a8443c);
+  box-shadow: 0 5px 10px rgba(126, 47, 42, 0.3);
+  position: relative;
+  flex: none;
+}
+.seats .seats-chair::after {
+  content: "";
+  position: absolute;
+  bottom: -5px;
+  left: 6px;
+  right: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(126, 47, 42, 0.4);
+}
+.seats .seats-chair.you {
+  transform: scale(1.05);
+}
+.seats .seats-bubble {
+  width: 64px;
+  height: 30px;
+  border-radius: 12px 12px 12px 3px;
+  background: #fffdf6;
+  border: 1px solid #e7c4b8;
+  position: relative;
+  align-self: flex-start;
+  margin-top: 6px;
+  box-shadow: 0 3px 8px rgba(126, 47, 42, 0.18);
+  flex: none;
+}
+.seats .seats-bubble i {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e0b4a6;
+  box-shadow: 10px 0 0 #e0b4a6, 20px 0 0 #e0b4a6;
+  font-style: normal;
+}
+.seats .o-act {
+  color: #a8443c;
+}
+.seats .o-state {
+  color: #b26a5e;
+}
+.seats .o-state .live-dot {
+  color: #3f7d4e;
+  font-weight: 700;
+}
+
+/* ---- 9. Floor + foot ---- */
+.room-floor {
+  height: 34px;
+  margin-top: 16px;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(180deg, #ede3c9, #e5d8b8);
+  border-top: 1px solid #dccfae;
+  box-shadow: 0 -6px 18px rgba(88, 70, 30, 0.08);
+}
+.room-foot {
+  display: flex;
+  gap: 10px;
+  padding: 14px 4px 8px;
+}
+.room-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #e6dfd2;
+  background: #fffdf8;
+  color: #1e4236;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* ============ 10. ROOM SCENE — desktop (>=900px) ============
+   The room breaks out of the app's max-w column to a full-viewport
+   band (width:auto + negative calc margins — no 100vw overshoot,
+   no horizontal scroll). Inside, a 1440-capped scene with wall and
+   floor bands; objects absolutely positioned: proportional (as %
+   of scene) from 900–1199, contract px values at >=1200. */
+@media (min-width: 900px) {
+  #tools {
+    margin-left: calc((100% - 100vw) / 2);
+    margin-right: calc((100% - 100vw) / 2);
   }
-  .foyer > * {
+  /* Non-room children (record-review report, account) stay in the
+     app column, same 984px content width as before the breakout. */
+  .world-tools > :not(.room) {
+    max-width: 1024px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .room {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 30px 44px 0;
+    min-height: 820px;
+  }
+  .room h1.room-title {
+    font-size: 30px;
+  }
+  .room-scene {
+    height: 640px;
+    margin-top: 26px;
+  }
+  .room-scene::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 430px;
+    border-radius: 24px;
+    background: linear-gradient(180deg, #f4ecd9, #ece1c8);
+    border: 1px solid #e2d6b8;
+    z-index: 0;
+  }
+  .room-scene::after {
+    content: "";
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    top: 430px;
+    height: 210px;
+    border-radius: 24px;
+    background: linear-gradient(180deg, #e7dbc0, #ddcfa9);
+    border: 1px solid #d3c49b;
+    z-index: 0;
+  }
+  .room-floor {
+    display: none;
+  }
+  .room-foot {
+    position: absolute;
+    bottom: 0;
+    left: 44px;
+    right: 44px;
+    padding: 10px 0;
+  }
+  .shelf {
+    display: none;
+  }
+  .desk,
+  .obj {
+    position: absolute;
+  }
+  /* World-token ::before glows are suppressed on the foyer objects —
+     the comp's object art is self-contained (opaque fixed-palette
+     surfaces); the section-level ambient glow still surrounds the
+     scene. */
+  .room .desk::before,
+  .room .obj::before {
+    display: none;
+  }
+  /* Proportional positions (900–1199): every left/right/top is the
+     contract's 1440-scene px value as a % of the scene, so the foyer
+     geometry holds at any width with no overlap (verified 900–1199:
+     console/desk ≥16px apart, tray/brief clear, bench/seats clear). */
+  .console {
+    right: 4.14%;
+    top: 40px;
+    width: 23.67%;
+    z-index: 6;
+  }
+  .desk {
+    left: 4.14%;
+    top: 150px;
+    width: 47.34%;
+    z-index: 5;
+    border-radius: 6px 6px 20px 20px;
+    padding-bottom: 18px;
     margin-top: 0;
   }
   .folio {
-    grid-column: span 5;
+    right: 5.18%;
+    bottom: -16px;
+    width: 20.71%;
+    z-index: 7;
+    border-radius: 12px;
+    box-shadow: 0 18px 34px rgba(30, 50, 80, 0.4);
   }
-  .ac-board {
-    grid-column: span 7;
-  }
-  .exp-station {
-    grid-column: span 7;
-    align-self: start;
+  .tray {
+    left: 4.14%;
+    top: 470px;
+    width: 19.97%;
+    z-index: 6;
   }
   .brief {
-    grid-column: span 5;
+    right: 31.07%;
+    top: 430px;
+    width: 15.53%;
+    min-height: 150px;
+    z-index: 6;
   }
-  .rr-audit {
-    grid-column: span 7;
+  .bench {
+    left: 26.33%;
+    top: 470px;
+    width: 18.49%;
+    z-index: 6;
   }
-  .cons-strip {
-    grid-column: span 5;
-    align-self: start;
+  .seats {
+    right: 4.14%;
+    top: 470px;
+    width: 18.49%;
+    min-height: 140px;
+    z-index: 6;
+  }
+  .console .qwrap > .qrow:nth-child(3) {
+    display: flex;
+  }
+}
+
+/* ============ 11. DESKTOP 1440 — contract px scene (>=1200px) ============ */
+@media (min-width: 1200px) {
+  /* wall-mounted console */
+  .console {
+    right: 56px;
+    top: 40px;
+    width: 320px;
+  }
+  .console .rail {
+    padding: 12px 18px;
+  }
+  .console .qwrap {
+    padding: 10px 18px 14px;
+  }
+  .console .qrow {
+    padding: 9px 0;
+  }
+  .console .qrow p {
+    font-size: 12px;
+  }
+  /* desk — the featured anchor */
+  .desk {
+    left: 56px;
+    top: 150px;
+    width: 640px;
+  }
+  .desk .desk-top {
+    padding: 26px 26px 16px;
+  }
+  .desk .desk-file {
+    width: 120px;
+    height: 52px;
+    flex: none;
+  }
+  .desk .desk-tab {
+    height: 15px;
+    top: -11px;
+    font-size: 8.5px;
+  }
+  .desk .desk-line {
+    top: 22px;
+  }
+  .desk h2 {
+    font-size: 26px;
+  }
+  .desk .desk-copy {
+    font-size: 13.5px;
+  }
+  .desk .desk-note {
+    margin-top: 16px;
+    padding: 13px 16px;
+  }
+  .cta-primary {
+    height: 48px;
+    font-size: 14.5px;
+  }
+  .desk .desk-legs i {
+    width: 14px;
+    height: 26px;
+  }
+  /* folio lying on the desk corner */
+  .folio {
+    right: 70px;
+    bottom: -16px;
+    width: 280px;
+  }
+  .folio .folio-pager {
+    margin-top: 10px;
+  }
+  /* export tray stand */
+  .tray {
+    left: 56px;
+    top: 470px;
+    width: 270px;
+  }
+  .tray .tray-sheets {
+    height: 64px;
+  }
+  .tray .tray-sheet {
+    height: 50px;
+  }
+  /* briefcase standing */
+  .brief {
+    right: 420px;
+    top: 430px;
+    width: 210px;
+  }
+  /* lens bench front-left */
+  .bench {
+    left: 356px;
+    top: 470px;
+    width: 250px;
+  }
+  /* chairs corner */
+  .seats {
+    right: 56px;
+    top: 470px;
+    width: 250px;
+  }
+  .seats .seats-chair {
+    width: 60px;
+    height: 54px;
+  }
+  .seats .seats-bubble {
+    width: 80px;
+    height: 34px;
   }
 }

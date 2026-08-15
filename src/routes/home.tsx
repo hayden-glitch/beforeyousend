@@ -55,8 +55,6 @@ function localDT(d?: string | number | Date) {
   return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}T${p(dt.getHours())}:${p(dt.getMinutes())}`;
 }
 
-// Foyer: compact section tags for real Action Center rows.
-const AC_LABEL: Record<string, string> = { unresolved: "Unresolved", upcoming: "Upcoming", missing: "Missing", needs_documentation: "Worth noting" };
 // 24-hour free trial indicator: whole hours left, floored at 1 (never "0h
 // left" while still active — the moment it passes, authMe stops reporting it).
 function trialHoursLeft(expiresAt?: string | null): number | null {
@@ -227,6 +225,189 @@ function EventTimeline({ tier, organizerAccess, onGoLog, onGoOrganizer, onReview
   {editing&&<div className="mt-5 rounded-3xl border border-line bg-card p-6"><button onClick={reset} className="min-h-11 text-base text-forest underline">← Cancel</button><label htmlFor="timeline-date" className="field-label mt-5">Date</label><input id="timeline-date" type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} className="min-h-12 w-full rounded-2xl border border-line bg-cream px-4"/><label htmlFor="timeline-title" className="field-label mt-4">Title</label><input id="timeline-title" type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} maxLength={200} placeholder="What happened?" className="min-h-12 w-full rounded-2xl border border-line bg-cream px-4"/><p className="field-label mt-4" id="timeline-category-label">Category</p><div role="group" aria-labelledby="timeline-category-label" className="flex flex-wrap gap-2">{TIMELINE_CATEGORIES.map(([k,l])=><button aria-pressed={form.category===k} key={k} type="button" onClick={()=>setForm({...form,category:k})} className={`chip ${form.category===k?"border-forest bg-forest text-cream":""}`}>{l}</button>)}</div><label htmlFor="timeline-details" className="field-label mt-4">Details <span className="font-normal text-stone">(optional, only visible to you)</span></label><textarea id="timeline-details" rows={4} value={form.details} onChange={e=>setForm({...form,details:e.target.value})} placeholder="A few factual notes: who, what, when, where…" className="w-full rounded-2xl border border-line bg-cream p-4 text-base"/><button onClick={save} disabled={!form.title.trim()} className="btn-primary mt-5 w-full">{editing&&selected?"Save changes":"Add to timeline"}</button></div>}
   {notice&&<p className="mt-4 rounded-2xl bg-cream-deep px-4 py-3 text-base text-stone" role="status">{notice}</p>}</section>;
 }
+// THE ROOM foyer (DECISION.md pick B): each tool is a genuinely different
+// surface whose art is structural — desk with file tray, tabbed folio, queue
+// console, export tray, latched briefcase, lens bench, two chairs. Exactly ONE
+// .cta-primary (the desk's); every other tool uses compact text actions. All
+// data is REAL (foyer previews already fetched above: action-center rows +
+// counts + case-summary excerpt + organizer storage counts); locked tiers see
+// honest "See Command Center →" text links + one-time price chips, never mock
+// numbers. Art is aria-hidden and never inflates scrollWidth.
+function ToolsRoom(p: {
+  suiteUnlocked: boolean;
+  organizerLive: boolean;
+  organizerPill: string;
+  organizerFileCount: string | null;
+  counts: ActionCenterCounts | null;
+  csExcerpt: string | null;
+  acItems: ActionItem[];
+  fileTabs: string[];
+  canExport: boolean;
+  exportBusy: boolean;
+  onExport: () => void;
+  attorneyPrepUnlocked: boolean;
+  packBusy: boolean;
+  packMsg: string;
+  onGeneratePack: () => void;
+  rrEnt: any;
+  rrUsed: boolean;
+  rrBusy: boolean;
+  rrErr: string;
+  onRunReview: () => void;
+  onOpenOrganizer: () => void;
+  onOpenCase: () => void;
+  onOpenAction: () => void;
+  onGoLog: () => void;
+  onGoTimeline: () => void;
+}) {
+  const deskOpen = p.organizerLive || p.suiteUnlocked;
+  const deskNote = p.suiteUnlocked ? "In your plan" : p.organizerLive ? "Try it free" : "Part of Command Center";
+  return (
+    <div className="room">
+      <p className="room-kick">Command Center</p>
+      <h1 className="room-title">Your case has a home.</h1>
+      <p className="room-lede">Each tool is a place — everything you save stays where you put it.</p>
+      <div className="room-scene">
+        {/* THE DESK — Organizer (the ONE primary CTA on mobile AND desktop) */}
+        <section className={`desk world world-desk${p.organizerLive ? " trial" : ""}${p.suiteUnlocked ? " open" : ""}`} aria-label="The Organizer">
+          <div className="desk-top">
+            <div className="desk-files" aria-hidden="true">
+              {p.fileTabs.map((f, i) => (
+                <span key={f} className={`desk-file${i === 1 && p.organizerLive ? " waiting" : ""}`}><i className="desk-tab">{f}</i><span className="desk-line" /></span>
+              ))}
+            </div>
+            <div className="desk-head">
+              <h2>The Organizer</h2>
+              <span className="desk-tag">{p.organizerFileCount ?? p.organizerPill}</span>
+            </div>
+            <p className="desk-copy">{p.suiteUnlocked ? "Every message, screenshot, bill and record — filed the moment you drop it in." : p.organizerLive ? "Put your documents in order — one item at a time. Try it free — five items." : "Put your documents in order — one item at a time."}</p>
+            <div className="desk-note">
+              <div className="desk-note-t"><b>Your filing desk</b><span>{deskNote}</span></div>
+              {deskOpen ? <button type="button" onClick={p.onOpenOrganizer} className="cta-primary">Open the desk →</button> : <a href="/pricing" className="cta-primary">See Command Center →</a>}
+            </div>
+          </div>
+          <div className="desk-legs" aria-hidden="true"><i /><i /><i /></div>
+        </section>
+
+        {/* SHELF 1 */}
+        <div className="shelf">
+          <article className="obj folio world world-dossier" aria-label="Case Summary">
+            <span className="folio-ribbon" aria-hidden="true" />
+            <div className="o-in">
+              <h3>Case Summary</h3>
+              <p className="o-sub">Your case at a glance — dates, people, patterns.</p>
+              <div className="folio-pager">
+                {p.csExcerpt ? <p className="folio-excerpt">{p.csExcerpt}…</p> : <><span /><span /></>}
+              </div>
+              <div className="folio-counts">
+                {p.suiteUnlocked && p.counts ? (
+                  <>
+                    <span><b>{p.counts.log}</b>log</span>
+                    <span><b>{p.counts.timeline}</b>events</span>
+                    <span><b>{p.counts.docs}</b>docs</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="skeleton" /><span className="skeleton" /><span className="skeleton" />
+                  </>
+                )}
+              </div>
+              <div className="o-act">
+                {p.suiteUnlocked ? <button type="button" onClick={p.onOpenCase}>Open folio →</button> : <a href="/pricing">See Command Center →</a>}
+                <span className="o-state">{p.suiteUnlocked ? "LIVE" : "Part of Command Center"}</span>
+              </div>
+            </div>
+          </article>
+          <article className="obj console world world-action" aria-label="Action Center">
+            <div className="rail"><h3>Action Center</h3><span className={`led${p.suiteUnlocked ? " lit" : ""}`} aria-hidden="true" /></div>
+            <div className="qwrap">
+              {p.suiteUnlocked && p.acItems.length ? (
+                p.acItems.slice(0, 3).map((it) => (
+                  <div className="qrow" key={it.id}>
+                    <span className={`dot ${it.section}`} aria-hidden="true" />
+                    <p>{it.text}</p>
+                  </div>
+                ))
+              ) : p.suiteUnlocked ? (
+                <p className="ac-empty">Nothing needs your attention right now — built from what you&rsquo;ve saved.</p>
+              ) : (
+                <div className="ac-locked" aria-hidden="true"><span /><span /><span /></div>
+              )}
+              <div className="o-act">
+                {p.suiteUnlocked ? <button type="button" onClick={p.onOpenAction}>View queue →</button> : <a href="/pricing">See Command Center →</a>}
+                {p.suiteUnlocked ? <span className="o-state">{p.acItems.length} TO DO</span> : null}
+              </div>
+            </div>
+          </article>
+        </div>
+
+        {/* SHELF 2 */}
+        <div className="shelf">
+          <article className="obj tray world world-export" aria-label="Export your record">
+            <div className="o-in">
+              <h3>Export your record</h3>
+              <div className="tray-sheets" aria-hidden="true"><span className="tray-sheet s1" /><span className="tray-sheet s2" /><span className="tray-sheet s3"><span className="tray-tape" /></span></div>
+              <p className="o-sub">Everything you&rsquo;ve saved, in one file.</p>
+              <div className="o-act">
+                {p.canExport ? <button type="button" onClick={p.onExport} disabled={p.exportBusy}>{p.exportBusy ? "Preparing…" : "Get the file →"}</button> : <a href="/pricing">See Command Center →</a>}
+                {p.canExport ? <span className="o-state ready">READY</span> : null}
+              </div>
+            </div>
+          </article>
+          <article className={`obj brief world world-briefcase${p.attorneyPrepUnlocked ? " unlocked" : ""}${p.packBusy ? " generating" : ""}`} aria-label="Attorney Prep Pack">
+            <span className="brief-lidline" aria-hidden="true" />
+            <span className={`brief-latch${p.attorneyPrepUnlocked ? " open" : ""}${p.packBusy ? " half" : ""}`} aria-hidden="true" />
+            <div className="o-in">
+              <h3>Attorney Prep Pack</h3>
+              <ul className="brief-docket"><li>Cover sheet</li><li>Chronology</li><li>Evidence index</li></ul>
+              <span className="brief-price">One-time · $24.50</span>
+              <div className="o-act">
+                {p.attorneyPrepUnlocked ? <button type="button" onClick={p.onGeneratePack} disabled={p.packBusy}>{p.packBusy ? "Preparing…" : "Generate the pack →"}</button> : <a href="/pricing?tab=One-time">See the pack →</a>}
+              </div>
+              {p.packMsg && <p role="alert" className="brief-err">{p.packMsg}</p>}
+            </div>
+          </article>
+        </div>
+
+        {/* SHELF 3 */}
+        <div className="shelf">
+          <article className="obj bench world world-audit" aria-label="Record Review">
+            <div className="o-in">
+              <h3>Record Review</h3>
+              <span className="bench-lens" aria-hidden="true" />
+              <div className="bench-strip"><span>Log entries</span><b>{p.counts ? p.counts.log : "—"}</b></div>
+              <div className="bench-strip"><span>Timeline events</span><b>{p.counts ? p.counts.timeline : "—"}</b></div>
+              <div className="bench-strip"><span>Documents</span><b>{p.counts ? p.counts.docs : "—"}</b></div>
+              <div className="o-act">
+                {p.rrEnt.entitled ? <button type="button" onClick={p.onRunReview} disabled={p.rrBusy}>{p.rrBusy ? "Reviewing…" : "Review my record →"}</button> : <a href="/pricing?tab=One-time">{p.rrUsed ? "Buy another — $29.50" : "See Record Review →"}</a>}
+                <span className="o-state">{p.rrEnt.entitled ? (p.rrEnt.kind === "purchased" ? "Unlocked" : "1 included this year") : p.rrUsed ? "Used for this year" : "$29.50"}</span>
+              </div>
+              {p.rrErr && <p role="alert" className="bench-err">{p.rrErr}</p>}
+            </div>
+          </article>
+          <a href="/consultations" className="obj seats world world-human" aria-label="Consultations — talk with a father who's been there">
+            <div className="o-in">
+              <h3>Consultations</h3>
+              <div className="seats-two" aria-hidden="true"><span className="seats-bubble"><i /></span><span className="seats-chair you" /><span className="seats-chair" /></div>
+              <p className="o-sub">Fathers who have navigated custody cases.</p>
+              <div className="o-act">
+                <span>Book a consult →</span>
+                <span className="o-state"><span className="live-dot">●</span> NOW</span>
+              </div>
+            </div>
+          </a>
+        </div>
+
+        <div className="room-floor" aria-hidden="true" />
+      </div>
+      <div className="room-foot">
+        <button type="button" onClick={p.onGoLog} className="room-chip">Log →</button>
+        <button type="button" onClick={p.onGoTimeline} className="room-chip">Timeline →</button>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard(){
  const nav=useNavigate(); const [user,setUser]=useState<any>(null); const [authState,setAuthState]=useState<"checking"|"ready"|"error">("checking"); const [authRetry,setAuthRetry]=useState(0); const [tab,setTab]=useState<string>(()=>{try{const q=new URLSearchParams(window.location.search);const t=q.get("tab");const sort=q.get("sort")==="1";if(sort&&(t==="organizer"||t==="sort"))return "sort";return t==="case"||t==="action"||t==="organizer"||t==="sort"||t==="log"||t==="timeline"||t==="saved"||t==="tools"||t==="ai"?t:"ai"}catch{return "ai"}}); const [draft,setDraft]=useState(""); const [blocks,setBlocks]=useState<ResultBlock[]>([]); const [mode,setMode]=useState<"live"|"demo">("live"); const [status,setStatus]=useState<Status>("idle"); const [error,setError]=useState(""); const [saved,setSaved]=useState<any[]>([]); const [savedLoaded,setSavedLoaded]=useState(false), [savedFailed,setSavedFailed]=useState(false); const [notice,setNotice]=useState(""); const [justSaved,setJustSaved]=useState(false); const reviewingRef=useRef(false); const [attachments,setAttachments]=useState<Attachment[]>([]);
  // Phase C (MWO 47/48/54): one primary navigation (the TabBar) and a stable
@@ -572,10 +753,8 @@ function Dashboard(){
  const acItems=foyerData?.items??[];
  const counts=foyerData?.counts??null;
  const csExcerpt=foyerData?.csExcerpt??null;
- const rrCounts=[counts?.log??0,counts?.timeline??0,counts?.docs??0];
- const rrMax=Math.max(rrCounts[0],rrCounts[1],rrCounts[2],1);
- const rrBarW=(i:number)=>`${Math.round(30+(rrCounts[i]/rrMax)*62)}%`;
  const fileTabs=(()=>{const names=(children as any[]).map(c=>c&&c.name).filter((n:unknown)=>typeof n==="string"&&n.trim());return names.length?names.slice(0,4):["Messages","School","Bills"];})();
+const organizerFileCount = suiteUnlocked && counts ? `${counts.docs} file${counts.docs === 1 ? "" : "s"}` : null;
  const openOrganizer = () => { track("organizer_open", { plan: tier }); if (organizerLive) track("organizer_promo_clicked", {}); setTab("organizer"); document.getElementById("main")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }); };
  const openCaseSummary = () => { setTab("case"); document.getElementById("main")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }); };
  const openActionCenter = () => { setTab("action"); document.getElementById("main")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }); };
@@ -589,127 +768,34 @@ function Dashboard(){
  <main id="main" tabIndex={-1} className="mx-auto max-w-5xl px-5 py-8 sm:py-12"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-base font-semibold text-forest">Good to see you, {first}.</p><h1 className="mt-2 font-display text-4xl font-semibold leading-tight text-forest sm:text-5xl">Your calm command center</h1><p className="mt-3 max-w-xl text-lg text-stone">Start with the message in front of you.</p>{user?.trial?.active&&(function(){const h=trialHoursLeft(user?.trial?.expiresAt);return h===null?null:<span className="mt-3 inline-flex items-center gap-2 rounded-full border border-forest/25 bg-forest/10 px-3.5 py-1.5 text-sm font-semibold text-forest"><span className="h-2 w-2 rounded-full bg-forest" aria-hidden="true"/>Trial active — {h}h left</span>})()}</div>{user?.isOwner&&<a href="/owner" className="btn-primary w-full shrink-0 sm:mt-1 sm:w-auto">Live metrics →</a>}</div>
  <div className="mt-8">
  {tab==="log"?<CommunicationLog tier={tier} child={child} catchUp={catchUp} onCatchUpDone={()=>setCatchUp(null)} onReviewReply={(msg)=>{setDraft(msg);setStatus("idle");setBlocks([]);setLandingText("");setError("");setTab("ai")}}/>:tab==="timeline"?<EventTimeline tier={tier} organizerAccess={organizerReadable} onGoLog={()=>setTab("log")} onGoOrganizer={()=>setTab("organizer")} onReviewReply={(msg)=>{setDraft(msg);setStatus("idle");setBlocks([]);setLandingText("");setError("");setTab("ai")}}/>:tab==="sort"?<Suspense fallback={<section className="mt-5 rounded-[2rem] border border-line bg-card p-6 text-base text-stone">Opening Sort My Pile…</section>}><SortMyPile tier={tier} sortUntilActive={sortUntilActive} onBack={()=>setTab("organizer")} onOpenOrganizer={()=>setTab("organizer")}/></Suspense>:tab==="organizer"?organizerReadable?<Suspense fallback={<section className="mt-5 rounded-[2rem] border border-line bg-card p-6 text-base text-stone">Opening The Organizer…</section>}><Organizer tier={tier} children={children} profile={user?.profile} onProfilePatch={(p)=>setUser((u:any)=>({...u,profile:p}))} onGoTo={(t)=>setTab(t)} onChildSave={onChildSave} lapsed={organizerLapsed} onRemoved={removeChild} onLogGap={(gap:any)=>{setCatchUp(gap);setTab("log")}} rhDismissed={rhDismissed} onRhDismiss={(f:string)=>{setRhDismissed((prev:Record<string,boolean>)=>({...prev,[f]:true}))}}/></Suspense>:promoEligible?<Suspense fallback={<section className="mt-5 rounded-[2rem] border border-line bg-card p-6 text-base text-stone">Opening The Organizer…</section>}><OrganizerTrial trialRemaining={orgTrialRemaining}/></Suspense>:<OrganizerLocked tier={tier} onSortPile={()=>{track("sortpile_view",{plan:tier});setTab("sort")}}/>:tab==="case"?suiteUnlocked?<Suspense fallback={<section className="mt-5 rounded-[2rem] border border-line bg-card p-6 text-base text-stone">Opening Case Summary…</section>}><CaseSummary tier={tier} onGoTo={(t)=>{setTab(t)}}/></Suspense>:<CaseSummaryLocked tier={tier}/>:tab==="action"?suiteUnlocked?<Suspense fallback={<section className="mt-5 rounded-[2rem] border border-line bg-card p-6 text-base text-stone">Opening Action Center…</section>}><ActionCenter tier={tier} onGoTo={(t)=>{setTab(t)}}/></Suspense>:<ActionCenterLocked tier={tier}/>:tab==="tools"?<section id="tools" className="world world-tools mt-5">
-  {/* THE FOYER — every tool is a genuinely different surface, not a card.
-      Organizer is the ONE featured desk + primary CTA; the rest form a
-      varied workbench mosaic with compact actions only. */}
-  <section className={`org-desk world world-desk${organizerLive?" trial":""}${suiteUnlocked?" open":""}`} aria-label="The Organizer">
-    <div className="org-edge" aria-hidden="true"><span className="org-edge-cap" /><span className="org-edge-cap r" /></div>
-    <div className="org-head">
-      <span className="org-mark" aria-hidden="true"><IconOrganizer className="h-6 w-6" /></span>
-      <div className="org-head-text">
-        <p className="org-kicker">Command Center</p>
-        <h2 className="org-title">The Organizer</h2>
-        <p className="org-copy">{suiteUnlocked?"Every message, screenshot, bill and record — filed the moment you drop it in.":organizerLive?"Put your documents in order — one item at a time. Try it free — five items.":"Put your documents in order — one item at a time."}</p>
-      </div>
-    </div>
-    <div className="org-drawers">
-      <div className="org-desk-tray" aria-hidden="true">
-        {fileTabs.map((f,i)=>(<span key={f} className={`org-desk-file${i===1&&organizerLive?" waiting":""}`}><i className="org-desk-tab">{f}</i></span>))}
-      </div>
-      <div className="org-act">
-        <span className="org-pill">{organizerPill}</span>
-        {organizerLive||suiteUnlocked?<button onClick={openOrganizer} className="btn-primary min-h-11 w-full sm:w-auto">Open The Organizer →</button>:<a href="/pricing" className="btn-primary block min-h-11 w-full text-center sm:inline-flex sm:w-auto">See Command Center →</a>}
-      </div>
-    </div>
-  </section>
-  <div className="foyer">
-    <article className="folio world world-dossier" aria-label="Case Summary">
-      <div className="folio-tabs" aria-hidden="true"><span className="folio-tab"><i /></span><span className="folio-tab on"><i /></span><span className="folio-tab"><i /></span></div>
-      <div className="folio-stack" aria-hidden="true" />
-      <div className="folio-body">
-        <h3 className="folio-title">Case Summary</h3>
-        <p className="folio-sub">What your case looks like right now — dates, people, documents, patterns.</p>
-        <div className="folio-report">
-          {csExcerpt?<p className="folio-excerpt">{csExcerpt}…</p>:<div className="folio-lines" aria-hidden="true"><span style={{width:"96%"}} /><span style={{width:"72%"}} /><span style={{width:"56%"}} /></div>}
-          {counts&&<div className="folio-counts"><span><b>{counts.log}</b>Log</span><span><b>{counts.timeline}</b>Timeline</span><span><b>{counts.docs}</b>Docs</span><span><b>{counts.reviews}</b>Reviews</span></div>}
-        </div>
-      </div>
-      <footer className="folio-foot">
-        <span className={`folio-stamp${suiteUnlocked?" filled":""}`}>{suiteUnlocked?"Live — in your plan":"Part of Command Center"}</span>
-        {suiteUnlocked?<button onClick={openCaseSummary} className="folio-open">Open Case Summary →</button>:<a href="/pricing" className="folio-open">See Command Center →</a>}
-      </footer>
-    </article>
-    <article className="ac-board world world-action" aria-label="Action Center">
-      <header className="ac-rail">
-        <h3 className="ac-title">Action Center</h3>
-        <div className="ac-radar" aria-hidden="true"><span className="ac-sweep" /><span className="ac-core" /></div>
-      </header>
-      <div className="ac-queue">
-        {acItems.length?acItems.slice(0,3).map(it=>(
-          <div className="ac-row" key={it.id}>
-            <span className={`ac-dot ${it.section}`} aria-hidden="true" />
-            <p className="ac-text">{it.text}</p>
-            <span className="ac-tag">{AC_LABEL[it.section]||"Note"}</span>
-          </div>
-        )):suiteUnlocked?(
-          <p className="ac-empty">Nothing needs your attention right now — built from what you've saved.</p>
-        ):(
-          <div className="ac-locked" aria-hidden="true"><span style={{width:"92%"}} /><span style={{width:"74%"}} /><span style={{width:"58%"}} /></div>
-        )}
-      </div>
-      <footer className="ac-foot">
-        {suiteUnlocked?<button onClick={openActionCenter} className="ac-open">Open Action Center →</button>:<a href="/pricing" className="ac-open">See Command Center →</a>}
-        <span className="ac-status">{suiteUnlocked?"Live — in your plan":"Part of Command Center"}</span>
-      </footer>
-    </article>
-    <section className="exp-station world world-export" aria-label="Export your record">
-      <div className="exp-out" aria-hidden="true"><span className="exp-sheet" /><span className="exp-sheet" /><span className="exp-sheet" /><span className="exp-pack"><span className="exp-tape" /><span className="exp-arrow" /></span></div>
-      <div className="exp-side">
-        <h3 className="exp-title">Export your record</h3>
-        <p className="exp-sub">Everything you've saved, in one file.</p>
-        <p className="exp-meta">Messages · Timeline · Documents</p>
-        <div className="exp-act">
-          {canExport?<button onClick={exportRecord} disabled={exportBusy} className="exp-open min-h-11">{exportBusy?"Preparing your file…":"Download your record"}</button>:<a href="/pricing" className="exp-open min-h-11">See Command Center →</a>}
-        </div>
-      </div>
-    </section>
-    <article className={`brief world world-briefcase${attorneyPrepUnlocked?" unlocked":""}${packBusy?" generating":""}`} aria-label="Attorney Prep Pack">
-      <div className="brief-lid" aria-hidden="true"><span className="brief-latch" /></div>
-      <div className="brief-body">
-        <h3 className="brief-title">Attorney Prep Pack</h3>
-        <ul className="brief-docket">
-          <li><span>Cover sheet</span><i /></li>
-          <li><span>Chronology</span><i /></li>
-          <li><span>Evidence index</span><i /></li>
-        </ul>
-        <p className="brief-state">{attorneyPrepUnlocked?"Unlocked — yours":packBusy?"Preparing your pack…":"One-time · $24.50"}</p>
-        <div className="brief-act">
-          {attorneyPrepUnlocked?<button onClick={generatePack} disabled={packBusy} className="brief-open min-h-11">{packBusy?"Preparing…":"Generate pack"}</button>:<a href="/pricing?tab=One-time" className="brief-open min-h-11">See Attorney Prep Pack →</a>}
-        </div>
-        {packMsg&&<p role="alert" className="brief-err">{packMsg}</p>}
-      </div>
-    </article>
-    <article className="rr-audit world world-audit" aria-label="Record Review">
-      <div className="rr-scan" aria-hidden="true"><span className="rr-bar" style={{width:rrBarW(0)}} /><span className="rr-bar" style={{width:rrBarW(1)}} /><span className="rr-bar" style={{width:rrBarW(2)}} /><span className="rr-lens"><i /></span><span className="rr-beam" /></div>
-      <div className="rr-side">
-        <h3 className="rr-title">Record Review</h3>
-        <p className="rr-sub">A calm, thorough read of your whole record. Not legal advice.</p>
-        <ul className="rr-strips">
-          <li><span>Log entries</span><b>{counts?counts.log:"—"}</b></li>
-          <li><span>Timeline events</span><b>{counts?counts.timeline:"—"}</b></li>
-          <li><span>Documents</span><b>{counts?counts.docs:"—"}</b></li>
-        </ul>
-      </div>
-      <footer className="rr-foot">
-        <span className="rr-state">{rrEnt.entitled?(rrEnt.kind==="purchased"?"Unlocked":"1 included this year"):rrUsed?"Used for this year":"One-time · $29.50"}</span>
-        <div className="rr-act">
-          {rrEnt.entitled?<button type="button" onClick={runRecordReview} disabled={rrBusy} className="rr-open min-h-11">{rrBusy?"Reviewing your record…":(rrReport?"Run a new review":"Run a review of my record")}</button>:<a href="/pricing?tab=One-time" className="rr-open min-h-11">{rrUsed?"Buy another — $29.50":"See Record Review →"}</a>}
-        </div>
-        {rrErr&&<p role="alert" className="rr-err">{rrErr}</p>}
-      </footer>
-    </article>
-    <a href="/consultations" className="cons-strip world world-human" aria-label="Consultations — talk with a father who's been there">
-      <div className="cons-seats" aria-hidden="true"><span className="cons-seat you" /><span className="cons-bubble" /><span className="cons-seat them" /></div>
-      <div className="cons-side">
-        <h3 className="cons-title">Consultations</h3>
-        <p className="cons-sub">Learn from fathers who have navigated custody cases.</p>
-        <span className="cons-go">Book a consultation →</span>
-      </div>
-      <span className="cons-live">Live now ✓</span>
-    </a>
-  </div>
+  <ToolsRoom
+    suiteUnlocked={suiteUnlocked}
+    organizerLive={organizerLive}
+    organizerPill={organizerPill}
+    organizerFileCount={organizerFileCount}
+    counts={counts}
+    csExcerpt={csExcerpt}
+    acItems={acItems}
+    fileTabs={fileTabs}
+    canExport={canExport}
+    exportBusy={exportBusy}
+    onExport={exportRecord}
+    attorneyPrepUnlocked={attorneyPrepUnlocked}
+    packBusy={packBusy}
+    packMsg={packMsg}
+    onGeneratePack={generatePack}
+    rrEnt={rrEnt}
+    rrUsed={rrUsed}
+    rrBusy={rrBusy}
+    rrErr={rrErr}
+    onRunReview={runRecordReview}
+    onOpenOrganizer={openOrganizer}
+    onOpenCase={openCaseSummary}
+    onOpenAction={openActionCenter}
+    onGoLog={()=>setTab("log")}
+    onGoTimeline={()=>setTab("timeline")}
+  />
 {rrReport&&<div className="world world-audit mt-4 rounded-3xl border border-line bg-card p-6 shadow-card"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-display text-xl font-semibold text-forest">Record Review</h3><p className="mt-1 text-base text-stone">Generated {rrReport.generatedAt?new Date(rrReport.generatedAt).toLocaleDateString():""}{rrReport.fallback?" · quick version (review engine busy)":""}</p></div><button type="button" onClick={downloadRecordReview} className="btn-ghost min-h-11 px-5 text-base text-forest">Download report</button></div><iframe title="Record Review" srcDoc={rrReport.html} sandbox="allow-same-origin" className="mt-4 h-96 w-full rounded-2xl border border-line bg-white" />{rrEntState&&rrEntState.kind==="ultimate"&&!rrEntState.entitled&&<p className="mt-3 text-base text-stone">Your one Review for this year is used — this report is still yours to view and download.</p>}</div>}
-<div className="mt-4 flex flex-wrap gap-2"><button onClick={()=>setTab("log")} className="chip"><IconLog className="h-5 w-5" />Log →</button><button onClick={()=>setTab("timeline")} className="chip"><IconTimeline className="h-5 w-5" />Timeline →</button></div>
 <div className="world-account mt-10 border-t border-line pt-8"><h2 className="font-display text-xl font-semibold text-forest">Account</h2><p className="mt-1 max-w-xl text-base text-stone">Delete your account and everything in it — saved reviews, log, and timeline.</p><button onClick={deleteAccount} className="mt-4 min-h-11 rounded-full border border-red-900/30 bg-card px-5 text-base font-semibold text-red-900">Delete my account</button>{user?.profile?.giftUntil&&new Date(user.profile.giftUntil).getTime()>Date.now()&&<p className="mt-4 text-base text-stone">Gifted month active through {new Date(user.profile.giftUntil).toLocaleDateString()}.</p>}{user&&user.hasPassword===false&&<div className="mt-6"><h3 className="text-lg font-semibold text-forest">Set a password</h3><p className="mt-1 text-base text-stone">Optional — lets you sign back in anytime from any browser.</p>{pwDone?<p className="mt-2 text-base text-forest" role="status">Password set — you can sign in anytime.</p>:pwOpen?<div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"><label htmlFor="account-password" className="sr-only">Password</label><input id="account-password" type="password" minLength={8} value={pw} onChange={e=>{setPw(e.target.value);setPwMsg("")}} placeholder="At least 8 characters" className="min-h-12 w-full rounded-full border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none" /><button onClick={setDashboardPassword} disabled={pwBusy} className="btn-primary shrink-0">{pwBusy?"Saving…":"Set password"}</button><button onClick={()=>setPwOpen(false)} className="btn-ghost shrink-0 text-stone">Cancel</button></div>:<button onClick={()=>setPwOpen(true)} className="mt-3 min-h-11 rounded-full border border-line bg-card px-5 text-base font-semibold text-forest">Set a password →</button>}{pwMsg&&!pwDone&&<p role="alert" className="mt-2 text-base text-red-800">{pwMsg}</p>}</div>}</div>
 </section>:tab==="ai"?<section className={`world ${tool==="analyze"?"world-situation":"world-review"} mt-5 rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8`}><ModeSwitch mode={tool} onChange={switchTool}/>{user?.quota&&(tier==="free"&&user.quota.remaining===0?<div className="mb-5 rounded-2xl border border-forest/20 bg-cream-deep/60 px-4 py-4"><p className="text-lg font-semibold text-forest">No big deal — here's how to keep going.</p><p className="mt-1 text-base leading-relaxed text-stone">Your 5 free uses are done for this month — reviews and analyses together. They're back on the 1st, and your draft is still here.</p>{user.quota.credits>0&&<p className="mt-2 text-base font-semibold text-forest">{user.quota.credits} review credit{user.quota.credits===1?"":"s"} left</p>}<div className="mt-3 flex flex-wrap gap-2"><a href="/pricing" onClick={()=>{track("quota_cta_click",{});recordSurface("quota_cta")}} className="btn-primary min-h-11 px-5 text-base">Steady — 30 reviews a month, $4.99</a><button onClick={buyTopUp} className="btn-ghost min-h-11 px-5 text-base text-forest">10 more reviews now — $9.50</button></div><p className="mt-3 text-sm text-stone">Cancel anytime.</p></div>:null)}{tier!=="free"&&digest&&digest.week?.reviewed>0&&<div className="mt-5"><DigestCard digest={digest} tier={tier} onGoLog={()=>setTab("log")}/></div>}{tier==="free"&&momentum&&momentum.weekCount>0&&<div className="mt-5"><Momentum weekCount={momentum.weekCount} recent={momentum.recent}/><p className="mt-3 text-sm text-stone">Your weekly digest is part of Steady — <a href="/pricing" className="font-semibold text-forest underline underline-offset-4">$4.99/mo →</a></p></div>}<TomorrowDraftsList onLoad={(t)=>{setDraft(t);document.getElementById("home-draft")?.scrollIntoView({behavior:scrollBehavior(),block:"center"});}}/><label htmlFor="home-draft" key={tool} className="field-label bys-mode-settle">{tool==="analyze"?"What happened?":"Paste the message you're about to send"}</label><textarea id="home-draft" value={draft} onChange={e=>{setDraft(e.target.value);onTyping()}} onFocus={onTyping} onBlur={clearTyping} rows={6} maxLength={5000} placeholder={tool==="analyze"?"Tell it like it happened — what they said, what you did, where it left things. No need to be perfect.":"Start typing or paste your message to your co-parent…"} className="min-h-44 w-full resize-y rounded-2xl border border-line bg-cream p-4 text-base leading-relaxed text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"/>{attachments.length>0&&<AttachChips mode={tool} attachments={attachments} onRemove={(name)=>setAttachments(prev=>prev.filter(a=>a.name!==name))}/>}<div className="mt-3 flex flex-wrap items-center justify-between gap-3">{tool==="analyze"?(draft.trim().length<=120?<div className="flex flex-wrap gap-2" role="group" aria-label="What happened">{PROMPT_CHIPS.map(c=><button key={c.label} type="button" onClick={()=>appendChip(c.prefix)} className="chip">{c.label}</button>)}</div>:null):<button type="button" onClick={()=>setDraft("Can we agree on a pickup time for Friday? I want to make sure the kids know the plan.")} className="chip">Try an example</button>}<div className="ml-auto flex items-center gap-2"><span className="text-base text-taupe">{draft.length}/5000</span><AttachControl mode={tool} canAttach={canAttach} signedOut={false} attachments={attachments} onChange={setAttachments} disabled={status==="streaming"}/></div></div><button onClick={tool==="analyze"?analyze:review} disabled={!draft.trim()||status==="streaming"} className="btn-primary mt-5 w-full text-lg"><span key={tool} className="bys-mode-settle">{status==="streaming"?(tool==="analyze"?"Analyzing…":"Reviewing…"):(tool==="analyze"?"Analyze this situation":"Review My Message")}</span></button>{error&&<div role="alert" className="mt-4 rounded-3xl border border-red-900/15 bg-card p-5 shadow-card"><p className="text-base leading-relaxed text-red-900">{error}</p><button type="button" onClick={tool==="analyze"?analyze:review} className="btn-primary mt-4 min-h-11 w-full sm:w-auto">Try again</button><p className="mt-3 text-sm text-stone">This try didn't use a review — your draft is still here.</p></div>}{show&&status!=="error"&&<div aria-live="polite">{landingText?<div className="mt-8 rounded-3xl border border-line bg-card p-6 shadow-card"><p className="text-lg font-semibold tracking-tight text-forest">Your saved review</p><p className="mt-3 whitespace-pre-line text-base leading-relaxed text-ink">{landingText}</p></div>:<ReviewResults blocks={blocks} mode={mode} draft={draft} streaming={status==="streaming"} hideCapture tool={tool}/>}{status==="done"&&!landingText&&blocks.length>0&&mode!=="demo"&&didYouSendFresh&&tool==="review"&&<div className="mt-4"><DidYouSendIt key={calmKey} draft={reviewedDraftRef.current||draft} blocks={blocks} eventId={calm.eventId} score={score} tier={tier as "free"|"steady"|"command"|"ultimate"} onGoLog={()=>setTab("log")}/></div>}{status==="done"&&!landingText&&<div className="mt-4 rounded-3xl border border-forest/20 bg-forest p-6 text-cream"><p className="text-lg font-semibold">{tool==="analyze"?"Ready to keep this analysis?":"Ready to keep this one?"}</p><p className="mt-1 text-base text-cream/80">{tool==="analyze"?"Save the situation and its analysis to your private history.":"Save the draft and its full review to your private history."}</p>{justSaved?<div className="mt-4"><div className="flex items-start justify-between gap-3"><div><p className="text-lg font-semibold">Saved.</p><p className="mt-1 text-base text-cream/85">{tool==="analyze"?"Your analysis is on your record — it's yours to keep.":"This review is on your record — it's yours to keep."}</p></div><button type="button" onClick={()=>setJustSaved(false)} className="icon-btn min-h-11 text-cream/80 hover:bg-forest-soft" aria-label="Dismiss"><IconClose className="h-5 w-5"/></button></div><a href="/pricing" className="mt-2 inline-flex items-center text-base font-semibold text-cream underline underline-offset-4">Want every review kept forever? Steady — $4.99/mo →</a></div>:<button onClick={save} className="btn-primary mt-4 bg-cream text-forest hover:bg-cream-deep">{tool==="analyze"?"Save this analysis":"Save this review"}</button>}{notice&&<p className="mt-3 text-base">{notice}</p>}</div>}</div>}</section>:<section className="world world-archive mt-5"><h2 className="font-display text-3xl font-semibold text-forest">Saved reviews</h2>{!savedLoaded?<div className="bys-empty" role="status"><p className="bys-empty-title">Loading your saved reviews…</p><p className="bys-empty-text">One moment while we open your archive.</p></div>:savedFailed?<div className="bys-empty" role="status"><p className="bys-empty-title">We couldn't load your saved reviews.</p><p className="bys-empty-text">Your reviews are safe — give it a moment and try again.</p><div className="bys-empty-act"><button type="button" onClick={loadSaved} className="btn-ghost min-h-11 px-5 text-base text-forest">Try again</button></div></div>:saved.length===0?<div className="bys-empty" role="status"><div className="bys-empty-art" aria-hidden="true"/><p className="bys-empty-title">Your archive is empty</p><p className="bys-empty-text">Saved reviews and analyses will appear here — yours to reopen any time.</p></div>:<div className="mt-5 space-y-3">{saved.map(r=><div key={r.id} className="rounded-3xl border border-line bg-card p-5"><button onClick={()=>open(r)} className="w-full text-left"><div className="flex items-start justify-between gap-3"><p className="min-w-0 font-semibold text-forest">{r.title||r.draft?.slice(0,90)}{!r.title&&r.draft?.length>90?"…":""}</p><span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-cream-deep px-2.5 py-1 text-xs font-medium text-stone">{r.kind==="analysis"?<><IconAnalyze className="h-3.5 w-3.5"/>Situation</>:<><IconReview className="h-3.5 w-3.5"/>Message</>}</span></div><p className="mt-1 text-base text-stone">{new Date(r.createdAt).toLocaleDateString()}</p></button><div className="mt-3 flex flex-wrap items-center gap-3">{renameId===r.id?(<><input value={renameDraft} onChange={(e)=>{setRenameDraft(e.target.value);setNotice("");}} placeholder="A short name to find it by…" maxLength={120} className="min-h-11 w-full max-w-xs rounded-full border border-line bg-cream px-4 py-2 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"/><button onClick={()=>renameReview(r.id)} disabled={renameBusy} className="btn-primary min-h-11 px-4 text-base">{renameBusy?"Saving…":"Save name"}</button><button onClick={()=>setRenameId(null)} className="btn-ghost min-h-11 px-4 text-base text-stone">Cancel</button></>):(<><button onClick={()=>{setRenameId(r.id);setRenameDraft(r.title||r.draft?.slice(0,40)||"");track("review_rename",{});}} className="min-h-11 text-base text-forest underline underline-offset-4">✎ Rename</button><button onClick={()=>remove(r.id)} className="mt-3 min-h-11 text-base text-stone underline">Delete</button></>)}</div></div>)}</div>}</section>}
  </div>
