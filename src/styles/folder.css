@@ -130,8 +130,14 @@
   transform-origin: 50% 90%;
   will-change: transform;
   /* Phase 2: --open 0 → lid down (closed); --open 1 → lid tilted back + gone.
-     Phase 1 keeps --open: 1, so the cover is invisible and the pocket shows. */
-  transform: rotateX(calc(var(--open) * -58deg));
+     Phase 1 keeps --open: 1, so the cover is invisible and the pocket shows.
+     MWO Phase-E fix: the resting transform is rotateX(0) — projection-free.
+     The fully-open lid is opacity 0, and its 3D perspective projection at
+     -58deg (≈9% wider) inflated scrollWidth on the folder button + ancestor
+     boxes (organizer ctrl=1 + clip=3 at ≤430px). The -58deg tilt is now the
+     .tapping animation target only, so the open/close motion is unchanged and
+     the resting box fits exactly. */
+  transform: rotateX(0deg);
   opacity: calc(1 - clamp(0, calc((var(--open) - 0.7) / 0.3), 1));
   transition: background-color 400ms ease;
 }
@@ -363,6 +369,10 @@
    class is added by JS for the duration of a tap; without it --open changes
    are instant (reduced motion / programmatic). ---- */
 .child-folder.tapping .child-folder-cover {
+  /* MWO Phase-E fix: the -58deg tilt lives here (animation target only), so
+     the open/close lid motion is unchanged while the resting transform stays
+     projection-free. */
+  transform: rotateX(calc(var(--open) * -58deg));
   transition:
     transform 600ms cubic-bezier(0.32, 0.72, 0.35, 1.02),
     opacity 600ms cubic-bezier(0.32, 0.72, 0.35, 1.02),
