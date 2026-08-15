@@ -62,6 +62,12 @@ function Confirm(){
   useEffect(()=>{
     const token=new URLSearchParams(window.location.search).get("token")||"";
     if(!token){ setState("error"); setErr("This confirmation link is missing its token — request a new one below."); setShowResend(true); return; }
+    // Track A (Codex consolidated order §3): scrub the bearer token from the
+    // URL immediately — BEFORE any analytics capture (this route effect runs
+    // before the root analytics effect, and `next`/`urlToken` were already
+    // captured at render, so the Continue button and the remove-details flow
+    // keep working). Never persist/send the token.
+    try { window.history.replaceState(null, "", "/confirm"); } catch { /* noop */ }
     let alive=true;
     (async()=>{
       try {
@@ -79,7 +85,7 @@ function Confirm(){
           if(/invalid or expired/i.test(j.error||"")) setShowResend(true);
           return;
         }
-        track("account_created",{q1:intake?.q1,q2:intake?.q2,q3:intake?.q3});
+        track("account_created",{source:"confirm-link"});
         trackFunnelOnce("signup_completed", { source: "confirm" });
         trackSignupConversion({email:j.user?.email,transactionId:j.user?.id});
         clearLoginIntake();
@@ -144,7 +150,9 @@ function Confirm(){
     }
   }
   async function removeDetails(){
-    const t=new URLSearchParams(window.location.search).get("token")||"";
+    // Track A: the token was scrubbed from the URL on mount — use the
+    // render-time capture instead.
+    const t=urlToken||new URLSearchParams(window.location.search).get("token")||"";
     if(!t)return;
     setRemBusy(true); setRemMsg("");
     try {

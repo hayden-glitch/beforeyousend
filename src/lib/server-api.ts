@@ -4280,7 +4280,7 @@ async function fulfillCheckoutSession(opts) {
       if (!gRow) {
         // Insert failed for a non-conflict reason — release the claim so a
         // retry can re-run; never fabricate a code.
-        console.error("[gift] code mint failed for session", sessionId);
+        console.error("[gift] code mint failed (session id redacted)");
         await releaseFulfillmentClaim(sessionId).catch(() => {});
         return { error: "We couldn't create your gift code right now — try again.", status: 500 };
       }
@@ -4507,7 +4507,7 @@ async function handleStripeWebhook(req) {
       const session = event.data.object;
       // Card-only checkout completes paid; anything else is not grantable yet.
       if (session.payment_status !== "paid") {
-        console.log("[webhook] checkout session not paid yet — no-op", session.id);
+        console.log("[webhook] checkout session not paid yet — no-op");
         return json3({ ok: true });
       }
       const users = await readUsers();
@@ -4526,10 +4526,10 @@ async function handleStripeWebhook(req) {
         // grantable) no-op with 200.
         const stamped = Boolean(sessionUserId || sessionCust);
         if (stamped) {
-          console.warn("[webhook] paid checkout completed but no user matched the stamp — 503 (retryable)", session.id);
+          console.warn("[webhook] paid checkout completed but no user matched the stamp — 503 (retryable)");
           return json3({ error: "User for this checkout not found yet — retry later.", retryable: true }, 503);
         }
-        console.warn("[webhook] checkout completed with no user stamp — no-op", session.id);
+        console.warn("[webhook] checkout completed with no user stamp — no-op");
         return json3({ ok: true });
       }
       // Shared durable fulfillment for subscriptions AND all one-time products
@@ -4545,7 +4545,7 @@ async function handleStripeWebhook(req) {
       }
       // 2xx ONLY when this invocation marked the claim processed, or the claim
       // was already processed (out.alreadyProcessed).
-      console.log("[webhook] fulfilled", session.id, "for", u.email, out.kind || out.tier || "payment", out.alreadyProcessed ? "(already processed)" : "");
+      console.log("[webhook] fulfilled " + (out.kind || out.tier || "payment") + " user=" + (typeof u.id === "string" ? u.id.slice(0, 8) : "?") + (out.alreadyProcessed ? " (already processed)" : ""));
       return json3({ ok: true });
     }
     if (event.type === "invoice.paid") {
@@ -4557,17 +4557,17 @@ async function handleStripeWebhook(req) {
       const customerId = typeof inv.customer === "string" ? inv.customer : inv.customer?.id;
       const periodEnd = periodEndFromInvoice(inv);
       if (!periodEnd) {
-        console.warn("[webhook] invoice.paid with no period — cannot advance", inv.id);
+        console.warn("[webhook] invoice.paid with no period — cannot advance");
         return json3({ ok: true });
       }
       const users = await readUsers();
       const u = customerId ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId) : null;
       if (!u) {
-        console.warn("[webhook] invoice.paid but no user matched customer", customerId || "(none)");
+        console.warn("[webhook] invoice.paid but no user matched customer");
         return json3({ ok: true });
       }
       await updateUserProfile(u.id, { subscriptionStatus: "active", lastRenewalAt: new Date().toISOString(), tierRenewsAt: new Date(periodEnd * 1000).toISOString() });
-      console.log("[webhook] renewal advanced for", u.email, "until", new Date(periodEnd * 1000).toISOString());
+      console.log("[webhook] renewal advanced until", new Date(periodEnd * 1000).toISOString());
       return json3({ ok: true });
     }
     if (event.type === "invoice.payment_failed") {
@@ -4579,11 +4579,11 @@ async function handleStripeWebhook(req) {
       const users = await readUsers();
       const u = customerId ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId) : null;
       if (!u) {
-        console.warn("[webhook] invoice.payment_failed but no user matched customer", customerId || "(none)");
+        console.warn("[webhook] invoice.payment_failed but no user matched customer");
         return json3({ ok: true });
       }
       await updateUserProfile(u.id, { subscriptionStatus: "past_due", lastPaymentFailedAt: new Date().toISOString() });
-      console.log("[webhook] renewal failed for", u.email, "— tier kept during grace (past_due)");
+      console.log("[webhook] renewal failed — tier kept during grace (past_due)");
       return json3({ ok: true });
     }
     if (event.type === "customer.subscription.canceled" || event.type === "customer.subscription.deleted") {
@@ -4595,7 +4595,7 @@ async function handleStripeWebhook(req) {
       const users = await readUsers();
       const u = customerId ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId) : null;
       if (!u) {
-        console.warn("[webhook] subscription ended but no user matched customer", customerId || "(none)");
+        console.warn("[webhook] subscription ended but no user matched customer");
         return json3({ ok: true });
       }
       const periodEnd = typeof sub.current_period_end === "number" ? sub.current_period_end * 1000 : 0;
@@ -4604,13 +4604,13 @@ async function handleStripeWebhook(req) {
         // Paid through period end — keep the tier until tierRenewsAt, then the
         // existing lazy expiry in userTier() downgrades the account to free.
         await updateUserProfile(u.id, { subscriptionStatus: "canceled", tierRenewsAt: new Date(periodEnd).toISOString() });
-        console.log("[webhook] subscription canceled —", u.email, "keeps paid access until", new Date(periodEnd).toISOString());
+        console.log("[webhook] subscription canceled — keeps paid access until", new Date(periodEnd).toISOString());
       } else {
         // Immediate downgrade: set tier free + canceled, and REMOVE the expiry
         // keys so the lazy userTier() gate can never resurrect the paid tier.
         await updateUserProfile(u.id, { tier: "free", subscriptionStatus: "canceled" });
         await clearSubscriptionExpiry(u.id);
-        console.log("[webhook] subscription ended — downgraded", u.email, "to free");
+        console.log("[webhook] subscription ended — downgraded to free");
       }
       return json3({ ok: true });
     }
@@ -4705,24 +4705,47 @@ async function handleEvents(req: Request) {
   if (!name) return new Response(null, { status: 400 });
   const plan = typeof body?.plan === "string" ? body.plan.slice(0,40) : undefined;
   let meta = body?.meta && typeof body.meta === "object" ? body.meta : {};
-  // PII (audit MED): /confirm?token=... and /redeem?code=... put one-time
-  // credentials in the URL search string, and the raw path is persisted in
-  // bys_events.meta.path AND bys_session_play.path. Strip token/code query
-  // params at ingest (before any persist point); ttclid/gclid and every other
-  // param are kept so source attribution and referrer data survive.
-  const scrubUrl = (u: string): string => {
-    const qIdx = u.indexOf("?");
-    if (qIdx === -1) return u;
-    const base = u.slice(0, qIdx);
-    const kept = u.slice(qIdx + 1).split("&").filter((seg: string) => !/^(token|code)=/i.test(seg));
-    return kept.length > 0 ? `${base}?${kept.join("&")}` : base;
+  // Track A (Codex consolidated order §2+§3+§4): safe-key ingestion. ONLY the
+  // explicit per-event schema below may persist — sensitive keys (situation
+  // answers, credentials, payment ids, child/family ids, assessments, raw
+  // URLs, cross-platform click ids in event payloads) are dropped even if a
+  // future client sends them. Paths are forced pathname-only; referrer is
+  // reduced (external origin / same-origin pathname — never query/hash);
+  // attribution is allowlisted to the known ad params.
+  const SAFE_META_KEYS = new Set(["dt","t","sp","kind","path","referrer","attribution","step","variant","source","mode","auth","example","status","timeout","interval","tier","intro","count","n","chars","remaining","module","edit","target","context","item","week","plan","q","score","band","label","gap","folder","coverage","gaps","missing","dest","filed","needsSorting","skipped","total","campaign","depthPct"]);
+  const NEVER_META_KEYS = new Set(["q1","q2","q3","answer","answers","email","child","gender","next","token","session_id","sessionId","code","giftCode","draft","text","message","value","tone","promo","rec","recommendation","landingPath","rawPath","ttclid","gclid","gbraid","wbraid","gad","gad_source","gad_campaignid","gad_campaign","gad_adgroupid","gad_creative","gad_network","gad_device","gad_targetid","gad_placement","gad_interest","gad_keyword","gad_loc_interest","gad_loc_physical","gad_extension","gad_feeditemid","gad_target","gad_aceid","gad_cell","gad_audience","gad_clickid"]);
+  const AD_PARAMS_INGEST = ["ttclid","gclid","gbraid","wbraid","gad_source","gad_campaignid","gad_campaign","gad_adgroupid","gad_creative","gad_network","gad_device","gad_targetid","gad_placement","gad_interest","gad_keyword","gad_loc_interest","gad_loc_physical","gad_extension","gad_feeditemid","gad_target","gad_aceid","gad_cell","gad_audience","gad_clickid"];
+  const pathnameOnly = (u: unknown): string | undefined => {
+    if (typeof u !== "string" || !u) return undefined;
+    try { const qIdx = u.indexOf("?"); return qIdx === -1 ? u : u.slice(0, qIdx); } catch { return u; }
   };
-  if (typeof meta.path === "string" && /[?&](token|code)=/i.test(meta.path)) {
-    meta = { ...meta, path: scrubUrl(meta.path) };
+  const safeReferrer = (r: unknown): string | undefined => {
+    if (typeof r !== "string" || !r) return undefined;
+    try {
+      const u = new URL(r);
+      const host = requestHost(req);
+      return u.hostname === host || u.hostname.endsWith("." + host) ? u.pathname : u.origin;
+    } catch { return String(r).split(/[?#]/)[0] || undefined; }
+  };
+  const p0 = pathnameOnly(meta.path);
+  if (p0 !== undefined) meta.path = p0.slice(0, 300);
+  const r0 = safeReferrer(meta.referrer);
+  if (r0 !== undefined) meta.referrer = r0;
+  if (meta.attribution && typeof meta.attribution === "object" && !Array.isArray(meta.attribution)) {
+    const att: Record<string, string> = {};
+    for (const [k, v] of Object.entries(meta.attribution as Record<string, unknown>)) {
+      if (AD_PARAMS_INGEST.includes(k) && typeof v === "string") att[k] = v;
+    }
+    if (Object.keys(att).length) meta.attribution = att; else delete meta.attribution;
   }
-  if (typeof meta.landingPath === "string" && /[?&](token|code)=/i.test(meta.landingPath)) {
-    meta = { ...meta, landingPath: scrubUrl(meta.landingPath) };
+  const scrubbedMeta: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(meta)) {
+    if (NEVER_META_KEYS.has(k) || !SAFE_META_KEYS.has(k)) continue;
+    if (v === undefined || v === null) continue;
+    if (k === "attribution" && typeof v === "object") { scrubbedMeta[k] = v; continue; }
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") scrubbedMeta[k] = v;
   }
+  meta = scrubbedMeta;
   // Metrics 2.0 — session play. sp_* rows (page enter/exit, scroll samples) are
   // replay-only: they land in bys_session_play but NEVER in bys_events, so the
   // funnel/hourly/depth panels stay clean. Regular events ALSO get a
@@ -5000,7 +5023,7 @@ async function tiktokTokenCall(params) {
     try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 400) }; }
     return { ok: res.ok, status: res.status, data };
   } catch (err) {
-    console.warn("[tiktok] token call failed:", err);
+    console.warn("[tiktok] token call failed:", String(err).slice(0, 200));
     return { ok: false, status: 0, data: { error: String(err) } };
   }
 }
@@ -5021,7 +5044,7 @@ async function tiktokValidToken() {
   if (!row.refreshToken) return null;
   const r = await tiktokRefresh(row.refreshToken);
   if (!r.ok || !r.data || !r.data.access_token) {
-    console.warn("[tiktok] refresh failed:", r.status, JSON.stringify(r.data).slice(0, 300));
+    console.warn("[tiktok] refresh failed: status=" + r.status + " (payload redacted)");
     return null;
   }
   await upsertTikTokToken({
@@ -5034,32 +5057,15 @@ async function tiktokValidToken() {
   return String(r.data.access_token);
 }
 // GET /api/tiktok/callback?code=...&state=... — OAuth redirect target.
-// Exchanges the code, stores tokens (single-row upsert), 302s to the friendly
-// connected page. On any failure it still 302s to the page with ?ok=0 — the
-// plain, factual "not connected" state — never a raw error dump.
-async function handleTikTokCallback(req) {
-  const url = new URL(req.url);
-  const code = url.searchParams.get("code") || "";
-  const state = url.searchParams.get("state") || "";
-  const errParam = url.searchParams.get("error") || "";
-  const base = "https://beforeyousend.org/tiktok-connected";
-  if (errParam || !code) {
-    console.warn("[tiktok] callback error:", errParam || "missing code", "state:", state ? "present" : "missing");
-    return Response.redirect(`${base}?ok=0`, 302);
-  }
-  const r = await tiktokExchangeCode(code);
-  if (!r.ok || !r.data || !r.data.access_token) {
-    console.warn("[tiktok] code exchange failed:", r.status, JSON.stringify(r.data).slice(0, 300));
-    return Response.redirect(`${base}?ok=0`, 302);
-  }
-  await upsertTikTokToken({
-    accessToken: String(r.data.access_token),
-    refreshToken: r.data.refresh_token ? String(r.data.refresh_token) : null,
-    openId: r.data.open_id ? String(r.data.open_id) : null,
-    scope: r.data.scope ? String(r.data.scope) : null,
-    expiresAt: Date.now() + Number(r.data.expires_in || 86400) * 1000,
-  });
-  return Response.redirect(`${base}?ok=1`, 302);
+// Track A (Codex consolidated order §5): TikTok Content Publishing is parked,
+// and this callback has no server-issued one-time state verification — an
+// unvalidated callback could overwrite the single stored token row via
+// login-CSRF/account substitution. Smallest safe option: disable the
+// callback/start surface entirely until an owner-bound state flow exists.
+// Nothing is exchanged or stored; the log line carries no code/state/token.
+async function handleTikTokCallback() {
+  console.warn("[tiktok] oauth callback disabled (parked — no state verification)");
+  return json3({ error: "TikTok connection is not available right now." }, 404);
 }
 // GET /api/tiktok/status — { connected, open_id, last_publish }. Public and
 // token-free by design (nothing sensitive leaks; tokens never leave the server).
@@ -5113,7 +5119,7 @@ async function handleTikTokPublish(req) {
       signal: AbortSignal.timeout(30000),
     });
   } catch (err) {
-    console.warn("[tiktok] publish call failed:", err);
+    console.warn("[tiktok] publish call failed:", String(err).slice(0, 200));
     return json3({ error: "TikTok publish request failed." }, 502);
   }
   const text = await res.text();
@@ -5123,7 +5129,7 @@ async function handleTikTokPublish(req) {
   const pubStatus = res.ok ? (data && data.data && data.data.status ? String(data.data.status) : "processing") : "error";
   await addTikTokPublish({ publishId, videoUrl, caption, status: pubStatus, apiStatus: res.ok ? String(res.status) : `error:${res.status}` });
   if (!res.ok) {
-    console.warn("[tiktok] publish rejected:", res.status, JSON.stringify(data).slice(0, 300));
+    console.warn("[tiktok] publish rejected: status=" + res.status + " (payload redacted)");
     return json3({ error: "TikTok rejected the publish.", detail: data && (data.error || data.raw) ? String(data.error || data.raw).slice(0, 300) : "unknown" }, 502);
   }
   return json3({ ok: true, publish_id: publishId, status: pubStatus }, 201);

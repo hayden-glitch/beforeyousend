@@ -35,6 +35,15 @@ function Consultations() {
 
   useEffect(() => {
     track("consultation_viewed", {});
+    // Track A (Codex consolidated order §3): scrub the Stripe return params
+    // from the URL after the confirm flow resolves so session_id never lingers
+    // in the address bar or any later analytics capture. The 401 "sign in to
+    // link" href is built from the raw URL BEFORE this runs.
+    const cleanCheckoutUrl = () => {
+      try {
+        window.history.replaceState(null, "", window.location.pathname);
+      } catch { /* noop */ }
+    };
     if (result === "success" && plan === "consultation" && query?.get("session_id")) {
       markPurchasedThisSession();
       fetch("/api/checkout/confirm", {
@@ -60,8 +69,10 @@ function Consultations() {
           }
         })
         .catch(() => setMessage("We couldn't confirm your purchase yet — it may take a minute."));
+      cleanCheckoutUrl();
     } else if (result === "cancelled") {
       recordSurface("checkout_return");
+      cleanCheckoutUrl();
     } else {
       recordSurface("consultations");
     }

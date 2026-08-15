@@ -190,12 +190,13 @@ function Login(){
       const j=await r.json().catch(()=>({}));
       if(!r.ok){ setErr(j.error||"Could not create your account right now — try again in a minute."); setBusy(false); return; }
       // Funnel (same events as the confirm path, never double-counted):
-      // email_submitted persists as email_captured with the A/B variant + the
-      // intake answers; account_created (Google conversion tag) is marked with
-      // meta.source so /owner can tell the direct signup from the confirm-link
-      // path. sendBeacon survives the redirect below.
-      track("email_submitted",{variant,source,q1:intake?.q1,q2:intake?.q2,q3:intake?.q3});
-      track("account_created",{source,q1:intake?.q1,q2:intake?.q2,q3:intake?.q3});
+      // email_submitted persists as email_captured with the A/B variant; the
+      // intake answers ride only into the account (profile.intake), never into
+      // analytics payloads (Track A — answer values are stripped centrally).
+      // account_created (Google conversion tag) is marked with meta.source so
+      // /owner can tell the direct signup from the confirm-link path.
+      track("email_submitted",{variant,source});
+      track("account_created",{source});
       trackFunnelOnce("signup_completed", { source });
       trackSignupConversion({email:j.user?.email||value,transactionId:j.user?.id});
       // Intake bookkeeping: the questions are answered, the answers are in the

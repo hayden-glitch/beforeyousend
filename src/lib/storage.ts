@@ -119,18 +119,19 @@ async function fs(){ return await import("node:fs/promises") }
 async function json(path:string, fallback:any[]=[]){try{return JSON.parse(await (await fs()).readFile(path,"utf8"))}catch{return fallback}}
 async function put(path:string,v:any){const f=await fs();await f.mkdir(base,{recursive:true});await f.writeFile(path,JSON.stringify(v,null,2))}
 export async function readUsers():Promise<any[]>{await ready();const sql=db();if(sql){const r=await sql`SELECT id,email,password,created_at AS "createdAt",confirmed_at AS "confirmedAt",profile FROM bys_users`;return r as any[]}return json(files.users)}
-// Track B Round 4 (Codex P0 2026-08-15): writeUsers must NEVER blindly
-// re-persist every row of a caller's whole-table snapshot — a stale flush
-// could overwrite a concurrent paid grant (credits/tier/sortUntil/stamps)
-// with old profile JSON AFTER the fulfillment claim is already 'processed',
-// and a duplicate Stripe delivery then no-ops while the entitlement is gone.
-// Production callers now use the row-scoped ATOMIC primitives below; this
-// function is retained for test-harness setup and is CAS-guarded: each row is
-// written ONLY when the DB row still equals the snapshot (UPDATE guarded by
-// the old password/confirmed_at/profile), or INSERTed when the row is missing.
-// A row changed by a concurrent request is never overwritten, so even an
-// old-style stale flush can no longer roll back a money update.
-export async function writeUsers(users:any[]){
+// SEED/SETUP-ONLY — do NOT call from runtime mutation paths.
+// Renamed from writeUsers (Track B Round 5, Codex cleanup): its UPDATE
+// predicate compares the DB row to values ALREADY PRESENT in the passed
+// object, so a read -> mutate -> write on an existing row no-ops silently —
+// it is NOT a general mutation helper. Runtime mutations must use the
+// row-scoped ATOMIC primitives below (updateUserProfile, grantTopUp,
+// addCredits, processedSessions appends, etc.), which compute from the
+// CURRENT DB row. seedWriteUsers exists for seed/setup/test-harness only;
+// it is CAS-guarded: each row is written ONLY when the DB row still equals
+// the snapshot (UPDATE guarded by the old password/confirmed_at/profile),
+// or INSERTed when the row is missing. A row changed by a concurrent
+// request is never overwritten.
+export async function seedWriteUsers(users:any[]){
   await ready();const sql=db();
   if(sql){
     for(const u of users){
@@ -147,7 +148,7 @@ export async function writeUsers(users:any[]){
   await put(files.users,users);
 }
 // Merge a small patch into ONE user's profile (single-row UPDATE — cheap, and
-// avoids writeUsers' full-list upsert loop). Used by Sort My Pile to remember
+// avoids seedWriteUsers' full-list upsert loop). Used by Sort My Pile to remember
 // the last completed sort so the compat poll endpoint can return its results.
 export async function updateUserProfile(userId:string,patch:any){
   await ready();const sql=db();
