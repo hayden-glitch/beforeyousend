@@ -1917,14 +1917,23 @@ async function handleAccountDelete(req) {
   const custId = u.profile?.stripeCustomerId;
   if (subId && custId && u.profile?.tier && u.profile.tier !== "free") {
     if (process.env.BYS_PAYMENTS_QA_GUARD === "true") {
-      console.warn("[account-delete] QA guard: simulating subscription cancellation for", subId);
+      // P0 hotfix (work order 5300912458): never log the subscription id —
+      // the QA line proves the cancel was attempted without exposing it.
+      console.warn("[account-delete] QA guard: simulating subscription cancellation (no Stripe call)");
     } else if (process.env.STRIPE_SECRET_KEY) {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
       try {
         await stripe.subscriptions.cancel(subId);
-        console.log("[account-delete] cancelled subscription", subId, "before deleting account", u.id);
+        // P0 hotfix: bounded log — no subscription id, no app user id.
+        console.log("[account-delete] subscription cancelled before account deletion");
       } catch (err) {
-        console.error("[account-delete] subscription cancel failed:", err);
+        // P0 hotfix: never dump the raw Stripe exception (it can embed ids,
+        // emails, request/response bodies, headers). Emit bounded non-sensitive
+        // operational status only: error class/code + HTTP status code.
+        const e = err as { type?: unknown; code?: unknown; statusCode?: unknown };
+        const cls = typeof e.type === "string" && e.type ? e.type : typeof e.code === "string" && e.code ? e.code : "unknown";
+        const sc = typeof e.statusCode === "number" ? e.statusCode : 0;
+        console.error(`[account-delete] subscription cancel failed: class=${String(cls)} statusCode=${sc}`);
         return json3({ error: "We couldn't cancel your subscription yet. Cancel it in your billing portal first (Settings → Manage billing), then delete your account.", cancel_required: true }, 502);
       }
     } else {

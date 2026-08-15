@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
-import { track, trackFunnelOnce, trackSignupConversion, type AnalyticsEvent } from "~/lib/analytics";
+import { hasSensitiveQuery, isCleanQueryParam, track, trackFunnelOnce, trackSignupConversion, type AnalyticsEvent } from "~/lib/analytics";
 import { ensureCaptureVariant, type CaptureVariant } from "~/lib/captureVariant";
 import { EMAIL_RE } from "~/lib/api";
 import {
@@ -100,7 +100,63 @@ function Login(){
   // same-site paths are accepted (no open redirect): must start with "/",
   // never "//" or a scheme, and no backslashes (browsers normalize "/\host"
   // to "//host" — an external hop).
-  const next=(()=>{try{const n=new URLSearchParams(window.location.search).get("next");if(n&&n.startsWith("/")&&!n.startsWith("//")&&!n.includes("://")&&!n.includes("\\"))return n}catch{}return "/home"})();
+  // P0 hotfix (work order 5300912458): capture the continuation ONCE (lazy ref
+  // initializer — first render, before the mount scrub below rewrites the
+  // visible URL) and NEVER recompute the destination from the now-clean
+  // window.location.search. A raw `next` may carry an encoded Stripe return
+  // (?checkout=success&session_id=…) that must survive the scrub; once
+  // consumed it is cleared so a later signup/sign-in cannot reuse a stale one.
+  const nextRef = useRef<string | null>(null);
+  if (nextRef.current === null && typeof window !== "undefined") {
+    nextRef.current = (() => {
+      try {
+        const n = new URLSearchParams(window.location.search).get("next");
+        if (n && n.startsWith("/") && !n.startsWith("//") && !n.includes("://") && !n.includes("\\")) return n;
+      } catch { /* noop */ }
+      return "/home";
+    })();
+  }
+  // P0 hotfix: a saved continuation whose query is sensitive (credential-bearing
+  // — e.g. /pricing?checkout=success&session_id=cs_…) MUST use a FULL document
+  // navigation (window.location.assign), never router.navigate: the pixels
+  // restored on the clean /login must not observe an SPA History API change to
+  // a credential-bearing destination. Safe continuations stay SPA navigations.
+  function continuationIsSensitive(dest: string): boolean {
+    if (!dest || dest === "/home") return false;
+    const qi = dest.indexOf("?");
+    return hasSensitiveQuery(qi >= 0 ? dest.slice(qi) : "");
+  }
+  // P0 hotfix: ONE shared continuation helper for the already-signed-in bounce,
+  // successful signup, and successful sign-in. Reads the captured ref, clears
+  // it (consumed), and picks SPA vs hard navigation by sensitivity.
+  const goToNext = useCallback(async (): Promise<void> => {
+    const dest = nextRef.current ?? "/home";
+    nextRef.current = null; // consumed once
+    if (continuationIsSensitive(dest)) {
+      window.location.assign(dest);
+      return;
+    }
+    if (dest === "/home") { await nav({ to: "/home" }); }
+    else {
+      try { await router.navigate({ href: dest }); }
+      catch { window.location.assign(dest); }
+    }
+  }, [nav, router]);
+  // P0 hotfix: immediately remove the raw ?next= from the visible URL while
+  // preserving only legitimate attribution/UI params (ad params + exact known
+  // UI values), so third-party measurement can initialize on the clean URL
+  // (initAnalytics runs in the root effect — AFTER this child effect). The
+  // captured nextRef is the single source of truth for the destination.
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      if (!q.has("next")) return;
+      const clean = new URLSearchParams();
+      for (const [k, v] of q) { if (isCleanQueryParam(k, v)) clean.set(k, v); }
+      const s = clean.toString();
+      window.history.replaceState(null, "", s ? `${window.location.pathname}?${s}` : window.location.pathname);
+    } catch { /* noop */ }
+  }, []);
   // Resolve the auth state once (module-cached in checkin.ts — one /me fetch
   // per page load, shared with the Check-In's isPaidUser).
   useEffect(()=>{
@@ -110,21 +166,13 @@ function Login(){
   },[]);
   // Signed-in visitors don't belong on /login — /login is a no-op for them.
   // Bounce to their destination exactly like a successful submit does (the
-  // loading card keeps rendering until navigation lands: no form flash). A
-  // failed nav falls back to a hard assign (same fallback as the submits).
+  // loading card keeps rendering until navigation lands: no form flash).
+  // P0 hotfix: uses the shared goToNext (captured continuation, sensitivity-
+  // aware hard navigation).
   useEffect(()=>{
     if(!auth?.signedIn) return;
-    const go=async()=>{
-      try {
-        if(next==="/home"){ await nav({to:"/home"}); }
-        else {
-          try { await router.navigate({ href: next }); }
-          catch { window.location.assign(next); }
-        }
-      } catch { /* navigation already in flight — nothing to do */ }
-    };
-    go();
-  },[auth,next,nav,router]);
+    void goToNext();
+  },[auth,goToNext]);
   // TrialModal suppression: the moment the intake appears, mark the session
   // flag trial.ts checks at fire time — the intake IS the engagement and the
   // trial starts quietly at account confirm (never two asks on /login). The
@@ -208,11 +256,7 @@ function Login(){
       // live the moment this returns, so the 24h trial starts now and the dad
       // lands in the app with it already active. No marker = instant no-op.
       try { await maybeStartTrial(); } catch { /* never blocks the redirect */ }
-      if(next==="/home"){ await nav({to:"/home"}); }
-      else {
-        try { await router.navigate({ href: next }); }
-        catch { window.location.assign(next); }
-      }
+      await goToNext();
     } catch {
       setErr("Could not reach the server right now — please try again.");
       setBusy(false);
@@ -225,12 +269,8 @@ function Login(){
       const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",body:JSON.stringify({email,password:pw})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok){ setErr(j.error||"Email or password is incorrect."); setBusy(false); return; }
-      track("login_success",{next:next!=="/home"?next:undefined});
-      if(next==="/home"){ await nav({to:"/home"}); }
-      else {
-        try { await router.navigate({ href: next }); }
-        catch { window.location.assign(next); }
-      }
+      track("login_success",{next:nextRef.current!=="/home"?nextRef.current:undefined});
+      await goToNext();
     } catch {
       setErr("Could not reach the server right now — please try again.");
       setBusy(false);

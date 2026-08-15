@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { track, trackFunnelOnce } from "~/lib/analytics";
+import { isCleanQueryParam, track, trackFunnelOnce } from "~/lib/analytics";
 import { recordSurface, markPurchasedThisSession, offerAccepted, purchasedThisSession, valueDelivered } from "~/lib/offer";
 import { IconCheck, IconChevronDown } from "~/components/icons";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
@@ -81,42 +81,74 @@ function Pricing() {
   const [myTier, setMyTier] = useState("free");
   const [giftCode, setGiftCode] = useState("");
   const [giftCopied, setGiftCopied] = useState(false);
-  // Where the sign-in link should return the user. Built from the live URL so
-  // checkout=success&plan=...&session_id=... survives the login round-trip and
-  // the mount effect below re-fires /api/checkout/confirm automatically.
+  // Where the sign-in link should return the user. Built from the captured
+  // Stripe-return URL so checkout=success&plan=...&session_id=... survives the
+  // login round-trip and the mount effect below re-fires /api/checkout/confirm
+  // automatically. Default stays /pricing for ordinary login-required CTAs.
   const [needLoginHref, setNeedLoginHref] = useState("/login?next=/pricing");
+  // P0 hotfix (work order 5300912458): capture the Stripe-return payload and
+  // the full return continuation ONCE, at first render — BEFORE the mount
+  // effect scrubs checkout/session_id/plan out of the visible URL. The async
+  // confirm + 401 handlers below MUST use these captured values, never
+  // window.location.search after the replaceState (previously the scrub ran
+  // synchronously before the confirm response resolved, so a logged-out
+  // checkout return built its login href from the ALREADY-CLEANED URL and the
+  // session_id was lost — the purchase could never be linked on the round-trip).
+  const returnRef = useRef<{
+    sessionId: string | null;
+    plan: string;
+    checkout: string | null;
+    tab: string | null;
+    checkin: string | null;
+    continuation: string;
+  } | null>(null);
+  if (returnRef.current === null && typeof window !== "undefined") {
+    const q = new URLSearchParams(window.location.search);
+    returnRef.current = {
+      sessionId: q.get("session_id"),
+      plan: q.get("plan") || "",
+      checkout: q.get("checkout"),
+      tab: q.get("tab"),
+      checkin: q.get("checkin"),
+      continuation: window.location.pathname + window.location.search,
+    };
+  }
 
   useEffect(() => {
     track("pricing_viewed", {});
-    // Track A (Codex consolidated order §3): after the Stripe-return confirm
-    // flow resolves, scrub checkout/session_id/plan params from the URL so the
+    // P0 hotfix (work order 5300912458): scrub checkout/session_id/plan out of
+    // the visible URL IMMEDIATELY (synchronously, before the confirm round-trip
+    // and before the root analytics effect initializes measurement) so the
     // payment identifier never lingers in the address bar or any later
-    // analytics capture. Only safe UI params (tab/checkin) survive. The 401
-    // "sign in to link" href is built from the raw URL BEFORE this runs.
-    const cleanCheckoutUrl = () => {
+    // analytics capture. Only exact known UI values (tab/checkin) and
+    // ad-attribution params survive — everything else non-attribution is
+    // dropped. The captured returnRef (first render, pre-scrub) is the single
+    // source of truth for the confirm payload and the login continuation.
+    const scrubReturnUrl = () => {
       try {
         const clean = new URLSearchParams();
         const qq = new URLSearchParams(window.location.search);
-        for (const [k, v] of qq) { if (k === "tab" || k === "checkin") clean.set(k, v); }
+        for (const [k, v] of qq) { if (isCleanQueryParam(k, v)) clean.set(k, v); }
         const s = clean.toString();
         window.history.replaceState(null, "", s ? `${window.location.pathname}?${s}` : window.location.pathname);
       } catch { /* noop */ }
     };
+    scrubReturnUrl();
+    const snap = returnRef.current;
+    setCheckinActive(snap?.checkin === "50");
+    if (snap?.tab === "One-time" || snap?.tab === "Compare" || snap?.tab === "FAQ") setTab(snap.tab as Tab);
     fetch("/api/auth/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : { user: null }))
       .then((j) => { setIsUltimate(j.user?.profile?.tier === "ultimate"); setMyTier(j.quota?.tier || j.user?.profile?.tier || "free"); setAttorneyPrepOwned(!!j.entitlements?.attorneyPrep); setRecordReview(j.entitlements?.recordReview || { entitled: false, kind: "none" }); })
       .catch(() => {});
-    const q = new URLSearchParams(window.location.search);
-    setCheckinActive(q.get("checkin") === "50");
-    if (q.get("tab") === "One-time") setTab("One-time");
-    if (q.get("checkout") === "success" && q.get("session_id")) {
+    if (snap?.checkout === "success" && snap.sessionId) {
       // Checkout return — record the purchase (suppresses the offer this session).
       markPurchasedThisSession();
-      const plan = q.get("plan") || "";
+      const plan = snap.plan;
       fetch("/api/checkout/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: q.get("session_id") }),
+        body: JSON.stringify({ session_id: snap.sessionId }),
       })
         .then(async (r) => {
           const j = await r.json().catch(() => ({}));
@@ -170,8 +202,11 @@ function Pricing() {
               // Logged-out checkout return: link the purchase to an account.
               // Keep the checkout params in the ?next= so login returns here and
               // the confirm effect re-fires, linking the purchase automatically.
+              // P0 hotfix: the continuation is the CAPTURED pre-scrub URL —
+              // window.location.search is already clean by the time the 401
+              // resolves and would drop session_id.
               setNeedLogin(true);
-              setNeedLoginHref(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+              setNeedLoginHref(`/login?next=${encodeURIComponent(snap.continuation)}`);
               setMsg("Your purchase went through — sign in to link it to your account.");
             } else {
               setMsg(j.error || "We couldn't confirm your purchase yet — it may take a minute.");
@@ -179,11 +214,9 @@ function Pricing() {
           }
         })
         .catch(() => setMsg("We couldn't confirm your purchase yet — it may take a minute."));
-      cleanCheckoutUrl();
-    } else if (q.get("checkout") === "cancelled") {
+    } else if (snap?.checkout === "cancelled") {
       recordSurface("checkout_return");
       setMsg("No problem — nothing was charged. Come back whenever you're ready.");
-      cleanCheckoutUrl();
     } else {
       recordSurface("pricing");
     }

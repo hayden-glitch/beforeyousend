@@ -409,17 +409,25 @@ function injectGoogleTagIfNeeded(): void {
 // bootstrap — BEFORE any page payload fires. While the URL is still dirty this
 // no-ops and waits for the next clean opportunity (a route's track() call or
 // the next navigation's trackPageView).
+// P0 hotfix (work order 5300912458): Google recovery is INDEPENDENT of the
+// TikTok pending state — a clean actual browser URL idempotently bootstraps the
+// Google tag REGARDLESS of whether a TikTok pixel was ever deferred (previously
+// `if (!pendingPixelId) return;` starved Google recovery on every clean page
+// that had no pending TikTok pixel — e.g. pages whose SSR load failed or whose
+// config carried no TikTok id). TikTok loads independently below, only when one
+// is actually pending.
 function flushDeferredPixels(): void {
-  if (!pendingPixelId) return;
   try {
     if (typeof window !== "undefined" && hasSensitiveQuery(window.location.search)) return;
   } catch {
     return; // can't inspect the URL — keep waiting
   }
-  const id = pendingPixelId;
-  pendingPixelId = undefined;
   injectGoogleTagIfNeeded();
-  if (id) loadTikTokPixel(id);
+  if (pendingPixelId) {
+    const id = pendingPixelId;
+    pendingPixelId = undefined;
+    loadTikTokPixel(id);
+  }
 }
 
 function visitorId(): string {
@@ -594,22 +602,56 @@ function sanitizeReferrer(ref: string): string | undefined {
 }
 
 // UI state params that are safe to keep in a page URL for third-party page
-// payloads. Everything else non-attribution (token/session_id/code/next/…)
+// payloads — KEY + EXACT STRUCTURAL VALUE only (P0 hotfix, work order
+// 5300912458): a known key carrying an unrecognized value is treated as dirty
+// (third-party measurement suppressed) instead of trusted, and a key with no
+// real current URL use is NOT listed here. The list is the union of every
+// value each route actually reads today:
+//   tab     — /home?tab=ai|case|action|organizer|sort|log|timeline|saved|tools
+//             (home.tsx initial tab), /pricing?tab=One-time|Compare|FAQ
+//             (pricing.tsx deep links from Tools cards / landing)
+//   checkin — /pricing?checkin=50 (Co-Parent Check-In offer)
+//   example — /?example=1 (landing scroll-to-review demo)
+//   sort    — /home?tab=organizer&sort=1 (organizer sort state)
+//   mode    — /home?mode=analyze|review (AI Co-Parent two-mode deep link)
+//   ok      — /tiktok-connected?ok=1 (OAuth landing success state)
+// Everything else non-attribution (token/session_id/code/next/plan/…)
 // suppresses third-party page payloads until the route scrubs the URL.
-const SAFE_UI_PARAMS = new Set(["tab", "checkin", "example", "source", "variant", "q", "plan", "ok", "sort", "from"]);
+const SAFE_UI_VALUES: Record<string, ReadonlySet<string>> = {
+  tab: new Set(["ai", "case", "action", "organizer", "sort", "log", "timeline", "saved", "tools", "One-time", "Compare", "FAQ"]),
+  checkin: new Set(["50"]),
+  example: new Set(["1"]),
+  sort: new Set(["1"]),
+  mode: new Set(["analyze", "review"]),
+  ok: new Set(["1"]),
+};
+
+// Exported scrub helper: is this (key, value) pair safe to keep in a visible
+// URL for third-party measurement? Ad-attribution params are allowlisted as a
+// separate dedicated set; UI params require the EXACT known value.
+export function isCleanQueryParam(k: string, v: string): boolean {
+  if (AD_PARAMS.includes(k)) return true;
+  const allowed = SAFE_UI_VALUES[k];
+  return !!allowed && allowed.has(v);
+}
 
 // Sensitive-query detection shared by the client page-view guard and the SSR
 // head decision (__root.tsx getAnalyticsConfig): while the URL carries any
-// query key that is NOT a known ad-attribution param or a safe UI param
-// (token, session_id, gift code, auth/reset secrets, raw next, …), third-party
-// measurement must NOT boot — the consuming route captures the credential and
-// scrubs the URL, and only then does measurement initialize on the clean URL.
+// query key/value that is NOT a known ad-attribution param or a known safe UI
+// value (token, session_id, gift code, auth/reset secrets, raw next, unknown
+// values under known keys, …), third-party measurement must NOT boot — the
+// consuming route captures the credential and scrubs the URL, and only then
+// does measurement initialize on the clean URL. The server-function SSR
+// detector (getRequestUrl) may return sensitive:true systemically on clean
+// routes — that conservative SSR omission is acceptable because clean-browser
+// recovery (flushDeferredPixels → injectGoogleTagIfNeeded) restores
+// measurement on the actual clean URL.
 export function hasSensitiveQuery(search: string): boolean {
   if (!search || search === "?") return false;
   try {
     const q = new URLSearchParams(search);
-    for (const k of q.keys()) {
-      if (!AD_PARAMS.includes(k) && !SAFE_UI_PARAMS.has(k)) return true;
+    for (const [k, v] of q) {
+      if (!isCleanQueryParam(k, v)) return true;
     }
     return false;
   } catch {
@@ -718,6 +760,14 @@ export function track(event: AnalyticsEvent, data?: Record<string, unknown>): vo
     flushDeferredPixels();
     const w = window;
     const payload = data ?? {};
+    // P0 hotfix (work order 5300912458): the CURRENT browser dirty state gates
+    // ALL third-party forwarding. First-party persistence stays allowed no
+    // matter what; ttq / gtag / the third-party-facing dataLayer may only see
+    // an event when the actual URL is clean (no sensitive query) AND the event
+    // is in the explicit AD_MEASUREMENT_EVENTS allowlist. A track() call fired
+    // while the URL still carries a credential (before the route scrubbed)
+    // must not leak even an allowlisted event to ad measurement.
+    const dirty = hasSensitiveQuery(window.location.search);
     // Track A (Codex consolidated order §1+§2): ALL events persist first-party
     // only, after central metadata scrubbing (pickSafeMeta — a global key
     // allowlist plus narrow per-event additions, not a giant denylist and not
@@ -725,7 +775,7 @@ export function track(event: AnalyticsEvent, data?: Record<string, unknown>): vo
     // may also reach TikTok / gtag / the third-party-facing dataLayer, and even
     // then with the further-reduced ad-safe payload.
     const safe = pickSafeMeta(event, payload);
-    if (AD_MEASUREMENT_EVENTS.has(event)) {
+    if (!dirty && AD_MEASUREMENT_EVENTS.has(event)) {
       const adSafe = toAdSafeMeta(safe);
       if (typeof w.ttq?.track === "function") {
         try {
