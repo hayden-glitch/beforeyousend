@@ -1,38 +1,24 @@
 @import "tailwindcss";
-/* ---- Landing hero A/B/C split (bys_hero_variant cookie) ----
-   An inline head script assigns variant a|b|c before first paint and sets
-   data-hero-variant on <html>; CSS shows exactly one H1. No attribute
-   (JS disabled / pre-script paint) falls back to variant A (current hero).
-   All three H1s stay in the DOM so SSR output is deterministic and hydration
-   never mismatches; the hidden ones are display:none (out of the a11y tree)
-   and the head script also sets aria-hidden="true" on them (backlog 2ee6e58e)
-   so DOM-level a11y audits count exactly one H1. */
-html:not([data-hero-variant="b"]) .hero-variant-b {
-  display: none;
-}
-html:not([data-hero-variant="c"]) .hero-variant-c {
-  display: none;
-}
-html[data-hero-variant="b"] .hero-variant-a {
-  display: none;
-}
-html[data-hero-variant="c"] .hero-variant-a {
-  display: none;
-}
-html[data-hero-variant="c"] .hero-variant-b {
-  display: none;
-}
+/* ============================================================
+   FULL-SITE VISUAL REBUILD (owner directive 5304729186 §1)
+   ONE calm dark system — every public route and signed-in surface
+   inherits it. Tailwind v4 utility names stay IDENTICAL
+   (bg-cream, text-ink, border-line, bg-forest, text-cream, …) but
+   each token resolves through runtime --bys-* variables; the whole
+   palette below is the single dark layer. The __root head script
+   may still set data-theme="forest|midnight|sand" (legacy theme
+   switcher) — those attribute blocks no longer exist, so every
+   value resolves to this one system. No light themes remain.
 
-/* ---- Before You Send brand system ----
-   Warm off-white canvas, deep forest green, muted stone neutrals.
-   Fraunces (self-hosted, variable, latin subset) for display; system sans for body.
-
-   Theme architecture (app-redesign-spec §1): Tailwind v4 utility names stay
-   IDENTICAL (bg-cream, text-ink, border-line, bg-forest, text-cream, …) but each
-   token is aliased to a runtime CSS variable (--bys-*) that three themes
-   override: Forest (default = current brand, byte-for-byte), Midnight (calm
-   dark), Sand (warm light). The head script in __root.tsx sets data-theme on
-   <html> before first paint (no FOUC); no JSX class renames were needed. */
+   Palette per §1: near-black warm charcoal page, deep forest /
+   black-green working surfaces, warm bone primary type, muted
+   gray-green secondary type, soft forest-mint accent (readable as
+   text on dark AND as a button surface with dark ink), subtle
+   bronze for rare accents, red reserved for the Panic strike,
+   destructive states and true errors. Depth comes from tonal
+   layers, quiet low-contrast borders, broad soft shadows and one
+   very-low-opacity ambient gradient — not brightness or glows.
+   ============================================================ */
 
 @font-face {
   font-family: "Fraunces";
@@ -46,12 +32,14 @@ html[data-hero-variant="c"] .hero-variant-b {
   --color-cream: var(--bys-bg);
   --color-cream-deep: var(--bys-bg-soft);
   --color-card: var(--bys-card);
+  --color-elevated: var(--bys-elevated);
   --color-ink: var(--bys-ink);
   --color-stone: var(--bys-muted);
   --color-taupe: var(--bys-muted-2);
   --color-forest: var(--bys-accent);
   --color-forest-deep: var(--bys-accent-deep);
   --color-forest-soft: var(--bys-accent-soft);
+  --color-bronze: var(--bys-bronze);
   --color-line: var(--bys-line);
   --color-red-50: var(--bys-danger-50);
   --color-red-300: var(--bys-danger-300);
@@ -67,71 +55,49 @@ html[data-hero-variant="c"] .hero-variant-b {
     "Helvetica Neue", Arial, sans-serif;
 }
 
-/* ---- Theme value blocks (exact hexes per app-redesign-spec §1.2) ----
-   Default = current brand, byte-for-byte identical to the old literals. */
-:root,
-[data-theme="forest"] {
-  --bys-bg: #faf7f1;
-  --bys-bg-soft: #f3ede2;
-  --bys-card: #fffdf8;
-  --bys-ink: #26221c;
-  --bys-muted: #6f6a5e;
-  --bys-muted-2: #6b6559; /* ≥4.5:1 on cream/card (was #8a8377 @ 3.47:1 — failed AA) */
-  --bys-accent: #1e4236;
-  --bys-accent-deep: #16332a;
-  --bys-accent-soft: #2e5a4b;
-  --bys-line: #e6dfd2;
-  --bys-danger: #7f1d1d;
-  --bys-danger-50: #fef2f2;
-  --bys-danger-300: #fca5a5;
-  --bys-amber-50: #fffbeb;
-  --bys-amber-500: #f59e0b;
-  --bys-amber-900: #78350f;
-  --bys-shadow-card: 0 2px 12px rgba(38, 34, 28, 0.07);
-  --bys-shadow-pop: 0 12px 32px rgba(38, 34, 28, 0.16);
-}
-/* Midnight — calm dark: deep green-black, warm off-white text */
-[data-theme="midnight"] {
+/* ---- THE DARK SYSTEM (the only system) ----
+   Four surface levels: page → recessed → primary working → elevated.
+   Radii: 8–14px working surfaces, 8–12px buttons (see components). */
+:root {
   color-scheme: dark;
-  --bys-bg: #0e1a15;
-  --bys-bg-soft: #15231d;
-  --bys-card: #131f1a;
-  --bys-ink: #eae6da;
-  --bys-muted: #a3b0a5;
-  --bys-muted-2: #8a968d;
+
+  /* Surfaces */
+  --bys-bg: #0d110f; /* page — near-black warm charcoal */
+  --bys-bg-soft: #131815; /* recessed */
+  --bys-card: #181f1b; /* primary working — deep forest / black-green */
+  --bys-elevated: #212b25; /* elevated modal / drawer */
+
+  /* Type — warm bone primary, muted gray-green secondary */
+  --bys-ink: #ebe6da;
+  --bys-muted: #9aa79d;
+  --bys-muted-2: #7d8a80;
+
+  /* Accent — soft forest mint (text on dark ≥4.5:1; surface with ink text) */
   --bys-accent: #8fc7b2;
-  --bys-accent-deep: #aad8c6;
-  --bys-accent-soft: #7dbaa2;
-  --bys-line: #24352c;
-  --bys-danger: #f2b8b8;
-  --bys-danger-50: #2a1517;
-  --bys-danger-300: #d98b8b;
+  --bys-accent-deep: #a9d8c4;
+  --bys-accent-soft: #6fa58d;
+
+  /* Bronze — rare accent only (hairlines, subtle focus trim) */
+  --bys-bronze: #c9a87c;
+
+  /* Danger — red reserved for the Panic strike, destructive, errors */
+  --bys-danger: #d9605a;
+  --bys-danger-50: #2a1514;
+  --bys-danger-300: #e88d85;
+
   --bys-amber-50: #241a08;
   --bys-amber-500: #d9a04b;
   --bys-amber-900: #f2d9a0;
-  --bys-shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
-  --bys-shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5);
-}
-/* Sand — warm light alt, brand forest held */
-[data-theme="sand"] {
-  --bys-bg: #f6f1e6;
-  --bys-bg-soft: #efe7d6;
-  --bys-card: #fdfaf3;
-  --bys-ink: #2b241a;
-  --bys-muted: #766b58;
-  --bys-muted-2: #6d6350;
-  --bys-accent: #244f3f;
-  --bys-accent-deep: #1a3d30;
-  --bys-accent-soft: #3a6b57;
-  --bys-line: #e4dcc8;
-  --bys-danger: #8a2020;
-  --bys-danger-50: #f9ecea;
-  --bys-danger-300: #e5a3a3;
-  --bys-amber-50: #fcf4e2;
-  --bys-amber-500: #d99a26;
-  --bys-amber-900: #7c4a10;
-  --bys-shadow-card: 0 2px 12px rgba(58, 46, 26, 0.07);
-  --bys-shadow-pop: 0 12px 32px rgba(58, 46, 26, 0.16);
+
+  /* Quiet low-contrast borders; broad soft shadows */
+  --bys-line: #222a25;
+  --bys-shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 4px 20px rgba(0, 0, 0, 0.35);
+  --bys-shadow-pop: 0 18px 48px rgba(0, 0, 0, 0.55);
+
+  /* One ambient gradient at very low opacity — no competing glows */
+  --bys-ambient: radial-gradient(52% 42% at 80% -4%, rgba(143, 199, 178, 0.07), transparent 70%),
+    radial-gradient(48% 38% at 6% 106%, rgba(201, 168, 124, 0.05), transparent 70%);
 }
 
 @layer base {
@@ -144,7 +110,8 @@ html[data-hero-variant="c"] .hero-variant-b {
     @apply bg-cream font-sans text-ink antialiased;
     font-size: 16px;
     line-height: 1.6;
-    overflow-x: clip;
+    background-image: var(--bys-ambient);
+    background-repeat: no-repeat;
   }
   /* Never allow horizontal overflow from long words or wide children. */
   img,
@@ -303,8 +270,11 @@ html[data-hero-variant="c"] .hero-variant-b {
 }
 
 @layer components {
+  /* Buttons: 8–12px radii (§1). Accent surfaces pair with ink text —
+     "text-cream" resolves to the dark page color on mint, keeping
+     every existing bg-forest text-cream pair readable in dark. */
   .btn-primary {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-forest px-7 py-3.5 text-base font-semibold text-cream transition-colors duration-150 select-none;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[10px] bg-forest px-7 py-3.5 text-base font-semibold text-cream transition-colors duration-150 select-none;
   }
   .btn-primary:hover {
     @apply bg-forest-soft;
@@ -318,7 +288,7 @@ html[data-hero-variant="c"] .hero-variant-b {
   }
 
   .btn-ghost {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-line bg-card px-5 py-3 text-base font-medium text-forest transition-colors duration-150 select-none;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[10px] border border-line bg-card px-5 py-3 text-base font-medium text-forest transition-colors duration-150 select-none;
   }
   .btn-ghost:hover {
     @apply border-forest/30 bg-cream-deep;
@@ -328,7 +298,7 @@ html[data-hero-variant="c"] .hero-variant-b {
   }
 
   .btn-copy {
-    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-line bg-cream px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
+    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] border border-line bg-cream px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
   }
   .btn-copy:active {
     transform: scale(0.97);
@@ -338,7 +308,7 @@ html[data-hero-variant="c"] .hero-variant-b {
   }
 
   .chip {
-    @apply inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-card px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
+    @apply inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-line bg-card px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
   }
   .chip:active {
     transform: scale(0.98);
@@ -351,15 +321,15 @@ html[data-hero-variant="c"] .hero-variant-b {
     @apply mb-2 block text-base font-semibold text-ink;
   }
 
-  /* ---- App-shell component polish (app-redesign-spec §4) ---- */
+  /* ---- App-shell component polish (app-redesign-spec §4, dark) ---- */
   .input {
-    @apply min-h-12 w-full rounded-2xl border border-line bg-cream px-4 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none;
+    @apply min-h-12 w-full rounded-xl border border-line bg-cream px-4 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none;
   }
   .card {
-    @apply rounded-3xl border border-line bg-card shadow-card;
+    @apply rounded-[14px] border border-line bg-card shadow-card;
   }
   .icon-btn {
-    @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-forest transition-colors duration-150 hover:bg-cream-deep active:scale-[0.97];
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] text-forest transition-colors duration-150 hover:bg-cream-deep active:scale-[0.97];
   }
   .bys-sheet {
     animation: bys-sheet-in 240ms cubic-bezier(0.32, 0.72, 0.35, 1.02);
@@ -434,6 +404,71 @@ html[data-hero-variant="c"] .hero-variant-b {
     100% {
       box-shadow: 0 0 0 16px color-mix(in srgb, var(--bys-accent) 0%, transparent);
     }
+  }
+}
+
+/* ---- Hero state — the required Panic animation (5304729186 §2) ----
+   Sequence, driven by data-phase on the container:
+   panic (word readable ~1.8s) → strike (red line draws across ~550ms)
+   → calm (crossfade to the settled positive word). One replacement
+   word per page load, chosen in JS; never loops. The two words share
+   one grid cell so the container is sized by the widest word — no
+   layout shift. The block is aria-hidden; screen readers get the
+   single stable H1 phrase in index.tsx instead of every transition.
+   prefers-reduced-motion: JS renders the calm word immediately
+   (resolved state, no timers, no strike); the blanket reduced-motion
+   rule below additionally zeroes every animation/transition. */
+.hero-state {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+.hero-state .hero-word {
+  grid-area: 1 / 1;
+}
+.hero-state .hero-state-panic {
+  opacity: 1;
+}
+.hero-state .hero-state-calm {
+  opacity: 0;
+}
+.hero-state[data-phase="strike"] .hero-state-panic,
+.hero-state[data-phase="strike"] .hero-state-calm,
+.hero-state[data-phase="calm"] .hero-state-panic,
+.hero-state[data-phase="calm"] .hero-state-calm {
+  transition: opacity 220ms ease-out;
+}
+.hero-state[data-phase="calm"] .hero-state-panic {
+  opacity: 0;
+}
+.hero-state[data-phase="calm"] .hero-state-calm {
+  opacity: 1;
+}
+.hero-state .hero-strike {
+  position: absolute;
+  left: -1.5%;
+  right: -1.5%;
+  top: 52%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bys-danger);
+  transform: scaleX(0);
+  transform-origin: left center;
+  pointer-events: none;
+}
+.hero-state[data-phase="strike"] .hero-strike {
+  animation: bys-strike-draw 550ms ease-in-out forwards;
+}
+.hero-state[data-phase="calm"] .hero-strike {
+  opacity: 0;
+  transition: opacity 260ms ease 60ms;
+}
+@keyframes bys-strike-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
 
@@ -668,7 +703,7 @@ html[data-hero-variant="c"] .hero-variant-b {
   left: 0.75rem;
   z-index: 100;
   transform: translateY(-300%);
-  @apply inline-flex min-h-11 items-center rounded-full bg-forest px-5 text-base font-semibold text-cream;
+  @apply inline-flex min-h-11 items-center rounded-[10px] bg-forest px-5 text-base font-semibold text-cream;
   box-shadow: var(--bys-shadow-pop);
 }
 .skip-link:focus-visible {

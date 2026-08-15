@@ -1,12 +1,14 @@
 // Shared site chrome (front-end polish pass): the sleek sticky header with the
-// pill tab group + Sign in, and the landing footer. Used on the public pages —
+// text-first nav + Sign in, and the landing footer. Used on the public pages —
 // landing (/), pricing, consultations, the trust pages (faq/about/privacy/
 // terms/contact), and the 404. App pages (home, dashboard, owner) and funnel
 // pages (login, redeem, confirm, onboarding) keep their own chrome — do not
 // use this there.
 //
-// Design language: forest/cream, rounded-full pills, min-h-11 touch targets,
-// calm copy, mobile-first 390px.
+// Design language: ONE calm dark system (5304729186 §1) — bone type on a
+// near-black canvas, quiet low-contrast borders, text-first nav with a
+// subtle rule for the selected state (no filled pills), min-h-11 touch
+// targets, mobile-first 390px.
 //
 // Owner-batch DESIGN 2 (2026-08-12): the header tabs narrow to exactly one —
 // Pricing (the logo IS Home; the old Home tab is deleted). Consultations +
@@ -14,8 +16,7 @@
 // (UserMenu) instead of the "Command Center →" + "Log out" pair — the menu's
 // Profile & account entry and header row cover the Command Center destination.
 
-import { useEffect, useRef, useState } from "react";
-import ThemeSwitcher from "~/components/ThemeSwitcher";
+import { useEffect, useState } from "react";
 import UserMenu from "~/components/UserMenu";
 
 // Auth-aware chrome (C1, owner's auto-logout report 75fa1a07): the header and
@@ -81,68 +82,36 @@ export function SiteHeader({ active = "other" }: { active?: SiteTab | string }) 
   const auth = useSiteAuth();
   const signedIn = !!auth?.user;
   const tier = auth?.quota?.tier || auth?.user?.profile?.tier || "free";
-  // Landing-redesign F4: the tab pill scrolls on very narrow screens; a quiet
-  // right-edge fade shows ONLY while it overflows, so "more tabs" is never a
-  // hidden-scrollbar surprise. With the DESIGN 2 single tab it can never
-  // overflow, but the machinery is kept so a future tab add re-arms it.
-  const navRef = useRef<HTMLElement | null>(null);
-  const fadeRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const nav = navRef.current;
-    const fade = fadeRef.current;
-    if (!nav || !fade) return;
-    const update = () => {
-      fade.style.opacity = nav.scrollWidth > nav.clientWidth + 1 ? "1" : "0";
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(nav);
-    window.addEventListener("resize", update);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, []);
   return (
     <header className="sticky top-0 z-20 border-b border-line/70 bg-cream/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-2 px-5 sm:px-6 max-[400px]:px-4">
-        <a href="/" className="flex shrink-0 items-center gap-2 font-display text-[1.35rem] font-semibold tracking-tight text-forest -m-2 p-2">
+      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-5 sm:px-6 max-[400px]:px-4">
+        <a href="/" className="flex shrink-0 items-center gap-2 font-display text-[1.3rem] font-semibold tracking-tight text-ink -m-2 p-2">
           <img src="/logo-bys.svg" alt="" aria-hidden="true" className="h-8 w-8 max-[400px]:h-7 max-[400px]:w-7" />
           <span className="hidden min-[480px]:inline">Before You Send</span>
-          <span className="hidden min-[480px]:inline text-forest-soft">.</span>
+          <span className="hidden min-[480px]:inline text-stone">.</span>
         </a>
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="relative min-w-0">
-            <nav
-              ref={navRef}
-              aria-label="Main"
-              className="flex items-center gap-1 overflow-x-auto rounded-full border border-line bg-card p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {TABS.map((t) => (
-                <a
-                  key={t.id}
-                  href={t.href}
-                  aria-current={active === t.id ? "page" : undefined}
-                  className={`inline-flex min-h-11 items-center whitespace-nowrap rounded-full px-5 py-2 text-sm font-semibold transition-colors duration-150 max-[480px]:px-3 max-[480px]:text-[13px] max-[400px]:px-2.5 ${
-                    active === t.id ? "bg-forest text-cream" : "text-forest hover:bg-forest/5 hover:text-forest-deep"
-                  }`}
-                >
-                  {t.label}
-                </a>
-              ))}
-            </nav>
-            <div
-              ref={fadeRef}
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-1 right-0 w-6 rounded-r-full bg-gradient-to-l from-card to-transparent opacity-0 transition-opacity duration-200"
-            />
-          </div>
+        <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+          <nav aria-label="Main" className="flex items-center">
+            {TABS.map((t) => (
+              <a
+                key={t.id}
+                href={t.href}
+                aria-current={active === t.id ? "page" : undefined}
+                className={`relative inline-flex min-h-11 items-center whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-[400px]:px-2 ${
+                  active === t.id ? "text-ink" : "text-stone hover:text-ink"
+                }`}
+              >
+                {t.label}
+                {active === t.id && <span aria-hidden="true" className="absolute inset-x-3 bottom-0.5 h-px bg-forest" />}
+              </a>
+            ))}
+          </nav>
           {signedIn ? (
             <UserMenu user={auth!.user} tier={tier} context="header" />
           ) : (
             <a
               href="/login"
-              className="inline-flex min-h-11 shrink-0 items-center rounded-full bg-forest px-5 text-sm font-semibold text-cream transition-colors duration-150 hover:bg-forest-soft max-[480px]:px-3"
+              className="inline-flex min-h-11 shrink-0 items-center rounded-[10px] border border-line bg-card px-4 text-sm font-medium text-ink transition-colors duration-150 hover:border-forest/40 hover:text-forest max-[480px]:px-3"
             >
               Sign in
             </a>
@@ -170,30 +139,27 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-line py-9">
       <div className="mx-auto max-w-3xl px-5 sm:px-6">
-        <nav aria-label="Footer" className="mb-5 flex flex-wrap gap-x-5 gap-y-2 text-base text-forest">
+        <nav aria-label="Footer" className="mb-5 flex flex-wrap gap-x-5 gap-y-2 text-base text-stone">
           {FOOTER_LINKS.map((l) => (
-            <a key={l.label} href={l.href} className="inline-flex min-h-11 items-center transition-colors hover:text-forest-deep">
+            <a key={l.label} href={l.href} className="inline-flex min-h-11 items-center transition-colors hover:text-ink">
               {l.label}
             </a>
           ))}
           {signedIn ? (
             <>
-              <a key="command-center" href="/home" className="inline-flex min-h-11 items-center transition-colors hover:text-forest-deep">
+              <a key="command-center" href="/home" className="inline-flex min-h-11 items-center transition-colors hover:text-ink">
                 Command Center
               </a>
-              <button key="log-out" type="button" onClick={logoutFromChrome} className="inline-flex min-h-11 items-center transition-colors hover:text-forest-deep">
+              <button key="log-out" type="button" onClick={logoutFromChrome} className="inline-flex min-h-11 items-center transition-colors hover:text-ink">
                 Log out
               </button>
             </>
           ) : (
-            <a key="sign-in" href="/login" className="inline-flex min-h-11 items-center transition-colors hover:text-forest-deep">
+            <a key="sign-in" href="/login" className="inline-flex min-h-11 items-center transition-colors hover:text-ink">
               Sign in
             </a>
           )}
         </nav>
-        <div className="mt-6">
-          <ThemeSwitcher variant="inline" />
-        </div>
         <p className="mt-4 text-base leading-relaxed text-stone">
           Before You Send is not a law firm and does not provide legal advice. Reviews are AI-assisted communication guidance only, and your draft is processed by AI to produce them.
         </p>

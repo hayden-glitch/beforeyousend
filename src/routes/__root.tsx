@@ -69,7 +69,7 @@ export const Route = createRootRoute({
         content:
           "Paste the text you're about to send to your co-parent. Before You Send reviews how it may be received, flags conflict risks, and returns three calm, child-focused rewrites — free, no account needed.",
       },
-      { name: "theme-color", content: "#FAF7F1" },
+      { name: "theme-color", content: "#0D110F" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -102,14 +102,14 @@ export const Route = createRootRoute({
         tag: "script",
         children: `(function(){try{document.cookie="bys_org_trial=on; Max-Age=31536000; Path=/; SameSite=Lax";document.documentElement.setAttribute("data-organizer-promo","on");}catch(e){}})();`,
       },
-      // Theme (app-redesign-spec §1.3): apply the saved theme BEFORE first paint
-      // so there is no flash — sets data-theme on <html> + the theme-color meta.
-      // Falls back to Forest (current brand) with no saved value / JS off.
-      // localStorage is origin-scoped, so apex ↔ www don't share the theme —
-      // acceptable for a theme; cookie-keying is not needed here.
+      // Theme (5304729186 §1): the site is ONE calm dark system — the legacy
+      // bys_theme value (forest|midnight|sand) is ignored; there is no light
+      // theme to restore, so data-theme is always set to the dark system and
+      // the theme-color meta is pinned to the page charcoal. Kept as a
+      // no-op attribute so the legacy ThemeSwitcher never FOUCs.
       {
         tag: "script",
-        children: `(function(){try{var t="forest";try{var s=localStorage.getItem("bys_theme");if(s==="forest"||s==="midnight"||s==="sand")t=s}catch(e){}document.documentElement.setAttribute("data-theme",t);var m=document.querySelector('meta[name="theme-color"]');if(m){var c={forest:"#FAF7F1",midnight:"#0e1a15",sand:"#f6f1e6"}[t];if(c)m.setAttribute("content",c)}}catch(e){}})();`,
+        children: `(function(){try{document.documentElement.setAttribute("data-theme","forest");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#0D110F")}catch(e){}})();`,
       },
     ],
   }),
