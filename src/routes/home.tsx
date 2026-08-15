@@ -371,23 +371,7 @@ function Dashboard(){
    fetch("/api/record-review").then((r)=>r.ok?r.json():null).then((j)=>{if(!cancelled&&j&&j.report)setRrReport(j.report);}).catch(()=>{});
    return ()=>{cancelled=true};
  },[tab,authState,rrReport]);
- // Foyer live previews: when the Tools tab opens on a Command Center plan,
- // pull the persisted Action Center + Case Summary (read-only GETs of the
- // SAME data the full tools show) so the hub previews are real, not mock.
- const [foyerData,setFoyerData]=useState<{items:ActionItem[];counts:ActionCenterCounts|null;csExcerpt:string|null}|null>(null);
- useEffect(()=>{
-   if(tab!=="tools"||authState!=="ready"||!suiteUnlocked||foyerData)return;
-   let cancelled=false;
-   (async()=>{
-     const [acRes,csRes]=await Promise.all([fetchActionCenter(),fetchCaseSummary()]);
-     if(cancelled)return;
-     const items=acRes.ok&&acRes.value.summary?acRes.value.summary.items:[];
-     const counts=acRes.ok?acRes.value.counts??null:null;
-     const csExcerpt=csRes.ok&&csRes.value.summary?csRes.value.summary.text.replace(/\s+/g," ").trim().slice(0,140):null;
-     setFoyerData({items,counts,csExcerpt});
-   })().catch(()=>{if(!cancelled)setFoyerData({items:[],counts:null,csExcerpt:null})});
-   return ()=>{cancelled=true};
- },[tab,authState,suiteUnlocked,foyerData]);
+
  useEffect(()=>{loadMomentum()},[loadMomentum]);
  useEffect(()=>{loadDigest()},[loadDigest]);
  // Review-event persistence: one POST per completed real dashboard review
@@ -568,6 +552,23 @@ function Dashboard(){
  // "Try it free"; 5 used → "Demo used — part of Command Center"; else → "Coming soon".
  const organizerLive = promoEligible && orgTrialRemaining > 0;
  const organizerPill = suiteUnlocked ? "Live — in your plan" : organizerLive ? "Try it free" : (promoEligible && orgTrialRemaining === 0) ? "Demo used — part of Command Center" : "Part of Command Center";
+ // Foyer live previews: when the Tools tab opens on a Command Center plan,
+ // pull the persisted Action Center + Case Summary (read-only GETs of the
+ // SAME data the full tools show) so the hub previews are real, not mock.
+ const [foyerData,setFoyerData]=useState<{items:ActionItem[];counts:ActionCenterCounts|null;csExcerpt:string|null}|null>(null);
+ useEffect(()=>{
+   if(tab!=="tools"||authState!=="ready"||!suiteUnlocked||foyerData)return;
+   let cancelled=false;
+   (async()=>{
+     const [acRes,csRes]=await Promise.all([fetchActionCenter(),fetchCaseSummary()]);
+     if(cancelled)return;
+     const items=acRes.ok&&acRes.value.summary?acRes.value.summary.items:[];
+     const counts=acRes.ok?acRes.value.counts??null:null;
+     const csExcerpt=csRes.ok&&csRes.value.summary?csRes.value.summary.text.replace(/\s+/g," ").trim().slice(0,140):null;
+     setFoyerData({items,counts,csExcerpt});
+   })().catch(()=>{if(!cancelled)setFoyerData({items:[],counts:null,csExcerpt:null})});
+   return ()=>{cancelled=true};
+ },[tab,authState,suiteUnlocked,foyerData]);
  const acItems=foyerData?.items??[];
  const counts=foyerData?.counts??null;
  const csExcerpt=foyerData?.csExcerpt??null;
