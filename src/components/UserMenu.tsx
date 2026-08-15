@@ -180,7 +180,7 @@ export default function UserMenu({
   };
 
   const itemBase =
-    "flex min-h-11 w-full items-center gap-2 rounded-2xl px-4 text-base font-semibold text-forest transition-colors duration-150 hover:bg-cream-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forest/40";
+    "flex min-h-11 w-full items-center gap-2 rounded-2xl px-4 text-base font-semibold text-forest transition-colors duration-150 hover:bg-cream-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bys-accent-soft)]";
 
   const planLabel = paidTier
     ? `Your plan: ${PLAN_PRICES[profile.tier] || "Steady"}`

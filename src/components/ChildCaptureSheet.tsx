@@ -45,6 +45,15 @@ export default function ChildCaptureSheet({
     const t = setTimeout(() => inputRef.current?.focus(), 120);
     return () => clearTimeout(t);
   }, [open, initial]);
+  // Phase C (MWO 83): Escape closes the sheet — never a keyboard trap.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
   if (!open) return null;
 

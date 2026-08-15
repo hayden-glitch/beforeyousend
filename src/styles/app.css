@@ -1350,6 +1350,36 @@ main[id]:focus {
   .chip:active {
     transform: none;
   }
+  /* Phase B ambient light + review scan (MWO 87): the blanket rule below
+     already zeroes every animation; these explicit kills document intent for
+     the new world surfaces and survive any future specificity changes. The
+     glow collapses to its static resting opacity, the scan line to a static
+     highlight — both stable and attractive. */
+  .world-review::before,
+  .world-situation::before,
+  .world-archive::before,
+  .world-ledger::before,
+  .world-ribbon::before,
+  .world-desk::before,
+  .world-health::before,
+  .world-dossier::before,
+  .world-action::before,
+  .world-briefcase::before,
+  .world-audit::before,
+  .world-human::before,
+  .world-reset::before,
+  .world-tools::before,
+  .bys-route.world-human::before,
+  .bys-route.world-quiet-glow::before {
+    animation: none;
+  }
+  .world-review .bys-empty-art::after {
+    animation: none;
+  }
+  .bys-cool-typing .bys-dot,
+  .bys-filing-dots .bys-dot {
+    animation: none;
+  }
   *,
   *::before,
   *::after {

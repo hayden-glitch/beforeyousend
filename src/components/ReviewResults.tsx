@@ -912,6 +912,16 @@ function CaptureSheet({ draft, reviewText, nudge, noun = REVIEW_NOUN, onDismiss,
   const [variant] = useState<CaptureVariant>(() => ensureCaptureVariant());
   const { email, setEmail, state, setState, error, setError, confirmLink, submit } = useCaptureSubmit(draft, reviewText, variant, onSubmitted);
 
+  // Phase C (MWO 83): Escape dismisses the capture ask (never a trap) — same
+  // keyboard contract as the other sheets/modals.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onDismiss();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onDismiss]);
+
   if (state === "saved") {
     return (
       <div id="bys-capture-sheet" className="fixed inset-x-0 bottom-0 z-[36] md:hidden" role="dialog" aria-label={noun.savedHeading}>

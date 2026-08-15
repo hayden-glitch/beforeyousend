@@ -458,6 +458,49 @@ export default function Organizer({
     setDrawerErr("");
     setMoving(null);
   }
+  // Phase C (MWO 83): the document drawer traps Tab inside the panel, closes
+  // on Escape, focuses the panel on open, locks body scroll, and restores
+  // focus on close — never a keyboard trap, never a lost scroll position.
+  const drawerPanelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!openFile) return;
+    const prevFocus = document.activeElement as HTMLElement | null;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const t = setTimeout(() => drawerPanelRef.current?.focus(), 60);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        closeDrawer();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const panel = drawerPanelRef.current;
+      if (!panel) return;
+      const focusables = panel.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || !panel.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      clearTimeout(t);
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey, true);
+      prevFocus?.focus?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openFile]);
   async function doRename() {
     if (!openFile || renameBusy) return;
     const t = titleDraft.trim();
@@ -998,6 +1041,7 @@ export default function Organizer({
             className="absolute inset-0 h-full w-full cursor-default bg-forest/25"
           />
           <div
+            ref={drawerPanelRef}
             tabIndex={-1}
             className="bys-sheet absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-[2rem] border-t-2 border-forest bg-card p-6 pb-[max(24px,env(safe-area-inset-bottom))] shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[2rem] sm:border-2"
           >

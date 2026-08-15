@@ -139,6 +139,12 @@ export function SiteHeader({ active = "other" }: { active?: SiteTab | string }) 
           </div>
           {signedIn ? (
             <UserMenu user={auth!.user} tier={tier} context="header" />
+          ) : auth === null ? (
+            // Phase C (MWO 55): while the session check is pending, render a
+            // quiet fixed-size placeholder — a signed-in dad never sees a
+            // logged-out "Sign in" flash, and a logged-out visitor never sees
+            // the avatar pop in. Same footprint as the Sign in pill (no CLS).
+            <span aria-hidden="true" className="inline-flex min-h-11 w-[6.5rem] shrink-0 items-center justify-center rounded-full border border-line/70 bg-card/50" />
           ) : (
             <a
               href="/login"
@@ -166,7 +172,8 @@ const FOOTER_LINKS: { label: string; href: string }[] = [
 ];
 
 export function SiteFooter() {
-  const signedIn = !!useSiteAuth()?.user;
+  const auth = useSiteAuth();
+  const signedIn = !!auth?.user;
   return (
     <footer className="border-t border-line py-9">
       <div className="mx-auto max-w-3xl px-5 sm:px-6">
@@ -176,7 +183,11 @@ export function SiteFooter() {
               {l.label}
             </a>
           ))}
-          {signedIn ? (
+          {/* Phase C (MWO 55): while the session check is pending, a quiet
+              fixed-height placeholder — never a wrong-state "Sign in" flash. */}
+          {auth === null ? (
+            <span aria-hidden="true" className="inline-flex min-h-11 w-28 items-center" />
+          ) : signedIn ? (
             <>
               <a key="command-center" href="/home" className="inline-flex min-h-11 items-center transition-colors hover:text-forest-deep">
                 Command Center

@@ -16,9 +16,16 @@ const TABS: { key: TabKey; label: string; Icon: (p: { className?: string }) => R
   { key: "tools", label: "Tools", Icon: IconTools },
 ];
 
-function CountBadge({ n }: { n: number }) {
+// Phase C (MWO item 48): the count badge flips with the pill so it never
+// disappears into the active surface — cream-on-forest when idle, forest-on-
+// cream when the pill is the solid active fill.
+function CountBadge({ n, active }: { n: number; active?: boolean }) {
   return (
-    <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-forest px-1 text-[10px] font-semibold text-cream">
+    <span
+      className={`flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold ${
+        active ? "bg-cream text-forest" : "bg-forest text-cream"
+      }`}
+    >
       {n > 99 ? "99+" : n}
     </span>
   );
@@ -53,13 +60,13 @@ export function TabBar({
               >
                 <span
                   className={`flex max-w-full flex-col items-center gap-1 rounded-full px-3 py-1 transition-colors duration-150 max-[384px]:px-1 ${
-                    isActive ? "bg-forest/10 text-forest" : "text-stone"
+                    isActive ? "bg-forest text-cream" : "text-stone"
                   }`}
                 >
                   <Icon className="h-6 w-6 transition-transform duration-150 active:scale-[0.96]" />
                   <span className="flex max-w-full items-center gap-1 text-[11px] font-medium">
                     <span className="truncate">{label}</span>
-                    {key === "saved" && savedCount > 0 && <CountBadge n={savedCount} />}
+                    {key === "saved" && savedCount > 0 && <CountBadge n={savedCount} active={isActive} />}
                   </span>
                 </span>
               </button>
@@ -83,12 +90,12 @@ export function TabBar({
                 onClick={() => onChange(key)}
                 aria-current={isActive ? "page" : undefined}
                 className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 font-medium transition-colors duration-150 ${
-                  isActive ? "bg-forest/10 text-forest" : "text-stone hover:bg-cream-deep"
+                  isActive ? "bg-forest text-cream" : "text-stone hover:bg-cream-deep"
                 }`}
               >
                 <Icon className="h-5 w-5" />
                 {label}
-                {key === "saved" && savedCount > 0 && <CountBadge n={savedCount} />}
+                {key === "saved" && savedCount > 0 && <CountBadge n={savedCount} active={isActive} />}
               </button>
             );
           })}
