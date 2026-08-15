@@ -3,7 +3,7 @@
 import Stripe from "stripe";
 import * as crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
-import { readUsers, writeUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, insertConsultation, insertAttorneyPack, insertRecordReview, attorneyPacksForUser, recordReviewsForUser, saveRecordReviewReport, latestRecordReviewReport, deleteRecordReviewBySession, getTrial, startTrial, clearMetrics, customerMetrics, claimFulfillment, getFulfillmentClaim, markFulfillmentProcessed, reclaimFulfillment, releaseFulfillmentClaim, deleteFulfillmentClaimsByUser } from "./storage";
+import { readUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, adjustUserCredits, appendProcessedSession, grantTopUp, grantSortPile, grantEntitlement, grantSubscription, setUserPassword, confirmUser, extendGiftUntil, clearSubscriptionExpiry, insertConsultation, insertAttorneyPack, insertRecordReview, attorneyPacksForUser, recordReviewsForUser, saveRecordReviewReport, latestRecordReviewReport, deleteRecordReviewBySession, getTrial, startTrial, clearMetrics, customerMetrics, claimFulfillment, getFulfillmentClaim, markFulfillmentProcessed, reclaimFulfillment, releaseFulfillmentClaim, deleteFulfillmentClaimsByUser } from "./storage";
 import { computeImpactScore } from "./impactScore";
 import { buildRecordReview } from "./recordReview";
 import { TAXONOMY, folderBySlug } from "./taxonomy";
@@ -624,12 +624,10 @@ async function handleReview(req) {
         // a successful stream (lazy, like the anon slot), so a failed or
         // killed stream can never burn a paid credit. Re-reads the user row so
         // a concurrent write (top-up, tier change) isn't clobbered.
-        claimSignedIn = () => readUsers().then((users2) => {
-          const u2 = users2.find((x3) => x3.id === u.id);
-          if (u2 && Number(u2.profile?.credits || 0) > 0) {
-            u2.profile = { ...u2.profile || {}, credits: Number(u2.profile?.credits || 0) - 1 };
-            return writeUsers(users2);
-          }
+        // Track B Round 4: atomic single-row decrement (only when the row
+        // still has credits) — never a whole-table snapshot flush.
+        claimSignedIn = () => adjustUserCredits(u.id, -1, true).then((claimed) => {
+          if (claimed === null) console.warn("[review] credit claim skipped: no credits left");
         }).catch((err) => console.warn("[review] credit claim failed:", err));
       } else {
         const limit = reviewLimitFor(u);
@@ -917,12 +915,10 @@ async function handleAnalyze(req) {
       // Credits path: READ-ONLY gate here — the credit is claimed only after
       // a successful stream (lazy, like the anon slot), so a failed or
       // killed stream can never burn a paid credit.
-      claimSignedIn = () => readUsers().then((users2) => {
-        const u2 = users2.find((x3) => x3.id === u.id);
-        if (u2 && Number(u2.profile?.credits || 0) > 0) {
-          u2.profile = { ...u2.profile || {}, credits: Number(u2.profile?.credits || 0) - 1 };
-          return writeUsers(users2);
-        }
+      // Track B Round 4: atomic single-row decrement (only when the row
+      // still has credits) — never a whole-table snapshot flush.
+      claimSignedIn = () => adjustUserCredits(u.id, -1, true).then((claimed) => {
+        if (claimed === null) console.warn("[analyze] credit claim skipped: no credits left");
       }).catch((err) => console.warn("[analyze] credit claim failed:", err));
     } else {
       const limit = reviewLimitFor(u);
@@ -1529,7 +1525,7 @@ async function handleConfirm(req) {
     await writeReviews((await readReviews()).concat(signupAdopt.map(function (x) { return { id: crypto.randomUUID(), userId: user.id, draft: x.draft, blocks: [], review: x.review, createdAt: x.ts }; })));
     await deleteSignups(user.email);
   }
-  await writeUsers(users);
+  await confirmUser(user.id, user.email, user.confirmedAt, intake);
   await deleteConfirmToken(t);
   const st = token();
   const exp = Date.now() + SESSION_TTL_MS;
@@ -1584,11 +1580,11 @@ async function handlePassword(req) {
           return json3({ error: "That's not the current password — try again." }, 400);
       }
       su.password = await hashPassword(password);
-      await writeUsers(users);
+      await setUserPassword(su.id, su.email, su.password);
       return json3({ ok: true, user: { id: su.id, email: su.email, profile: su.profile } }, 200);
     }
     su.password = await hashPassword(password);
-    await writeUsers(users);
+    await setUserPassword(su.id, su.email, su.password);
     return json3({ ok: true, user: { id: su.id, email: su.email, profile: su.profile } }, 200);
   }
   const pending = await getConfirmToken(t);
@@ -1625,7 +1621,7 @@ async function handlePassword(req) {
     await writeReviews((await readReviews()).concat(signupAdopt.map(function (x) { return { id: crypto.randomUUID(), userId: user.id, draft: x.draft, blocks: [], review: x.review, createdAt: x.ts }; })));
     await deleteSignups(user.email);
   }
-  await writeUsers(users);
+  await setUserPassword(user.id, user.email, user.password, user.confirmedAt, user.createdAt);
   await deleteConfirmToken(t);
   const st = token();
   const exp = Date.now() + SESSION_TTL_MS;
@@ -1731,7 +1727,7 @@ async function handleSignup(req) {
     await writeReviews((await readReviews()).concat(signupAdopt.map(function (x) { return { id: crypto.randomUUID(), userId: user.id, draft: x.draft, blocks: [], review: x.review, createdAt: x.ts }; })));
     await deleteSignups(user.email);
   }
-  await writeUsers(users);
+  await setUserPassword(user.id, user.email, user.password, user.confirmedAt, user.createdAt, intake);
   const st = token();
   const exp = Date.now() + SESSION_TTL_MS;
   // A2 (owner's auto-logout report): persist the session in Neon BEFORE
@@ -1781,7 +1777,7 @@ async function handleTrialStart(req) {
   if (!row || !created)
     return json3({ error: "You've already used your free trial." }, 409);
   u.profile = { ...(u.profile || {}), trialUntil: row.expiresAt };
-  try { await writeUsers(users); } catch (err) { console.warn("[trial] profile mirror failed:", err); }
+  try { await updateUserProfile(u.id, { trialUntil: row.expiresAt }); } catch (err) { console.warn("[trial] profile mirror failed:", err); }
   addEvent({ vid: visitorVid(req) || "server", name: "trial_start", meta: { source: "trial_modal" } }).catch(function (err) { console.warn("[trial] event failed:", err); });
   return json3({ ok: true, expiresAt: row.expiresAt });
 }
@@ -1815,7 +1811,7 @@ async function authMe(req) {
   var needsKidBackfill = kidList.some(function (c) { return !c || typeof c.id !== "string" || !c.id; });
   if (needsKidBackfill) {
     u.profile = { ...(u.profile || {}), children: kidList.map(function (c) { return c && typeof c.id === "string" && c.id ? c : { ...(c || {}), id: crypto.randomUUID() }; }) };
-    try { await writeUsers(users); } catch (err) { console.warn("[authMe] child id backfill failed:", err); }
+    try { await updateUserProfile(u.id, { children: u.profile.children }); } catch (err) { console.warn("[authMe] child id backfill failed:", err); }
   }
   // 24-hour free trial: the bys_trials row is the durable record; mirror its
   // expires_at onto profile.trialUntil so the synchronous userTier() gate
@@ -1831,7 +1827,7 @@ async function authMe(req) {
       const cur = u.profile?.trialUntil ? new Date(u.profile.trialUntil).getTime() : 0;
       if (Math.abs(cur - exp) > 1000) {
         u.profile = { ...(u.profile || {}), trialUntil: tr.expiresAt };
-        try { await writeUsers(users); } catch (err) { console.warn("[authMe] trial mirror backfill failed:", err); }
+        try { await updateUserProfile(u.id, { trialUntil: tr.expiresAt }); } catch (err) { console.warn("[authMe] trial mirror backfill failed:", err); }
       }
     } else {
       trial = { active: false, expiresAt: null, used: false };
@@ -2200,11 +2196,10 @@ async function handleGiftRedeem(req) {
   if (!claimed)
     return json3({ error: "That code has already been used." }, 409);
   // Roll forward from the latest of now / any banked gift / any paid renews-at,
-  // so a gift redeemed under a paid account is banked, not wasted.
-  const base = Math.max(Date.now(), new Date(u.profile?.giftUntil || 0).getTime(), new Date(u.profile?.tierRenewsAt || 0).getTime());
-  const validUntil = new Date(base + 30 * 24 * 60 * 60 * 1000).toISOString();
-  u.profile = { ...u.profile || {}, giftUntil: validUntil };
-  await writeUsers(users);
+  // so a gift redeemed under a paid account is banked, not wasted. Computed in
+  // SQL from the CURRENT row (Track B Round 4) so a concurrent grant on the
+  // same account is preserved and two redemptions stack.
+  const validUntil = (await extendGiftUntil(u.id)) || new Date(Math.max(Date.now(), new Date(u.profile?.giftUntil || 0).getTime(), new Date(u.profile?.tierRenewsAt || 0).getTime()) + 30 * 24 * 60 * 60 * 1000).toISOString();
   return json3({ ok: true, validUntil });
 }
 async function handleReviews(req, method) {
@@ -2276,11 +2271,15 @@ async function handleProfile(req) {
   const u = users.find((x2) => x2.id === s.userId);
   if (!u)
     return json3({ error: "Account not found." }, 404);
+  // Track B Round 4: collect ONLY the keys this request changed and persist
+  // them as a row-scoped JSONB merge — never a whole-table snapshot flush.
+  let profilePatch: any = null;
   // Onboarding payloads always send name+situation+help together; only run the
   // full overwrite when at least one of those keys is present, so a children-only
   // POST (Organizer child-folder capture) never wipes the dad's profile fields.
   if (b2.name !== undefined || b2.situation !== undefined || b2.help !== undefined) {
     u.profile = { ...u.profile || {}, name: String(b2.name || "").slice(0, 100), situation: Array.isArray(b2.situation) ? b2.situation.slice(0, 10) : [], help: Array.isArray(b2.help) ? b2.help.slice(0, 10) : [], completed: true };
+    profilePatch = { ...(profilePatch || {}), name: u.profile.name, situation: u.profile.situation, help: u.profile.help, completed: true };
   }
   // profile.children — JSONB merge (NEVER the full-overwrite path above): the
   // child's folder is the emotional centerpiece; first entry is the folder's
@@ -2308,6 +2307,7 @@ async function handleProfile(req) {
       // are his own organizer rows, never keyed to the child slot). The
       // child-scoped Exchange Tone ratings + to-do lists go with the folder.
       u.profile = { ...u.profile || {}, children: [], weekRatings: {}, todos: {} };
+      profilePatch = { ...(profilePatch || {}), children: [], weekRatings: {}, todos: {} };
     } else if (!kids.length) {
       return json3({ error: "A child's name needs at least one character." }, 400);
     } else if (kids.length === 1 && backfilled.length > 0) {
@@ -2323,11 +2323,14 @@ async function handleProfile(req) {
         // its own id, but the existing slot is the authority once assigned).
         nextKids[matchIdx] = { ...kids[0], id: backfilled[matchIdx]?.id || kids[0].id };
         u.profile = { ...u.profile || {}, children: nextKids };
+        profilePatch = { ...(profilePatch || {}), children: nextKids };
       } else {
         u.profile = { ...u.profile || {}, children: backfilled.concat(kids).slice(0, 4) };
+        profilePatch = { ...(profilePatch || {}), children: u.profile.children };
       }
     } else {
       u.profile = { ...u.profile || {}, children: kids };
+      profilePatch = { ...(profilePatch || {}), children: kids };
     }
   }
   // Batch 2 (Design 1): one-tap weekly Exchange Tone rating — a dad's OWN
@@ -2345,6 +2348,7 @@ async function handleProfile(req) {
       var wrNext = {};
       for (var wi = 0; wi < wrKeys.length; wi++) wrNext[wrKeys[wi]] = wrMap[wrKeys[wi]];
       u.profile = { ...u.profile || {}, weekRatings: { ...((u.profile || {}).weekRatings || {}), [wrChild]: wrNext } };
+      profilePatch = { ...(profilePatch || {}), weekRatings: u.profile.weekRatings };
     }
   }
   // Batch 2 (Design 1): {Name}'s list — child-scoped manual to-dos keyed by
@@ -2366,8 +2370,9 @@ async function handleProfile(req) {
     if (tArr.filter(function (x) { return !x.done; }).length > 20)
       return json3({ error: "That's more than 20 open items — the list holds 20 at a time." }, 400);
     u.profile = { ...u.profile || {}, todos: { ...((u.profile || {}).todos || {}), [tChild]: tArr } };
+    profilePatch = { ...(profilePatch || {}), todos: u.profile.todos };
   }
-  await writeUsers(users);
+  if (profilePatch) await updateUserProfile(u.id, profilePatch);
   return json3({ ok: true, user: { id: u.id, email: u.email, profile: u.profile } });
 }
 var TIMELINE_CATEGORIES2 = ["exchange", "school", "medical", "communication", "court", "other"];
@@ -4136,7 +4141,7 @@ type StaleReclaimHook = {
 };
 let trackBStaleReclaimHook: StaleReclaimHook | null = null;
 async function fulfillCheckoutSession(opts) {
-  const { stripe, session, sessionId, users, u, vid, paidVid, caller } = opts;
+  const { stripe, session, sessionId, u, vid, paidVid, caller } = opts;
   // caller: "confirm" (browser return — UX/recovery) or "webhook" (Stripe
   // delivery loop). The webhook is the durability path: it must NEVER 2xx
   // while another invocation owns a fresh 'processing' claim, or it tells
@@ -4250,11 +4255,13 @@ async function fulfillCheckoutSession(opts) {
   if (session.mode === "payment") {
     if (session.metadata?.plan === "topup") {
       const n = Number(session.metadata?.credits || 10);
-      const grant = applyTopUpGrant(u.profile, n, sessionId);
-      u.profile = grant.profile;
-      await writeUsers(users);
+      // Track B Round 4: atomic credits+n + processedSessions append computed
+      // from the CURRENT row (concurrent top-ups stack; the stamp can never
+      // diverge from the credits).
+      const credits = await grantTopUp(u.id, n, sessionId);
+      if (credits === null) return { error: "Account not found.", status: 404 };
       logPurchaseCompleted("topup", "topup");
-      return await finalize({ kind: "topup", credits: grant.credits }, { ok: true, kind: "topup", credits: grant.credits });
+      return await finalize({ kind: "topup", credits }, { ok: true, kind: "topup", credits });
     }
     if (session.metadata?.plan === "gift") {
       // One-time payment verified -> mint the single-use code. The giver's own
@@ -4277,20 +4284,17 @@ async function fulfillCheckoutSession(opts) {
         await releaseFulfillmentClaim(sessionId).catch(() => {});
         return { error: "We couldn't create your gift code right now — try again.", status: 500 };
       }
-      u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
-      await writeUsers(users);
+      await appendProcessedSession(u.id, sessionId);
       logPurchaseCompleted("gift", "gift");
       const gCreated = gRow.createdAt ? new Date(gRow.createdAt).getTime() : Date.now();
       return await finalize({ kind: "gift" }, { ok: true, kind: "gift", gift: { code: gRow.id, validUntil: new Date(gCreated + 90 * 24 * 60 * 60 * 1000).toISOString() } });
     }
     if (session.metadata?.plan === "sortpile") {
-      // Sort My Pile: grant 30 days of the live Organizer (sortUntil). Rolled
-      // forward from the latest of now / any existing sortUntil so a second
-      // purchase stacks instead of being wasted.
-      const base = Math.max(Date.now(), new Date(u.profile?.sortUntil || 0).getTime());
-      const sortUntil = new Date(base + 30 * 24 * 60 * 60 * 1000).toISOString();
-      u.profile = { ...u.profile || {}, sortUntil, processedSessions: [...processed, sessionId] };
-      await writeUsers(users);
+      // Sort My Pile: grant 30 days of the live Organizer (sortUntil). The
+      // stack is computed in SQL from the CURRENT row (GREATEST(now, existing)
+      // + 30d) so concurrent purchases stack instead of clobbering.
+      const sortUntil = await grantSortPile(u.id, sessionId);
+      if (!sortUntil) return { error: "Account not found.", status: 404 };
       logPurchaseCompleted("sortpile", "sortpile");
       addEvent({ vid, name: "sortpile_purchase", plan: userTier(u), meta: { sortUntil } }).catch(function (err) { console.warn("[sortpile] purchase event failed:", err); });
       return await finalize({ kind: "sortpile" }, { ok: true, kind: "sortpile", sortUntil });
@@ -4299,8 +4303,7 @@ async function fulfillCheckoutSession(opts) {
       // Attorney Prep Pack: durable grant — profile.attorneyPrep is the sync
       // stamp; the bys_attorney_packs row is the canonical record
       // (ON CONFLICT (session_id) makes double-delivery safe).
-      u.profile = { ...u.profile || {}, attorneyPrep: true, processedSessions: [...processed, sessionId] };
-      await writeUsers(users);
+      await grantEntitlement(u.id, sessionId, "attorneyPrep");
       logPurchaseCompleted("attorney_prep_pack", "attorney_prep_pack");
       insertAttorneyPack({
         userId: u.id,
@@ -4314,8 +4317,7 @@ async function fulfillCheckoutSession(opts) {
     if (session.metadata?.plan === "record_review") {
       // Record Review: durable grant — profile.recordReview sync stamp +
       // bys_record_reviews row (kind='purchase', session_id UNIQUE).
-      u.profile = { ...u.profile || {}, recordReview: true, processedSessions: [...processed, sessionId] };
-      await writeUsers(users);
+      await grantEntitlement(u.id, sessionId, "recordReview");
       logPurchaseCompleted("record_review", "record_review");
       insertRecordReview({
         userId: u.id,
@@ -4328,8 +4330,7 @@ async function fulfillCheckoutSession(opts) {
       return await finalize({ kind: "record_review" }, { ok: true, kind: "record_review" });
     }
     // Consultation (mode payment, no plan-specific stamp beyond the durable row)
-    u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
-    await writeUsers(users);
+    await appendProcessedSession(u.id, sessionId);
     if (session.metadata?.plan === "consultation") {
       // Durable consultation record — ON CONFLICT (session_id) makes a
       // double-delivery safe. amount_total is cents.
@@ -4354,16 +4355,15 @@ async function fulfillCheckoutSession(opts) {
     renews.setFullYear(renews.getFullYear() + 1);
   else
     renews.setMonth(renews.getMonth() + 1);
-  u.profile = {
-    ...u.profile || {},
-    stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id || u.profile?.stripeCustomerId,
-    stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id || u.profile?.stripeSubscriptionId,
+  // Track B Round 4: single-statement row-scoped subscription grant (tier,
+  // renews-at, Stripe ids, processedSessions) — never a whole-table flush.
+  await grantSubscription(u.id, sessionId, {
     tier: mapped.tier,
     tierSince: u.profile?.tierSince || now.toISOString(),
     tierRenewsAt: renews.toISOString(),
-    processedSessions: [...processed, sessionId]
-  };
-  await writeUsers(users);
+    stripeCustomerId: typeof session.customer === "string" ? session.customer : (session.customer?.id || ""),
+    stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : (session.subscription?.id || "")
+  });
   // Server-side funnel record (owner dashboard "paid" step). Exactly-once via
   // the claim + a 5-minute vid-level dedupe. Attribution rides when available.
   {
@@ -4566,8 +4566,7 @@ async function handleStripeWebhook(req) {
         console.warn("[webhook] invoice.paid but no user matched customer", customerId || "(none)");
         return json3({ ok: true });
       }
-      u.profile = { ...u.profile || {}, subscriptionStatus: "active", lastRenewalAt: new Date().toISOString(), tierRenewsAt: new Date(periodEnd * 1000).toISOString() };
-      await writeUsers(users);
+      await updateUserProfile(u.id, { subscriptionStatus: "active", lastRenewalAt: new Date().toISOString(), tierRenewsAt: new Date(periodEnd * 1000).toISOString() });
       console.log("[webhook] renewal advanced for", u.email, "until", new Date(periodEnd * 1000).toISOString());
       return json3({ ok: true });
     }
@@ -4583,8 +4582,7 @@ async function handleStripeWebhook(req) {
         console.warn("[webhook] invoice.payment_failed but no user matched customer", customerId || "(none)");
         return json3({ ok: true });
       }
-      u.profile = { ...u.profile || {}, subscriptionStatus: "past_due", lastPaymentFailedAt: new Date().toISOString() };
-      await writeUsers(users);
+      await updateUserProfile(u.id, { subscriptionStatus: "past_due", lastPaymentFailedAt: new Date().toISOString() });
       console.log("[webhook] renewal failed for", u.email, "— tier kept during grace (past_due)");
       return json3({ ok: true });
     }
@@ -4605,13 +4603,15 @@ async function handleStripeWebhook(req) {
       if (paidThrough) {
         // Paid through period end — keep the tier until tierRenewsAt, then the
         // existing lazy expiry in userTier() downgrades the account to free.
-        u.profile = { ...u.profile || {}, subscriptionStatus: "canceled", tierRenewsAt: new Date(periodEnd).toISOString() };
+        await updateUserProfile(u.id, { subscriptionStatus: "canceled", tierRenewsAt: new Date(periodEnd).toISOString() });
         console.log("[webhook] subscription canceled —", u.email, "keeps paid access until", new Date(periodEnd).toISOString());
       } else {
-        u.profile = { ...u.profile || {}, tier: "free", tierSince: undefined, tierRenewsAt: undefined, subscriptionStatus: "canceled" };
+        // Immediate downgrade: set tier free + canceled, and REMOVE the expiry
+        // keys so the lazy userTier() gate can never resurrect the paid tier.
+        await updateUserProfile(u.id, { tier: "free", subscriptionStatus: "canceled" });
+        await clearSubscriptionExpiry(u.id);
         console.log("[webhook] subscription ended — downgraded", u.email, "to free");
       }
-      await writeUsers(users);
       return json3({ ok: true });
     }
   } catch (err) {
@@ -4641,11 +4641,6 @@ function introPhaseEndSeconds(currentPeriodEnd) {
   const dim = new Date(Date.UTC(d2.getUTCFullYear(), d2.getUTCMonth() + 1, 0)).getUTCDate();
   d2.setUTCDate(Math.min(day, dim));
   return Math.floor(d2.getTime() / 1000);
-}
-function applyTopUpGrant(profile, n, sessionId) {
-  const credits = (Number(profile?.credits) || 0) + n;
-  const processedSessions = [...Array.isArray(profile?.processedSessions) ? profile.processedSessions : [], sessionId];
-  return { profile: { ...profile || {}, credits, processedSessions }, credits };
 }
 async function createIntroSchedule(stripe, session) {
   const subId = typeof session.subscription === "string" ? session.subscription : null;

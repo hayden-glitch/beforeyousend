@@ -119,7 +119,33 @@ async function fs(){ return await import("node:fs/promises") }
 async function json(path:string, fallback:any[]=[]){try{return JSON.parse(await (await fs()).readFile(path,"utf8"))}catch{return fallback}}
 async function put(path:string,v:any){const f=await fs();await f.mkdir(base,{recursive:true});await f.writeFile(path,JSON.stringify(v,null,2))}
 export async function readUsers():Promise<any[]>{await ready();const sql=db();if(sql){const r=await sql`SELECT id,email,password,created_at AS "createdAt",confirmed_at AS "confirmedAt",profile FROM bys_users`;return r as any[]}return json(files.users)}
-export async function writeUsers(users:any[]){await ready();const sql=db();if(sql){for(const u of users)await sql`INSERT INTO bys_users(id,email,password,created_at,confirmed_at,profile) VALUES(${u.id},${u.email},${u.password||null},${u.createdAt},${u.confirmedAt||null},${JSON.stringify(u.profile||{})}) ON CONFLICT(id) DO UPDATE SET password=EXCLUDED.password,confirmed_at=EXCLUDED.confirmed_at,profile=EXCLUDED.profile`;return}await put(files.users,users)}
+// Track B Round 4 (Codex P0 2026-08-15): writeUsers must NEVER blindly
+// re-persist every row of a caller's whole-table snapshot — a stale flush
+// could overwrite a concurrent paid grant (credits/tier/sortUntil/stamps)
+// with old profile JSON AFTER the fulfillment claim is already 'processed',
+// and a duplicate Stripe delivery then no-ops while the entitlement is gone.
+// Production callers now use the row-scoped ATOMIC primitives below; this
+// function is retained for test-harness setup and is CAS-guarded: each row is
+// written ONLY when the DB row still equals the snapshot (UPDATE guarded by
+// the old password/confirmed_at/profile), or INSERTed when the row is missing.
+// A row changed by a concurrent request is never overwritten, so even an
+// old-style stale flush can no longer roll back a money update.
+export async function writeUsers(users:any[]){
+  await ready();const sql=db();
+  if(sql){
+    for(const u of users){
+      if(!u||!u.id)continue;
+      const prof=JSON.stringify(u.profile||{});
+      const upd=await sql`UPDATE bys_users SET password=${u.password||null},confirmed_at=${u.confirmedAt||null},profile=${prof}::jsonb WHERE id=${u.id} AND email=${u.email} AND password IS NOT DISTINCT FROM ${u.password||null} AND confirmed_at IS NOT DISTINCT FROM ${u.confirmedAt||null} AND profile=${prof}::jsonb`;
+      if(upd.length>0)continue;
+      // No row matched: either the row is missing (fresh insert) or it was
+      // changed concurrently (CAS fail -> skip, never overwrite).
+      await sql`INSERT INTO bys_users(id,email,password,created_at,confirmed_at,profile) VALUES(${u.id},${u.email},${u.password||null},${u.createdAt||new Date().toISOString()},${u.confirmedAt||null},${prof}::jsonb) ON CONFLICT(id) DO NOTHING`;
+    }
+    return;
+  }
+  await put(files.users,users);
+}
 // Merge a small patch into ONE user's profile (single-row UPDATE — cheap, and
 // avoids writeUsers' full-list upsert loop). Used by Sort My Pile to remember
 // the last completed sort so the compat poll endpoint can return its results.
@@ -129,6 +155,201 @@ export async function updateUserProfile(userId:string,patch:any){
   const rows=await json(files.users);
   const u=rows.find((x:any)=>x.id===userId);
   if(u){u.profile={...(u.profile||{}),...(patch||{})};await put(files.users,rows);}
+}
+// ---- Track B Round 4: row-scoped ATOMIC profile mutations ------------------
+// Codex P0 (2026-08-15): every money/entitlement write is now a single-row,
+// single-statement UPDATE computed from the CURRENT DB row — never from a
+// caller snapshot. Credit increments, stacked sortUntil/giftUntil, and
+// processedSessions appends are therefore safe under concurrency: two
+// concurrent grants both compute from the row's latest value inside their own
+// statement, and Postgres row locking serializes them so neither is lost.
+// JSON-fallback branches (test/dev only) mirror the SQL semantics in memory.
+
+// Atomic credit adjustment: credits = COALESCE(credits,0) + delta, computed in
+// SQL from the row. With onlyIfPositive the update no-ops (returns null) when
+// the row has no credits left — used by the review/analyze success claim so
+// two concurrent streams can never overdraw. Returns the new credits value.
+export async function adjustUserCredits(userId:string,delta:number,onlyIfPositive=false):Promise<number|null>{
+  await ready();const sql=db();
+  if(sql){
+    const r = onlyIfPositive
+      ? await sql`UPDATE bys_users SET profile=jsonb_set(profile,'{credits}',to_jsonb(COALESCE((profile->>'credits')::int,0)+${delta})) WHERE id=${userId} AND COALESCE((profile->>'credits')::int,0)>0 RETURNING profile->>'credits' AS credits`
+      : await sql`UPDATE bys_users SET profile=jsonb_set(profile,'{credits}',to_jsonb(COALESCE((profile->>'credits')::int,0)+${delta})) WHERE id=${userId} RETURNING profile->>'credits' AS credits`;
+    return r.length?Number(r[0].credits):null;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(!u)return null;
+  const cur=Number(u.profile?.credits||0);
+  if(onlyIfPositive&&cur<=0)return null;
+  const next=cur+delta;
+  u.profile={...(u.profile||{}),credits:next};
+  await put(files.users,rows);
+  return next;
+}
+
+// Atomic processedSessions append (single row). Used where the grant is a
+// plain session stamp (gift-giver stamp, consultation). The paid grant
+// branches below combine their field writes with the append in ONE statement
+// so a crash can never leave a grant without its stamp.
+export async function appendProcessedSession(userId:string,sessionId:string):Promise<void>{
+  await ready();const sql=db();
+  if(sql){await sql`UPDATE bys_users SET profile=jsonb_set(profile,'{processedSessions}',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text)) WHERE id=${userId}`;return}
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(u){u.profile={...(u.profile||{}),processedSessions:[...(Array.isArray(u.profile?.processedSessions)?u.profile.processedSessions:[]),sessionId]};await put(files.users,rows);}
+}
+
+// Top-Up grant: credits += n AND processedSessions append atomically in ONE
+// statement (credits and stamp can never diverge mid-crash). Returns the new
+// credits value from the DB row.
+export async function grantTopUp(userId:string,n:number,sessionId:string):Promise<number|null>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`UPDATE bys_users SET profile=jsonb_set(jsonb_set(profile,'{credits}',to_jsonb(COALESCE((profile->>'credits')::int,0)+${n})),'{processedSessions}',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text)) WHERE id=${userId} RETURNING profile->>'credits' AS credits`;
+    return r.length?Number(r[0].credits):null;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(!u)return null;
+  const credits=(Number(u.profile?.credits||0)+n);
+  u.profile={...(u.profile||{}),credits,processedSessions:[...(Array.isArray(u.profile?.processedSessions)?u.profile.processedSessions:[]),sessionId]};
+  await put(files.users,rows);
+  return credits;
+}
+
+// Sort My Pile grant: sortUntil = GREATEST(now, current sortUntil) + 30 days,
+// computed in SQL from the CURRENT row so two concurrent purchases stack
+// instead of clobbering; processedSessions appended in the same statement.
+// Returns the new sortUntil ISO timestamp.
+export async function grantSortPile(userId:string,sessionId:string):Promise<string|null>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`UPDATE bys_users SET profile=jsonb_set(jsonb_set(profile,'{sortUntil}',to_jsonb((GREATEST(now(),COALESCE((profile->>'sortUntil')::timestamptz,now()))+interval '30 days')::timestamptz)),'{processedSessions}',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text)) WHERE id=${userId} RETURNING profile->>'sortUntil' AS "sortUntil"`;
+    return r.length?String(r[0].sortUntil):null;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(!u)return null;
+  const base=Math.max(Date.now(),new Date(u.profile?.sortUntil||0).getTime());
+  const sortUntil=new Date(base+30*24*60*60*1000).toISOString();
+  u.profile={...(u.profile||{}),sortUntil,processedSessions:[...(Array.isArray(u.profile?.processedSessions)?u.profile.processedSessions:[]),sessionId]};
+  await put(files.users,rows);
+  return sortUntil;
+}
+
+// Durable entitlement grant (Attorney Prep Pack / Record Review): set the
+// stamp key and append processedSessions in ONE statement.
+export async function grantEntitlement(userId:string,sessionId:string,stamp:string):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    if(stamp==="attorneyPrep"){
+      await sql`UPDATE bys_users SET profile=jsonb_set(jsonb_set(profile,'{attorneyPrep}',to_jsonb(true)),'{processedSessions}',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text)) WHERE id=${userId}`;
+    } else if(stamp==="recordReview"){
+      await sql`UPDATE bys_users SET profile=jsonb_set(jsonb_set(profile,'{recordReview}',to_jsonb(true)),'{processedSessions}',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text)) WHERE id=${userId}`;
+    }
+    return;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(u){u.profile={...(u.profile||{}),[stamp]:true,processedSessions:[...(Array.isArray(u.profile?.processedSessions)?u.profile.processedSessions:[]),sessionId]};await put(files.users,rows);}
+}
+
+// Subscription grant: tier/tierSince/tierRenewsAt + processedSessions in ONE
+// statement, plus the Stripe customer/subscription ids when the session
+// carries them (empty strings are merged as "" — the billing-portal 404 path
+// treats "" and missing identically). Row-scoped; last-write-wins per key.
+export async function grantSubscription(userId:string,sessionId:string,f:{tier:string;tierSince:string;tierRenewsAt:string;stripeCustomerId?:string;stripeSubscriptionId?:string}):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    await sql`UPDATE bys_users SET profile=((profile||jsonb_build_object('tier',${f.tier}::text,'tierSince',${f.tierSince}::text,'tierRenewsAt',${f.tierRenewsAt}::text,'stripeCustomerId',${f.stripeCustomerId||""}::text,'stripeSubscriptionId',${f.stripeSubscriptionId||""}::text))||jsonb_build_object('processedSessions',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text))) WHERE id=${userId}`;
+    return;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(u){
+    const p={...(u.profile||{}),tier:f.tier,tierSince:f.tierSince,tierRenewsAt:f.tierRenewsAt,processedSessions:[...(Array.isArray(u.profile?.processedSessions)?u.profile.processedSessions:[]),sessionId]};
+    if(f.stripeCustomerId)p.stripeCustomerId=f.stripeCustomerId;
+    if(f.stripeSubscriptionId)p.stripeSubscriptionId=f.stripeSubscriptionId;
+    u.profile=p;await put(files.users,rows);
+  }
+}
+
+// Gift redemption: giftUntil = GREATEST(now, current giftUntil, current
+// tierRenewsAt) + 30 days, computed in SQL from the CURRENT row so a gift
+// redeemed under a paid account is banked, not wasted, and two concurrent
+// redemptions stack. Returns the new giftUntil ISO timestamp.
+export async function extendGiftUntil(userId:string):Promise<string|null>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`UPDATE bys_users SET profile=jsonb_set(profile,'{giftUntil}',to_jsonb((GREATEST(now(),COALESCE((profile->>'giftUntil')::timestamptz,now()),COALESCE((profile->>'tierRenewsAt')::timestamptz,now()))+interval '30 days')::timestamptz)) WHERE id=${userId} RETURNING profile->>'giftUntil' AS "giftUntil"`;
+    return r.length?String(r[0].giftUntil):null;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(!u)return null;
+  const base=Math.max(Date.now(),new Date(u.profile?.giftUntil||0).getTime(),new Date(u.profile?.tierRenewsAt||0).getTime());
+  const giftUntil=new Date(base+30*24*60*60*1000).toISOString();
+  u.profile={...(u.profile||{}),giftUntil};
+  await put(files.users,rows);
+  return giftUntil;
+}
+
+// Password (+ optional confirmed_at) for ONE user; row-scoped. Inserts the
+// user row when it is missing (confirm-token account creation) with the given
+// email/createdAt; otherwise updates only password/confirmed_at. Never
+// touches profile — a concurrent grant on the same row is preserved.
+export async function setUserPassword(userId:string,email:string,passwordHash:string,confirmedAt?:string,createdAt?:string,intake?:any):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    if(confirmedAt){
+      if(intake!==undefined&&intake!==null){
+        await sql`INSERT INTO bys_users(id,email,password,created_at,confirmed_at,profile) VALUES(${userId},${email},${passwordHash},${createdAt||new Date().toISOString()},${confirmedAt},${JSON.stringify({intake})}::jsonb) ON CONFLICT(id) DO UPDATE SET password=EXCLUDED.password,confirmed_at=EXCLUDED.confirmed_at,profile=bys_users.profile||EXCLUDED.profile`;
+      } else {
+        await sql`INSERT INTO bys_users(id,email,password,created_at,confirmed_at,profile) VALUES(${userId},${email},${passwordHash},${createdAt||new Date().toISOString()},${confirmedAt},'{}'::jsonb) ON CONFLICT(id) DO UPDATE SET password=EXCLUDED.password,confirmed_at=EXCLUDED.confirmed_at`;
+      }
+    } else {
+      await sql`UPDATE bys_users SET password=${passwordHash} WHERE id=${userId}`;
+    }
+    return;
+  }
+  const rows=await json(files.users);
+  let u=rows.find((x:any)=>x.id===userId);
+  if(!u){u={id:userId,email,password:passwordHash,createdAt:createdAt||new Date().toISOString(),confirmedAt:confirmedAt||null,profile:{}};rows.push(u);}
+  else {u.password=passwordHash;if(confirmedAt)u.confirmedAt=confirmedAt;}
+  await put(files.users,rows);
+}
+
+// Email-confirm account creation (handleConfirm): set confirmed_at (+ merge
+// profile.intake when the login intake questions were answered) on ONE user
+// row; inserts the row when missing (fresh account), otherwise updates only
+// confirmed_at/profile — never password, never a whole-table snapshot.
+export async function confirmUser(userId:string,email:string,confirmedAt:string,intake?:any):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    if(intake!==undefined&&intake!==null){
+      await sql`INSERT INTO bys_users(id,email,created_at,confirmed_at,profile) VALUES(${userId},${email},${new Date().toISOString()},${confirmedAt},${JSON.stringify({intake})}::jsonb) ON CONFLICT(id) DO UPDATE SET confirmed_at=EXCLUDED.confirmed_at,profile=bys_users.profile||EXCLUDED.profile`;
+    } else {
+      await sql`INSERT INTO bys_users(id,email,created_at,confirmed_at,profile) VALUES(${userId},${email},${new Date().toISOString()},${confirmedAt},'{}'::jsonb) ON CONFLICT(id) DO UPDATE SET confirmed_at=EXCLUDED.confirmed_at`;
+    }
+    return;
+  }
+  const rows=await json(files.users);
+  let u=rows.find((x:any)=>x.id===userId);
+  if(!u){u={id:userId,email,password:null,createdAt:new Date().toISOString(),confirmedAt,profile:intake?{intake}:{}};rows.push(u);}
+  else {u.confirmedAt=confirmedAt;if(intake)u.profile={...(u.profile||{}),intake};}
+  await put(files.users,rows);
+}
+
+// Cancel-downgrade: remove tierSince/tierRenewsAt from ONE user's profile
+// (literal key paths only — never user input) so the lazy userTier() expiry
+// can no longer resurrect a paid tier after an immediate cancel.
+export async function clearSubscriptionExpiry(userId:string):Promise<void>{
+  await ready();const sql=db();
+  if(sql){await sql`UPDATE bys_users SET profile=(profile - 'tierSince') - 'tierRenewsAt' WHERE id=${userId}`;return}
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(u){const p={...(u.profile||{})};delete p.tierSince;delete p.tierRenewsAt;u.profile=p;await put(files.users,rows);}
 }
 export async function readReviews(){await ready();const sql=db();if(sql)return await sql`SELECT id,user_id AS "userId",draft,blocks,review,kind,title,created_at AS "createdAt" FROM bys_reviews` as any[];return json(files.reviews)}
 // User-scoped review read (M2 audit de2c7f92): WHERE user_id in SQL — the export
