@@ -2224,7 +2224,7 @@ main[id]:focus {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 38px;
+  min-height: 44px;
   padding: 0 16px;
   border-radius: 999px;
   border: 1px solid #e6dfd2;
