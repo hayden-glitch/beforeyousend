@@ -2304,7 +2304,7 @@ main[id]:focus {
     padding: 10px 0;
   }
   .shelf {
-    display: none;
+    display: contents;
   }
   .desk,
   .obj {
