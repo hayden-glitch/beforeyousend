@@ -10,6 +10,7 @@ export default function CaseSummaryLocked({ tier }: { tier: string }) {
   const planName = tier === "steady" ? "Steady" : "Free";
   return (
     <section className="world world-dossier mt-5 rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
+      <div className="dossier-band dossier-band-inset" aria-hidden="true"><span className="dossier-band-tab" /><span className="dossier-band-tab active" /></div>
       <div className="flex items-center gap-2">
         <IconBook className="h-5 w-5 text-forest-soft" />
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Case Summary</p>

@@ -10,6 +10,11 @@ export default function ActionCenterLocked({ tier }: { tier: string }) {
   const planName = tier === "steady" ? "Steady" : "Free";
   return (
     <section className="world world-action mt-5 rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
+      <div className="action-queue" aria-hidden="true">
+        <span className="a-row active" style={{ width: "100%" }}><i className="a-dot" /><b /></span>
+        <span className="a-row" style={{ width: "86%" }}><i className="a-dot" /><b /></span>
+        <span className="a-row" style={{ width: "70%" }}><i className="a-dot" /><b /></span>
+      </div>
       <div className="flex items-center gap-2">
         <IconAction className="h-5 w-5 text-forest-soft" />
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Action Center</p>

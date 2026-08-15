@@ -1463,3 +1463,658 @@ main[id]:focus {
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   PART IId — TOOLS HUB: SEVEN DISTINCT SILHOUETTES (HOLD 5303879888)
+   The Command Center foyer no longer repeats one card grammar: every
+   room preview is recognizable by shape alone (grayscale/blur safe).
+   Art is pure CSS, aria-hidden, pointer-events none, clipped inside
+   its own layer where absolute (never inflates scrollWidth). NO 3D
+   transforms (MWO Phase-E lesson: perspective projections widen the
+   scrollable overflow box). Decorative art carries no text, so the
+   mechanical clip/tap gates ignore it. All colors ride the world
+   tokens (--bys-accent/--bys-line/--bys-card), so every room keeps
+   its world tint in Forest/Midnight/Sand.
+   ============================================================ */
+.tool-room {
+  position: relative;
+}
+/* Absolute art layer — used only where art must sit behind content.
+   Clips its own children so nothing can widen the page. */
+.tool-art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+/* ---- 1. Organizer — the filing-desk anchor: desk band + file tray ----
+   Mobile: the tray is an in-flow "drawer" strip under the CTA (full
+   width, three hanging files). sm+: it floats as a right-side tray on
+   the desk surface. */
+.org-deskband {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 42%;
+  border-top: 1px solid color-mix(in srgb, var(--bys-line) 55%, transparent);
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--bys-accent) 7%, transparent),
+    transparent
+  );
+  border-radius: 0 0 1.5rem 1.5rem;
+}
+.org-tray {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.55rem;
+  width: 100%;
+  height: 3.5rem;
+  margin-top: 1.1rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--bys-bg-soft) 72%, transparent);
+  box-shadow:
+    inset 0 -0.55rem 0 color-mix(in srgb, var(--bys-accent) 9%, transparent),
+    var(--bys-shadow-card);
+}
+.org-file {
+  position: relative;
+  width: 2.4rem;
+  max-width: 24%;
+  border: 1px solid var(--bys-line);
+  border-bottom: none;
+  border-radius: 0.32rem 0.32rem 0 0;
+  background: var(--bys-card);
+  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
+}
+.org-file i {
+  position: absolute;
+  top: -0.6rem;
+  left: 0.25rem;
+  width: 1.55rem;
+  height: 0.62rem;
+  border-radius: 0.3rem 0.3rem 0 0;
+  background: color-mix(in srgb, var(--bys-accent) 72%, #fff);
+}
+.org-file:nth-child(2) i {
+  background: color-mix(in srgb, var(--bys-accent) 52%, #fff);
+}
+.org-file:nth-child(3) i {
+  background: color-mix(in srgb, var(--bys-accent) 32%, #fff);
+}
+.org-file.waiting {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--bys-accent) 13%, transparent),
+    0 -1px 3px rgba(0, 0, 0, 0.05);
+}
+@media (min-width: 640px) {
+  .org-tray {
+    position: absolute;
+    right: 1.9rem;
+    bottom: 1.9rem;
+    width: 8.8rem;
+    height: 3.6rem;
+    margin-top: 0;
+    padding: 0 0.6rem;
+  }
+  .org-file {
+    width: 2rem;
+    max-width: none;
+  }
+}
+
+/* ---- 2. Case Summary — the dossier: index-tab band + peeking sheets ----
+   The tile opens like a manila file: a header band with two index tabs,
+   two sheets peeking behind the top edge, and skeleton report lines
+   under the copy (a report sheet, not a software card). */
+.dossier-band {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  height: 1.8rem;
+  margin: -1.5rem -1.5rem 1.15rem;
+  padding: 0.32rem 1.25rem 0;
+  border-bottom: 1px solid var(--bys-line);
+  border-radius: 1.35rem 1.35rem 0 0;
+  background: color-mix(in srgb, var(--bys-accent) 8%, var(--bys-bg-soft));
+}
+.dossier-band-tab {
+  height: 0.95rem;
+  width: 3rem;
+  border: 1px solid var(--bys-line);
+  border-bottom: none;
+  border-radius: 0.45rem 0.45rem 0 0;
+  background: color-mix(in srgb, var(--bys-accent) 16%, var(--bys-card));
+}
+.dossier-band-tab.active {
+  background: color-mix(in srgb, var(--bys-accent) 30%, var(--bys-card));
+}
+/* Inset variant for full-page locked views (p-6 sm:p-8 sections). */
+.dossier-band-inset {
+  margin: 0 0 1.1rem;
+  border-radius: 0.85rem;
+}
+.dossier-sheet {
+  position: absolute;
+  top: -0.65rem;
+  height: 0.8rem;
+  background: var(--bys-card);
+  border: 1px solid var(--bys-line);
+  border-radius: 0.4rem 0.4rem 0 0;
+}
+.dossier-sheet.back {
+  left: 1.1rem;
+  width: 56%;
+  transform: rotate(-2deg);
+}
+.dossier-sheet.mid {
+  left: 3.4rem;
+  width: 52%;
+  top: -0.5rem;
+  transform: rotate(1.5deg);
+}
+.dossier-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+.dossier-line {
+  height: 0.55rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-line) 62%, transparent);
+}
+/* The dossier's status reads as a rubber stamp, not a pill. */
+.dossier-stamp {
+  display: inline-block;
+  border: 2px dashed color-mix(in srgb, var(--bys-accent) 55%, var(--bys-line));
+  border-radius: 0.55rem;
+  padding: 0.22rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bys-accent-deep);
+}
+.dossier-stamp.filled {
+  border-style: solid;
+  background: var(--bys-accent);
+  border-color: var(--bys-accent);
+  color: var(--bys-bg);
+}
+
+/* ---- 3. Action Center — the priority queue: beacon + stacked rows ----
+   A control-room list: a radar arc with a ping at top-right, then three
+   queue rows of shrinking width (the top one "active"). Reads as a
+   queue/priority track, never a card-with-icon. */
+.action-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 1.05rem;
+}
+.a-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  height: 1.7rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.65rem;
+  background: var(--bys-card);
+}
+.a-row.active {
+  border-color: color-mix(in srgb, var(--bys-accent) 34%, var(--bys-line));
+  background: color-mix(in srgb, var(--bys-accent) 11%, var(--bys-card));
+}
+.a-dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--bys-line);
+}
+.a-row.active .a-dot {
+  background: var(--bys-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bys-accent) 14%, transparent);
+}
+.a-row b {
+  flex: 1;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-line) 70%, transparent);
+}
+.action-beacon {
+  position: absolute;
+  top: 1.05rem;
+  right: 1.05rem;
+  width: 3.1rem;
+  height: 1.55rem;
+  border: 2px solid color-mix(in srgb, var(--bys-accent) 32%, transparent);
+  border-bottom: none;
+  border-radius: 1.6rem 1.6rem 0 0;
+  opacity: 0.95;
+}
+.action-ping {
+  position: absolute;
+  top: 0.95rem;
+  right: 1.55rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 9999px;
+  background: var(--bys-accent);
+}
+
+/* ---- 4. Export your record — the print package: sheet fan + box ----
+   Its own identity: a fan of three sheets on top of a taped package
+   with a down-chevron (the printed output tray). Deliberately NOT the
+   Timeline's ribbon. */
+.world-export {
+  /* neutral print room — no world tint, no ambient glow */
+  --section-glow-strength: 0;
+}
+.export-stack {
+  position: relative;
+  height: 5.6rem;
+  margin-bottom: 0.35rem;
+}
+.x-sheet {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 7.4rem;
+  height: 3.5rem;
+  margin-left: -3.7rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.4rem;
+  background: var(--bys-card);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+.x-sheet:nth-child(1) {
+  transform: translateY(0.5rem) rotate(-5deg);
+}
+.x-sheet:nth-child(2) {
+  transform: translateY(0.3rem) rotate(2.5deg);
+}
+.x-sheet:nth-child(3) {
+  transform: translateY(0.12rem);
+}
+.x-package {
+  position: absolute;
+  left: 50%;
+  bottom: 0.1rem;
+  width: 5.6rem;
+  height: 3.5rem;
+  margin-left: -2.8rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.6rem;
+  background: linear-gradient(
+    165deg,
+    var(--bys-bg-soft),
+    var(--bys-card)
+  );
+  box-shadow: var(--bys-shadow-card);
+}
+.x-tape {
+  position: absolute;
+  top: 0.65rem;
+  left: 50%;
+  width: 2.7rem;
+  height: 0.5rem;
+  margin-left: -1.35rem;
+  border-radius: 0.14rem;
+  background: color-mix(in srgb, var(--bys-accent) 15%, var(--bys-line));
+}
+.x-arrow {
+  position: absolute;
+  bottom: 0.55rem;
+  left: 50%;
+  width: 0.72rem;
+  height: 0.72rem;
+  margin-left: -0.36rem;
+  border-right: 2px solid var(--bys-accent);
+  border-bottom: 2px solid var(--bys-accent);
+  transform: rotate(45deg);
+}
+
+/* ---- 5. Attorney Prep Pack — the briefcase: handle, latch, docket ----
+   A real briefcase silhouette: handle over a case body with a center
+   seam, brass latch + clasp and keyholes. Locked = clasp closed, no
+   docket. Unlocked (.case-open) = clasp lifted, a docket sheet pokes
+   out of the top. Generating (.case-generating) = calm clasp pulse
+   (reduced-motion zeroes it). */
+.case-art {
+  position: relative;
+  height: 6.4rem;
+  margin-bottom: 0.35rem;
+}
+.case-docket {
+  position: absolute;
+  top: 0.4rem;
+  left: 50%;
+  width: 4.4rem;
+  height: 2.7rem;
+  margin-left: -2.2rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.3rem;
+  background: var(--bys-card);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.07);
+  transform: translateY(-0.5rem) rotate(-2deg);
+  opacity: 0;
+  transition:
+    opacity 240ms ease,
+    transform 240ms ease;
+  z-index: 1;
+}
+.case-docket::before {
+  content: "";
+  position: absolute;
+  top: 0.75rem;
+  left: 0.6rem;
+  right: 0.6rem;
+  height: 0.35rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-line) 70%, transparent);
+}
+.case-docket::after {
+  content: "";
+  position: absolute;
+  top: 1.4rem;
+  left: 0.6rem;
+  width: 55%;
+  height: 0.3rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-line) 58%, transparent);
+}
+.case-open .case-docket {
+  opacity: 1;
+  transform: translateY(-1.25rem) rotate(-3deg);
+}
+.case-handle {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 3.5rem;
+  height: 0.95rem;
+  margin-left: -1.75rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--bys-accent) 20%, var(--bys-bg-soft));
+  z-index: 2;
+}
+.case-handle::before,
+.case-handle::after {
+  content: "";
+  position: absolute;
+  top: 0.9rem;
+  width: 0.6rem;
+  height: 0.5rem;
+  background: inherit;
+  border-left: 1px solid var(--bys-line);
+  border-right: 1px solid var(--bys-line);
+}
+.case-handle::before {
+  left: 0.55rem;
+}
+.case-handle::after {
+  right: 0.55rem;
+}
+.case-body {
+  position: absolute;
+  top: 1.2rem;
+  left: 50%;
+  width: 9.6rem;
+  height: 4.15rem;
+  margin-left: -4.8rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.85rem;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--bys-accent) 9%, var(--bys-card)),
+    color-mix(in srgb, var(--bys-accent) 20%, var(--bys-bg-soft))
+  );
+  box-shadow: var(--bys-shadow-card);
+  z-index: 3;
+}
+.case-seam {
+  position: absolute;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: color-mix(in srgb, var(--bys-line) 85%, transparent);
+}
+.case-latch {
+  position: absolute;
+  top: 1.35rem;
+  left: 50%;
+  width: 2.15rem;
+  height: 0.78rem;
+  margin-left: -1.07rem;
+  border: 1px solid color-mix(in srgb, #8a6a24 50%, transparent);
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--bys-accent) 30%, #c9a24b);
+}
+.case-latch::after {
+  content: "";
+  position: absolute;
+  top: 0.62rem;
+  left: 50%;
+  width: 0.95rem;
+  height: 0.5rem;
+  margin-left: -0.47rem;
+  border: 1px solid color-mix(in srgb, #8a6a24 42%, transparent);
+  border-top: none;
+  border-radius: 0 0 0.3rem 0.3rem;
+  background: color-mix(in srgb, #c9a24b 55%, var(--bys-bg-soft));
+  transition: transform 220ms ease;
+}
+.case-open .case-latch::after {
+  transform: translateY(0.35rem) rotate(18deg);
+}
+.case-keys::before,
+.case-keys::after {
+  content: "";
+  position: absolute;
+  bottom: 0.85rem;
+  width: 0.3rem;
+  height: 0.3rem;
+  border: 1px solid color-mix(in srgb, #8a6a24 45%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in srgb, #c9a24b 55%, var(--bys-bg-soft));
+}
+.case-keys::before {
+  left: 1.15rem;
+}
+.case-keys::after {
+  right: 1.15rem;
+}
+.case-generating .case-latch {
+  animation: bys-case-pulse 1.6s ease-in-out infinite;
+}
+@keyframes bys-case-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---- 6. Record Review — the audit lens over a record stack ----
+   A fanned stack of documents with a round lens + crosshair over the
+   middle and a scan line across — reads as an audit/scan, not a card. */
+.audit-art {
+  position: relative;
+  height: 5.7rem;
+  margin-bottom: 0.4rem;
+}
+.audit-stack {
+  position: absolute;
+  left: 50%;
+  bottom: 0.3rem;
+  width: 7.6rem;
+  height: 3.5rem;
+  margin-left: -3.8rem;
+}
+.audit-stack i {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2.9rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 0.3rem;
+  background: var(--bys-card);
+}
+.audit-stack i:nth-child(1) {
+  transform: translate(-0.55rem, 0.25rem) rotate(-3deg);
+}
+.audit-stack i:nth-child(2) {
+  transform: translate(0.45rem, 0.15rem) rotate(2deg);
+}
+.audit-lens {
+  position: absolute;
+  top: 0.15rem;
+  left: 50%;
+  width: 3.15rem;
+  height: 3.15rem;
+  margin-left: -1.57rem;
+  border: 0.18rem solid color-mix(in srgb, var(--bys-accent) 52%, var(--bys-bg-soft));
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-accent) 7%, var(--bys-card));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.audit-cross::before,
+.audit-cross::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: color-mix(in srgb, var(--bys-accent) 55%, transparent);
+}
+.audit-cross::before {
+  width: 0.16rem;
+  height: 1.25rem;
+  transform: translate(-50%, -50%);
+}
+.audit-cross::after {
+  width: 1.25rem;
+  height: 0.16rem;
+  transform: translate(-50%, -50%);
+}
+.audit-scan {
+  position: absolute;
+  top: 2.75rem;
+  left: 50%;
+  width: 6.6rem;
+  height: 0.13rem;
+  margin-left: -3.3rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--bys-accent),
+    transparent
+  );
+  opacity: 0.85;
+}
+
+/* ---- 7. Consultations — the two-seat conversation surface ----
+   Two speech bubbles facing each other with the brand's three typing
+   dots in each and a warm glow between them. The tile spans both grid
+   columns on sm+ (horizontal room). */
+.human-art {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.15rem;
+  height: 4.7rem;
+  margin-bottom: 0.35rem;
+}
+.bubble {
+  position: relative;
+  width: 3.5rem;
+  height: 2.55rem;
+  border: 1px solid var(--bys-line);
+  border-radius: 1.1rem;
+  background: var(--bys-card);
+  box-shadow: var(--bys-shadow-card);
+}
+.bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -0.42rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  background: inherit;
+  border-right: 1px solid var(--bys-line);
+  border-bottom: 1px solid var(--bys-line);
+}
+.b-l::after {
+  left: 0.95rem;
+  transform: rotate(45deg);
+}
+.b-r::after {
+  right: 0.95rem;
+  transform: rotate(225deg);
+}
+.bubble i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.32rem;
+  height: 0.32rem;
+  margin: -0.16rem 0 0 -0.16rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-accent) 55%, var(--bys-bg-soft));
+}
+.bubble i::before,
+.bubble i::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 0.32rem;
+  height: 0.32rem;
+  border-radius: 9999px;
+  background: inherit;
+}
+.bubble i::before {
+  left: -0.52rem;
+}
+.bubble i::after {
+  right: -0.52rem;
+}
+.human-halo {
+  flex-shrink: 0;
+  width: 2.3rem;
+  height: 1.15rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bys-accent) 15%, transparent);
+}
+
+/* Locked/trial variant of the Organizer: the tray stays an in-flow strip
+   at every size (never absolute), so it can't collide with the upgrade
+   boxes in the full-page locked view. */
+.org-tray-compact {
+  width: 11.5rem;
+  margin: 0 0 1.1rem;
+}
+@media (min-width: 640px) {
+  .org-tray-compact {
+    position: static;
+    right: auto;
+    bottom: auto;
+    width: 11.5rem;
+    margin: 0 0 1.1rem;
+  }
+}
