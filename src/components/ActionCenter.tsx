@@ -118,7 +118,7 @@ export default function ActionCenter({
   const anyItems = items.length > 0;
 
   return (
-    <section className="mt-5">
+    <section className="world world-action mt-5">
       <div className="flex items-center gap-2">
         <IconAction className="h-5 w-5 text-forest-soft" />
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Action Center</p>
@@ -203,9 +203,8 @@ export default function ActionCenter({
           </button>
         </div>
       ) : summary ? (
-        <div className="mt-6 rounded-3xl border border-line bg-card p-6 shadow-card">
-          <p className="text-lg font-semibold leading-snug text-forest">Nothing needs your attention right now.</p>
-          <p className="mt-2 text-base leading-relaxed text-stone">
+        <div className="bys-empty mt-6" role="status"><div className="bys-empty-art" aria-hidden="true"/><p className="bys-empty-title">Nothing needs your attention right now.</p>
+          <p className="bys-empty-text">
             As you add log entries, timeline events, and documents, this page turns what you save into a calm list of what's unresolved, upcoming, missing, and worth documenting.
           </p>
           {total === 0 && (

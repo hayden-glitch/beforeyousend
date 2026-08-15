@@ -382,7 +382,7 @@ export default function ReviewTool({ reviewRef }: Props) {
       className="scroll-mt-24"
       aria-label="Free message review"
     >
-      <div className="rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8 max-[340px]:p-5">
+      <div className="world world-review rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8 max-[340px]:p-5">
         <form onSubmit={onSubmit} noValidate>
           {/* Two-mode AI Co-Parent: the mode pill is the FIRST element of the
               card (spec §1). Order: [ModeSwitch] → [label] → [TomorrowDrafts] →

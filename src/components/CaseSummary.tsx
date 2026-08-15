@@ -129,7 +129,7 @@ export default function CaseSummary({
   const total = counts ? counts.log + counts.timeline + counts.docs + counts.reviews : 0;
 
   return (
-    <section className="mt-5">
+    <section className="world world-dossier mt-5">
       <div className="flex items-center gap-2">
         <IconBook className="h-5 w-5 text-forest-soft" />
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Case Summary</p>

@@ -4,6 +4,7 @@ import {
   Outlet,
   Scripts,
   createRootRoute,
+  useLocation,
   useRouter,
 } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
@@ -152,6 +153,15 @@ function NotFoundPage() {
 function RootComponent() {
   const cfg = Route.useLoaderData();
   const router = useRouter();
+  // Part II route worlds: pages whose own route file is frozen (P0) get their
+  // world via a root-level wrapper class. The wrapper div is ALWAYS rendered
+  // (constant tree shape, no remount churn); only the class changes per route.
+  // Consultations = the warm coral "human room"; pricing = brand forest with a
+  // restrained warm glow (tiers stay extremely legible, no token changes);
+  // everything else = neutral, quiet, brand.
+  const pathname = useLocation().pathname;
+  const routeWorld =
+    pathname === "/consultations" ? "world-human" : pathname === "/pricing" ? "world-quiet-glow" : "";
   useEffect(() => {
     void initAnalytics(cfg);
     const stopRouteTracking = initRouteTracking(router);
@@ -161,11 +171,13 @@ function RootComponent() {
   }, [cfg, router]);
   return (
     <RootDocument omitPixels={!!cfg?.sensitive}>
-      <Outlet />
-      <SpecialOffer />
-      <TrialModal />
-      <CoParentCheckIn />
-      <GuidedFunnel />
+      <div className={`bys-route${routeWorld ? ` ${routeWorld}` : ""}`}>
+        <Outlet />
+        <SpecialOffer />
+        <TrialModal />
+        <CoParentCheckIn />
+        <GuidedFunnel />
+      </div>
     </RootDocument>
   );
 }

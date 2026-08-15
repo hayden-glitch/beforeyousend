@@ -309,7 +309,7 @@ export default function CoParentCheckIn() {
         <div
           className={`fixed z-[35] left-1/2 w-[92vw] max-w-md -translate-x-1/2 ${pathname === "/home" ? "bottom-[max(calc(84px+env(safe-area-inset-bottom)),5.5rem)]" : "bottom-[max(12px,env(safe-area-inset-bottom))]"}`}
         >
-          <div className="flex items-center gap-3 rounded-full border border-forest/30 bg-forest py-3 pl-5 pr-3 shadow-lg">
+          <div className="world world-reset flex items-center gap-3 rounded-full border border-forest/30 bg-forest py-3 pl-5 pr-3 shadow-lg">
             <button
               type="button"
               onClick={open}
@@ -346,7 +346,7 @@ export default function CoParentCheckIn() {
           <div
             ref={panelRef}
             tabIndex={-1}
-            className="bys-sheet absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-[2rem] border-t-2 border-forest bg-card p-6 pb-[max(24px,env(safe-area-inset-bottom))] shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[2rem] sm:border-2"
+            className="bys-sheet world world-reset absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-[2rem] border-t-2 border-forest bg-card p-6 pb-[max(24px,env(safe-area-inset-bottom))] shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[2rem] sm:border-2"
           >
             <div className="bys-grabber" aria-hidden="true" />
             <div className="flex items-center justify-between gap-4">

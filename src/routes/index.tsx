@@ -131,12 +131,12 @@ const TONES: { name: string; line: string }[] = [
 // Tiles carry a tab id; ControlRoom builds the href from the visitor's auth
 // state — signed-out clicks route to /login?next=/home?tab=X (login returns
 // them into the module after sign-in) so the modules never dead-bounce.
-const MODULES: { name: string; icon: (p: { className?: string }) => ReactElement; live: boolean; tab: string }[] = [
-  { name: "Communication Log", icon: IconLog, live: true, tab: "log" },
-  { name: "Event Timeline", icon: IconTimeline, live: true, tab: "timeline" },
-  { name: "Document Organizer", icon: IconOrganizer, live: true, tab: "organizer" },
-  { name: "Case Summary", icon: IconBook, live: true, tab: "case" },
-  { name: "Action Center", icon: IconAction, live: true, tab: "action" },
+const MODULES: { name: string; icon: (p: { className?: string }) => ReactElement; live: boolean; tab: string; world: string }[] = [
+  { name: "Communication Log", icon: IconLog, live: true, tab: "log", world: "world-ledger" },
+  { name: "Event Timeline", icon: IconTimeline, live: true, tab: "timeline", world: "world-ribbon" },
+  { name: "Document Organizer", icon: IconOrganizer, live: true, tab: "organizer", world: "world-desk" },
+  { name: "Case Summary", icon: IconBook, live: true, tab: "case", world: "world-dossier" },
+  { name: "Action Center", icon: IconAction, live: true, tab: "action", world: "world-action" },
 ];
 
 // 1. The Cooling Message (flagship): one scroll demos the whole promise —
@@ -148,7 +148,7 @@ function CoolingMessage() {
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">One pause</p>
         <h2 className="mt-3 font-display text-3xl font-semibold text-forest">Hot in. Calm out.</h2>
         <p className="mt-3 text-base text-stone">The draft you almost sent — and the reply that goes instead.</p>
-        <div className="relative mx-auto mt-8 max-w-[320px] rounded-[2.4rem] border border-line bg-card p-4 shadow-pop">
+        <div className="world world-review relative mx-auto mt-8 max-w-[320px] rounded-[2.4rem] border border-line bg-card p-4 shadow-pop">
           <div className="flex items-center gap-2.5 border-b border-line/70 pb-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-forest/10 text-forest"><IconReview className="h-5 w-5" /></span>
             <span className="text-sm font-semibold text-ink">Co-parent</span>
@@ -228,12 +228,12 @@ function ControlRoom() {
                 key={m.name}
                 href={moduleHref(m.tab)}
                 onClick={() => track("landing_module_click", { module: m.name })}
-                className={`bys-cr-tile bys-cr-live cursor-pointer rounded-2xl border border-line bg-card p-3 transition duration-200 hover:-translate-y-0.5 hover:border-forest/40${i === MODULES.length - 1 ? " max-sm:col-span-2" : ""}`}
+                className={`bys-cr-tile bys-cr-live cursor-pointer rounded-2xl border border-line bg-card p-3 transition duration-200 hover:-translate-y-0.5 hover:border-forest/40 ${m.world}${i === MODULES.length - 1 ? " max-sm:col-span-2" : ""}`}
               >
                 {tileInner}
               </a>
             ) : (
-              <div key={m.name} className={`bys-cr-tile rounded-2xl border border-line/80 bg-card p-3${i === MODULES.length - 1 ? " max-sm:col-span-2" : ""}`}>
+              <div key={m.name} className={`bys-cr-tile rounded-2xl border border-line/80 bg-card p-3 ${m.world}${i === MODULES.length - 1 ? " max-sm:col-span-2" : ""}`}>
                 {tileInner}
               </div>
             );

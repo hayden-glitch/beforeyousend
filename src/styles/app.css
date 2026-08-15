@@ -436,6 +436,646 @@ html[data-hero-variant="c"] .hero-variant-b {
   }
 }
 
+/* ============================================================
+   PART II — ONE CALM BYS UNIVERSE, DISTINCT WORLDS PER PRODUCT
+   (master work order Part II, items 19–46)
+   ------------------------------------------------------------
+   The token alias layer (§1) resolves every utility (bg-card,
+   text-forest, border-line, bg-cream-deep, …) through runtime
+   --bys-* vars. A .world-* wrapper re-tints that layer for its
+   subtree — every button, chip, border, active state and card
+   inside re-themes with zero JSX class renames. World colors are
+   derived from the theme's own --bys-accent via color-mix, so
+   Forest / Midnight / Sand each stay internally coherent, and
+   every world accent keeps the same light/dark luminance
+   relationship as the brand accent (text-cream stays valid on
+   every accent surface). Ambient light rides a ::before layer
+   (radial gradients, transform/opacity-only "breathe", killed
+   under prefers-reduced-motion).
+   ============================================================ */
+
+:root {
+  /* Ambient presence: light themes breathe softly, dark themes a touch
+     more so the glow reads through the dark canvas. Sections set
+     --section-glow-strength individually; neutral worlds set none. */
+  --bys-glow-strength: 0.55;
+}
+[data-theme="midnight"] {
+  --bys-glow-strength: 0.8;
+}
+
+/* ---- 1. Message Review — the ice-blue "clarity chamber" ---- */
+.world-review {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 52%, #2e6e96 48%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 34%, #1f4e6d 66%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 62%, #7fb6d4 38%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #d9edf6 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #cfe5f2 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 72%, #9dc6da 28%);
+  --section-glow: color-mix(in srgb, #7fb6d4 26%, transparent);
+  --section-glow-2: color-mix(in srgb, #bcdcea 18%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 2. Situation Analyzer — the indigo/violet "pattern map" ---- */
+.world-situation {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 55%, #4c51bf 45%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 36%, #3b3f96 64%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 64%, #a5a8e8 36%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #e6e4f8 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #dcd8f4 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 70%, #b3b3e8 30%);
+  --section-glow: color-mix(in srgb, #8b7fe0 22%, transparent);
+  --section-glow-2: color-mix(in srgb, #c3bdf0 16%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 3. Saved reviews / History — the warm amber "archive" ---- */
+.world-archive {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 40%, #8a5a13 60%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 24%, #6b430c 76%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 50%, #c9963f 50%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #f6ecd8 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #f0e2c4 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 70%, #d9b26e 30%);
+  --section-glow: color-mix(in srgb, #e0a94f 22%, transparent);
+  --section-glow-2: color-mix(in srgb, #f0d9a8 16%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 4. Communication Log — the teal sea-glass "ledger" ---- */
+.world-ledger {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 45%, #0f766e 55%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 28%, #0a5b54 72%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 56%, #5fc4b6 44%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #dcf0ea 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #cfe9e0 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 70%, #8fd0c2 30%);
+  --section-glow: color-mix(in srgb, #5fc4b0 22%, transparent);
+  --section-glow-2: color-mix(in srgb, #a3ded4 16%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 5. Event Timeline — the blue-gold "chronology ribbon" ---- */
+.world-ribbon {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 50%, #2b5da6 50%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 32%, #1e447d 68%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 60%, #6da7d9 40%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #e2ecf6 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #d5e4f2 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 70%, #9db9d9 30%);
+  --section-glow: color-mix(in srgb, #6da7d9 20%, transparent);
+  --section-glow-2: color-mix(in srgb, #e3b35f 15%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 6. Document Organizer — the parchment "living filing desk" ---- */
+.world-desk {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 62%, #0e8f72 38%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 46%, #0a6e58 54%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 70%, #6fc9ad 30%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 92%, #f5eed9 8%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 80%, #efe5c9 20%);
+  --section-line: color-mix(in srgb, var(--bys-line) 72%, #d9c48e 28%);
+  --section-glow: color-mix(in srgb, #e8cf9a 24%, transparent);
+  --section-glow-2: color-mix(in srgb, #8fd6c0 15%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 7. Record Health — the mint "vital signs" ---- */
+.world-health {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 52%, #0d8f7c 48%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 36%, #0a6b5c 64%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 64%, #6cc9b2 36%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #e0f4ec 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #d3eee2 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 70%, #9fd8c4 30%);
+  --section-glow: color-mix(in srgb, #7fd4b0 22%, transparent);
+  --section-glow-2: color-mix(in srgb, #c9ecd9 16%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 8. Case Summary — the navy "dossier / command brief" ---- */
+.world-dossier {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 30%, #1e3a5f 70%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 18%, #152a45 82%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 46%, #5b7fb0 54%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #e6ecf5 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #dae3f1 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 70%, #9fb3cf 30%);
+  --section-glow: color-mix(in srgb, #5b7fb0 24%, transparent);
+  --section-glow-2: color-mix(in srgb, #8fa8c9 15%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 9. Action Center — amber "calm urgency" ---- */
+.world-action {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 40%, #9a5b0e 60%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 24%, #74420a 76%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 52%, #d9a04b 48%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #f8ecd9 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #f4e2c6 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 70%, #dfb877 30%);
+  --section-glow: color-mix(in srgb, #f0a860 24%, transparent);
+  --section-glow-2: color-mix(in srgb, #f5d3a0 16%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 10. Attorney Prep Pack — navy/burgundy/brass "briefcase" ---- */
+.world-briefcase {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 38%, #6b1f2a 62%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 22%, #4e1520 78%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 50%, #b06a76 50%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 92%, #f0e8dc 8%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 80%, #e9dccc 20%);
+  --section-line: color-mix(in srgb, var(--bys-line) 72%, #cdb694 28%);
+  --section-glow: color-mix(in srgb, #c9985e 20%, transparent);
+  --section-glow-2: color-mix(in srgb, #8f5b66 13%, transparent);
+  --section-glow-strength: 0.9;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 11. Record Review — the sapphire "audit lens" ---- */
+.world-audit {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 32%, #1e4a6e 68%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 20%, #153450 80%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 48%, #6f9fd4 52%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #e2edf4 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #d6e6f0 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 70%, #a3c0d8 30%);
+  --section-glow: color-mix(in srgb, #6f9fd4 24%, transparent);
+  --section-glow-2: color-mix(in srgb, #a3c4e4 15%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 12. Consultations — the warm coral "human room" ---- */
+.world-human {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 45%, #a8443c 55%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 28%, #7e2f2a 72%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 56%, #ef9a8a 44%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #f9e9e2 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #f5ddd3 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 70%, #e0b4a6 30%);
+  --section-glow: color-mix(in srgb, #ef9a8a 22%, transparent);
+  --section-glow-2: color-mix(in srgb, #f7cdc4 16%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 13. Co-Parent Check-In — the mint "reset / pulse" ---- */
+.world-reset {
+  --section-accent: color-mix(in oklab, var(--bys-accent) 48%, #2e8f7d 52%);
+  --section-accent-deep: color-mix(in oklab, var(--bys-accent) 32%, #1f6b5e 68%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 60%, #8fd6c0 40%);
+  --section-surface: color-mix(in srgb, var(--bys-card) 91%, #e6f4ef 9%);
+  --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #d9eee5 21%);
+  --section-line: color-mix(in srgb, var(--bys-line) 70%, #a8d8ca 30%);
+  --section-glow: color-mix(in srgb, #8fd6c0 20%, transparent);
+  --section-glow-2: color-mix(in srgb, #f2d9a0 14%, transparent);
+  --section-glow-strength: 1;
+  --bys-accent: var(--section-accent);
+  --bys-accent-deep: var(--section-accent-deep);
+  --bys-accent-soft: var(--section-accent-soft);
+  --bys-card: var(--section-surface);
+  --bys-line: var(--section-line);
+  --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 14. Tools hub — the neutral "command center foyer" ----
+   The hub itself stays brand forest (rooms preview their own
+   worlds on the cards); only a faint warm ambient light. */
+.world-tools {
+  --section-glow: color-mix(in srgb, #e8cf9a 14%, transparent);
+  --section-glow-2: color-mix(in srgb, #bcdcea 9%, transparent);
+  --section-glow-strength: 0.9;
+}
+/* ---- 15. Account / privacy — deliberately neutral ----
+   Quiet background on purpose: no token overrides, no glow.
+   (Class applied for architectural completeness; it is a no-op.) */
+.world-account {
+  /* intentionally empty — see comment above */
+}
+
+/* Ambient backglow + isolation for world surfaces (section-level). */
+.world-review,
+.world-situation,
+.world-archive,
+.world-ledger,
+.world-ribbon,
+.world-desk,
+.world-health,
+.world-dossier,
+.world-action,
+.world-briefcase,
+.world-audit,
+.world-human,
+.world-reset,
+.world-tools {
+  position: relative;
+  isolation: isolate;
+}
+.world-review::before,
+.world-situation::before,
+.world-archive::before,
+.world-ledger::before,
+.world-ribbon::before,
+.world-desk::before,
+.world-health::before,
+.world-dossier::before,
+.world-action::before,
+.world-briefcase::before,
+.world-audit::before,
+.world-human::before,
+.world-reset::before,
+.world-tools::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(58% 72% at 18% 0%, var(--section-glow, transparent), transparent 72%),
+    radial-gradient(44% 60% at 84% 8%, var(--section-glow-2, transparent), transparent 74%);
+  opacity: calc(var(--section-glow-strength, 1) * var(--bys-glow-strength, 0.55));
+  animation: bys-breathe 16s ease-in-out infinite alternate;
+}
+/* The slow "breathe": opacity + a barely-there scale. Transform/opacity
+   only — never layout; the global reduced-motion rule zeroes it. */
+@keyframes bys-breathe {
+  from {
+    opacity: calc(var(--section-glow-strength, 1) * var(--bys-glow-strength, 0.55) * 0.72);
+    transform: scale(1);
+  }
+  to {
+    opacity: calc(var(--section-glow-strength, 1) * var(--bys-glow-strength, 0.55));
+    transform: scale(1.012);
+  }
+}
+
+/* ---- Route-level worlds (frozen routes theme via a root wrapper) ----
+   .bys-route wraps every page in __root; route worlds get a fixed
+   full-viewport glow instead of a section-sized one. */
+.bys-route {
+  isolation: isolate;
+}
+.bys-route.world-human::before,
+.bys-route.world-quiet-glow::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 46% at 50% -4%, var(--section-glow, transparent), transparent 70%),
+    radial-gradient(48% 36% at 84% 10%, var(--section-glow-2, transparent), transparent 72%);
+  opacity: calc(var(--section-glow-strength, 1) * var(--bys-glow-strength, 0.55));
+  animation: bys-breathe 16s ease-in-out infinite alternate;
+}
+/* Pricing: brand forest held, only a restrained warm glow (item 40 —
+   tiers stay extremely legible, no token changes). */
+.bys-route.world-quiet-glow {
+  --section-glow: color-mix(in srgb, #e8cf9a 15%, transparent);
+  --section-glow-2: color-mix(in srgb, #bcdcea 9%, transparent);
+  --section-glow-strength: 0.85;
+}
+
+/* ---- Purpose-built EMPTY states per world (item 43) ----
+   .bys-empty is the shared calm shell; the art inside is a pure-CSS
+   silhouette that changes per world via .world-* ancestry, so the
+   empty state feels native to its room (archive shelf, ruled ledger,
+   time ribbon, filing tray, all-clear ring, closed briefcase…). */
+.bys-empty {
+  margin: 1.25rem auto 0;
+  max-width: 26rem;
+  border-radius: 1.5rem;
+  border: 1px solid var(--bys-line);
+  background: var(--bys-card);
+  padding: 2rem 1.5rem 1.75rem;
+  text-align: center;
+  box-shadow: var(--bys-shadow-card);
+}
+.bys-empty-art {
+  position: relative;
+  width: 4.25rem;
+  height: 3.5rem;
+  margin: 0 auto 1.1rem;
+  color: var(--bys-accent);
+}
+.bys-empty-title {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--bys-ink);
+}
+.bys-empty-text {
+  margin-top: 0.375rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--bys-muted);
+}
+.bys-empty-act {
+  margin-top: 1rem;
+}
+/* archive: a stack of sheets, gently fanned */
+.world-archive .bys-empty-art {
+  width: 3.75rem;
+  height: 3.25rem;
+  border: 1px solid var(--section-line, var(--bys-line));
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--section-surface, var(--bys-card)) 88%, var(--section-accent, var(--bys-accent)) 12%);
+}
+.world-archive .bys-empty-art::before,
+.world-archive .bys-empty-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--section-line, var(--bys-line));
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--section-surface, var(--bys-card)) 94%, var(--section-accent, var(--bys-accent)) 6%);
+}
+.world-archive .bys-empty-art::before {
+  transform: rotate(-2.5deg) translate(-2px, 2px);
+}
+.world-archive .bys-empty-art::after {
+  transform: rotate(2deg) translate(3px, 1px);
+}
+/* ledger: a ruled spine — the record's quiet backbone */
+.world-ledger .bys-empty-art {
+  width: 4.5rem;
+  border-radius: 0;
+  border-left: 2px solid var(--section-accent, var(--bys-accent));
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--section-line, var(--bys-line)) 0,
+    var(--section-line, var(--bys-line)) 1px,
+    transparent 1px,
+    transparent 13px
+  );
+  opacity: 0.85;
+}
+/* ribbon: a time line with its first point not yet lit */
+.world-ribbon .bys-empty-art {
+  width: 3rem;
+  border-radius: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--section-line, var(--bys-line)) 0,
+    var(--section-line, var(--bys-line)) 1px,
+    transparent 1px,
+    transparent 12px
+  );
+  opacity: 0.8;
+}
+.world-ribbon .bys-empty-art::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 9999px;
+  background: var(--section-accent, var(--bys-accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--section-accent, var(--bys-accent)) 20%, transparent);
+}
+/* desk: a waiting file tray with a folder tab */
+.world-desk .bys-empty-art {
+  width: 4.75rem;
+  height: 3rem;
+  border: 1px solid var(--section-line, var(--bys-line));
+  border-radius: 0.45rem 0.45rem 0.7rem 0.7rem;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--section-surface, var(--bys-card)) 86%, var(--section-accent, var(--bys-accent)) 14%),
+    var(--section-surface, var(--bys-card))
+  );
+  box-shadow: inset 0 7px 8px -7px rgba(38, 34, 28, 0.28);
+}
+.world-desk .bys-empty-art::before {
+  content: "";
+  position: absolute;
+  top: -0.5rem;
+  left: 0.6rem;
+  width: 38%;
+  height: 0.85rem;
+  border: 1px solid var(--section-line, var(--bys-line));
+  border-bottom: none;
+  border-radius: 0.2rem 0.2rem 0 0;
+  background: color-mix(in srgb, var(--section-accent, var(--bys-accent)) 16%, var(--section-surface, var(--bys-card)));
+}
+/* action: an all-clear ring — calm, not alarming */
+.world-action .bys-empty-art {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, var(--section-accent, var(--bys-accent)) 34%, transparent);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--section-accent, var(--bys-accent)) 20%, transparent) 0 36%,
+    transparent 42%
+  );
+}
+/* dossier: a tabbed binder waiting to be filled */
+.world-dossier .bys-empty-art {
+  width: 4.75rem;
+  height: 3.4rem;
+  border: 1px solid var(--section-line, var(--bys-line));
+  border-radius: 0.35rem 0.6rem 0.35rem 0.35rem;
+  background: color-mix(in srgb, var(--section-surface, var(--bys-card)) 88%, var(--section-accent, var(--bys-accent)) 12%);
+}
+.world-dossier .bys-empty-art::before {
+  content: "";
+  position: absolute;
+  top: -0.5rem;
+  left: 0.4rem;
+  width: 42%;
+  height: 0.8rem;
+  border: 1px solid var(--section-line, var(--bys-line));
+  border-bottom: none;
+  border-radius: 0.2rem 0.2rem 0 0;
+  background: var(--section-surface, var(--bys-card));
+}
+/* briefcase: closed and latched — reads locked/unrevealed */
+.world-briefcase .bys-empty-art {
+  width: 4.75rem;
+  height: 3.1rem;
+  border: 2px solid var(--section-accent, var(--bys-accent));
+  border-radius: 0.45rem;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--section-accent, var(--bys-accent)) 10%, var(--section-surface, var(--bys-card))) 0 52%,
+    var(--section-surface, var(--bys-card)) 52% 100%
+  );
+}
+.world-briefcase .bys-empty-art::before {
+  content: "";
+  position: absolute;
+  top: -0.42rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1.7rem;
+  height: 0.6rem;
+  border: 2px solid var(--section-accent, var(--bys-accent));
+  border-bottom: none;
+  border-radius: 0.35rem 0.35rem 0 0;
+}
+.world-briefcase .bys-empty-art::after {
+  content: "";
+  position: absolute;
+  top: 1.15rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0.5rem;
+  height: 0.28rem;
+  border-radius: 0.15rem;
+  background: color-mix(in srgb, #c9985e 85%, var(--section-accent, var(--bys-accent)));
+}
+/* audit: a magnifying lens over the record */
+.world-audit .bys-empty-art::before {
+  content: "";
+  position: absolute;
+  top: 0.1rem;
+  left: 0.35rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 9999px;
+  border: 2px solid var(--section-accent, var(--bys-accent));
+  background: radial-gradient(
+    circle at 35% 35%,
+    color-mix(in srgb, var(--section-accent, var(--bys-accent)) 16%, transparent) 0 42%,
+    transparent 44%
+  );
+}
+.world-audit .bys-empty-art::after {
+  content: "";
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.1rem;
+  width: 1.1rem;
+  height: 0.22rem;
+  border-radius: 0.12rem;
+  background: var(--section-accent, var(--bys-accent));
+  transform: rotate(45deg);
+  transform-origin: left center;
+}
+/* human: two seats facing each other across a small table */
+.world-human .bys-empty-art::before,
+.world-human .bys-empty-art::after {
+  content: "";
+  position: absolute;
+  bottom: 0.1rem;
+  width: 1.55rem;
+  height: 1.35rem;
+  border-radius: 0.9rem 0.9rem 0.4rem 0.4rem;
+  border: 2px solid var(--section-accent, var(--bys-accent));
+  background: color-mix(in srgb, var(--section-accent, var(--bys-accent)) 12%, var(--section-surface, var(--bys-card)));
+}
+.world-human .bys-empty-art::before {
+  left: 0.1rem;
+  transform: rotate(-8deg);
+}
+.world-human .bys-empty-art::after {
+  right: 0.1rem;
+  transform: rotate(8deg);
+}
+/* review: a speech bubble with a calm scanning line (clarity resolving) */
+.world-review .bys-empty-art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--section-accent, var(--bys-accent));
+  border-radius: 0.9rem 0.9rem 0.9rem 0.28rem;
+  background: color-mix(in srgb, var(--section-accent, var(--bys-accent)) 9%, var(--section-surface, var(--bys-card)));
+}
+.world-review .bys-empty-art::after {
+  content: "";
+  position: absolute;
+  left: 0.55rem;
+  right: 0.55rem;
+  top: 0.6rem;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--section-accent, var(--bys-accent)) 38% 62%,
+    transparent
+  );
+  animation: bys-scan 3s ease-in-out infinite;
+}
+@keyframes bys-scan {
+  0% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(0.85rem);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(1.7rem);
+    opacity: 0.35;
+  }
+}
+
 /* ---- Interactive design layer — Phase 1 (calm scroll reveals) ----
    Foundation (Reveal.tsx): content is VISIBLE BY DEFAULT — the base state
    renders everything fully; `.bys-reveal-in` (added once by an

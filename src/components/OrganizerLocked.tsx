@@ -11,7 +11,7 @@ export default function OrganizerLocked({ tier, onSortPile }: { tier: string; on
   const [pileDismissed, setPileDismissed] = useState(false);
   const planName = tier === "steady" ? "Steady" : "Free";
   return (
-    <section className="mt-5 rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
+    <section className="world world-desk mt-5 rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
       <div className="flex items-center gap-2">
         <IconOrganizer className="h-5 w-5 text-forest-soft" />
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">The Organizer</p>

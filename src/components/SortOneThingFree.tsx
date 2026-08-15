@@ -169,7 +169,7 @@ export default function SortOneThingFree() {
 
   return (
     <section className="mb-12 mt-12" aria-label="Sort one thing free">
-      <div className="rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
+      <div className="world world-desk rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
         <div className="flex items-center gap-2">
           <IconOrganizer className="h-5 w-5 text-forest-soft" />
           <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">The Organizer</p>
