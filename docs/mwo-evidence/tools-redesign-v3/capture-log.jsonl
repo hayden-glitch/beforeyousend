@@ -1,0 +1,33 @@
+{"file":"tools-hub-390.png","w":"vp","h":"vp","bytes":563097}
+{"probe":"hub-390","density":{"visible":["desk-organizer","folio-case-summary","console-action-center","tray-export","briefcase-attorney-prep"],"ctaPrimary":1,"btnPrimary":0,"deskCta":"Open the desk →","briefPrice":"One-time · $24.50","benchState":"Used for this year","benchAct":"Buy another — $29.50"}}
+{"file":"tools-hub-390-scroll2.png","w":"vp","h":"vp","bytes":418894}
+{"file":"tools-hub-393.png","w":"vp","h":"vp","bytes":566828}
+{"file":"tools-hub-430.png","w":"vp","h":"vp","bytes":639203}
+{"file":"desk-organizer-390.png","w":350,"h":256,"bytes":150229}
+{"file":"folio-case-summary-390.png","w":169,"h":240,"bytes":95180}
+{"file":"console-action-center-390.png","w":169,"h":240,"bytes":59477}
+{"file":"tray-export-390.png","w":169,"h":216,"bytes":42072}
+{"file":"briefcase-attorney-prep-390.png","w":169,"h":216,"bytes":84090}
+{"file":"bench-record-review-390.png","w":169,"h":286,"bytes":108042}
+{"file":"seats-consultations-390.png","w":169,"h":286,"bytes":107449}
+{"probe":"hub-1440","desktopProbe":{"desk-organizer":{"x":100,"y":564,"w":640,"h":310},"folio-case-summary":{"x":0,"y":0,"w":0,"h":0},"console-action-center":{"x":0,"y":0,"w":0,"h":0},"tray-export":{"x":0,"y":0,"w":0,"h":0},"briefcase-attorney-prep":{"x":0,"y":0,"w":0,"h":0},"bench-record-review":{"x":0,"y":0,"w":0,"h":0},"seats-consultations":{"x":0,"y":0,"w":0,"h":0}}}
+{"file":"tools-hub-1440.png","w":1440,"h":820,"bytes":206928}
+{"probe":"gs-html-filter","gsApplied":"grayscale(1)"}
+{"file":"tools-hub-gs-390.png","w":"vp","h":"vp","bytes":314567}
+{"file":"desk-organizer-gs-390.png","w":350,"h":256,"bytes":67369}
+{"file":"folio-case-summary-gs-390.png","w":169,"h":240,"bytes":55507}
+{"file":"console-action-center-gs-390.png","w":169,"h":240,"bytes":42626}
+{"file":"tray-export-gs-390.png","w":169,"h":216,"bytes":29193}
+{"file":"briefcase-attorney-prep-gs-390.png","w":169,"h":216,"bytes":47259}
+{"file":"bench-record-review-gs-390.png","w":169,"h":286,"bytes":62115}
+{"file":"seats-consultations-gs-390.png","w":169,"h":286,"bytes":57314}
+{"file":"tools-hub-gs-1440.png","w":1440,"h":820,"bytes":109455}
+{"file":"tools-hub-free-390.png","w":"vp","h":"vp","bytes":580932}
+{"probe":"free-hub-390","freeDensity":{"visible":["desk-organizer","folio-case-summary","console-action-center","tray-export","briefcase-attorney-prep"],"ctaPrimary":1,"deskCta":"Open the desk →","folioAct":"See Command Center →Part of Command Center","consoleAct":"See Command Center →","trayAct":"See Command Center →","briefPrice":"One-time · $24.50","briefAct":"See the pack →","benchState":"$29.50","benchAct":"See Record Review →$29.50"}}
+{"file":"tools-hub-free-390-scroll2.png","w":"vp","h":"vp","bytes":317307}
+{"file":"desk-organizer-locked-free-390.png","w":350,"h":256,"bytes":153930}
+{"file":"folio-case-summary-locked-free-390.png","w":169,"h":239,"bytes":110569}
+{"file":"console-action-center-locked-free-390.png","w":169,"h":239,"bytes":64328}
+{"file":"tray-export-locked-free-390.png","w":169,"h":216,"bytes":40363}
+{"file":"briefcase-attorney-prep-locked-free-390.png","w":169,"h":216,"bytes":80158}
+{"file":"bench-record-review-locked-free-390.png","w":169,"h":286,"bytes":104941}
