@@ -522,7 +522,7 @@ html[data-hero-variant="c"] .hero-variant-b {
 .world-ledger {
   --section-accent: color-mix(in oklab, var(--bys-accent) 45%, #0f766e 55%);
   --section-accent-deep: color-mix(in oklab, var(--bys-accent) 28%, #0a5b54 72%);
-  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 56%, #5fc4b6 44%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 64%, #5fc4b6 36%);
   --section-surface: color-mix(in srgb, var(--bys-card) 91%, #dcf0ea 9%);
   --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #cfe9e0 21%);
   --section-line: color-mix(in srgb, var(--bys-line) 70%, #8fd0c2 30%);
@@ -612,7 +612,7 @@ html[data-hero-variant="c"] .hero-variant-b {
 .world-action {
   --section-accent: color-mix(in oklab, var(--bys-accent) 40%, #9a5b0e 60%);
   --section-accent-deep: color-mix(in oklab, var(--bys-accent) 24%, #74420a 76%);
-  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 52%, #d9a04b 48%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 60%, #d9a04b 40%);
   --section-surface: color-mix(in srgb, var(--bys-card) 91%, #f8ecd9 9%);
   --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #f4e2c6 21%);
   --section-line: color-mix(in srgb, var(--bys-line) 70%, #dfb877 30%);
@@ -684,7 +684,7 @@ html[data-hero-variant="c"] .hero-variant-b {
 .world-reset {
   --section-accent: color-mix(in oklab, var(--bys-accent) 48%, #2e8f7d 52%);
   --section-accent-deep: color-mix(in oklab, var(--bys-accent) 32%, #1f6b5e 68%);
-  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 60%, #8fd6c0 40%);
+  --section-accent-soft: color-mix(in oklab, var(--bys-accent) 68%, #8fd6c0 32%);
   --section-surface: color-mix(in srgb, var(--bys-card) 91%, #e6f4ef 9%);
   --section-surface-strong: color-mix(in srgb, var(--bys-card) 79%, #d9eee5 21%);
   --section-line: color-mix(in srgb, var(--bys-line) 70%, #a8d8ca 30%);
@@ -697,6 +697,80 @@ html[data-hero-variant="c"] .hero-variant-b {
   --bys-card: var(--section-surface);
   --bys-line: var(--section-line);
   --bys-bg-soft: var(--section-surface-strong);
+}
+/* ---- 13b. Midnight contrast pass (MWO 85) ----
+   The light-theme world mixes aim a DARK accent at a DARK tint, which reads
+   beautifully on cream but collapses on the dark midnight canvas (measured
+   dossier/briefcase/audit ~2.0-3.3:1 via oklab approximation). In Midnight
+   we re-aim every world's accent at its LIGHT equivalent so the room tints
+   survive and text stays ≥4.5:1 (headings ≥7:1, buttons ≥5:1). Surfaces,
+   lines and glows are untouched — only the readable color pairs change. */
+[data-theme="midnight"] {
+  .world-review {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 52%, #9fcee8 48%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 34%, #b7ddf2 66%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 62%, #cfeaf6 38%);
+  }
+  .world-situation {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 55%, #b3b6f0 45%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 36%, #c2c4f4 64%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 64%, #cfd0f6 36%);
+  }
+  .world-archive {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 40%, #e3b96a 60%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 24%, #eecf92 76%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 50%, #e8cd92 50%);
+  }
+  .world-ledger {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 45%, #6fd0c4 55%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 30%, #93ddd2 70%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 56%, #a4e4da 44%);
+  }
+  .world-ribbon {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 50%, #8fc3e8 50%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 32%, #a9d2f0 68%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 60%, #b9dcf4 40%);
+  }
+  .world-desk {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 62%, #6fd4b8 38%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 44%, #8fe0ca 56%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 70%, #a4e8d6 30%);
+  }
+  .world-health {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 52%, #6fd0c0 48%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 36%, #93ddd0 64%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 64%, #a4e4d8 36%);
+  }
+  .world-dossier {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 30%, #9db8dc 70%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 18%, #b3c8e6 82%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 46%, #a8c6e8 54%);
+  }
+  .world-action {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 40%, #e8b060 60%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 24%, #f0c98c 76%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 52%, #eec58a 48%);
+  }
+  .world-briefcase {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 38%, #d89aa4 62%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 22%, #e4b6bd 78%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 50%, #e0b3bc 50%);
+  }
+  .world-audit {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 32%, #9fc0e4 68%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 18%, #b6d1ee 82%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 48%, #b0d0f0 52%);
+  }
+  .world-human {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 45%, #ef9a8a 55%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 28%, #f4b6aa 72%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 56%, #f6c3ba 44%);
+  }
+  .world-reset {
+    --section-accent: color-mix(in oklab, var(--bys-accent) 48%, #8fd6c0 52%);
+    --section-accent-deep: color-mix(in oklab, var(--bys-accent) 32%, #a9e2d2 68%);
+    --section-accent-soft: color-mix(in oklab, var(--bys-accent) 60%, #b8e8da 40%);
+  }
 }
 /* ---- 14. Tools hub — the neutral "command center foyer" ----
    The hub itself stays brand forest (rooms preview their own
