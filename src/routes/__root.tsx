@@ -7,6 +7,7 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestUrl } from "@tanstack/react-start/server";
 import type { ReactNode } from "react";
 import appCss from "~/styles/app.css?url";
 import SpecialOffer from "~/components/SpecialOffer";
@@ -16,6 +17,8 @@ import GuidedFunnel from "~/components/GuidedFunnel";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
 import {
   GOOGLE_ADS_ID,
+  GOOGLE_TAG_BOOTSTRAP,
+  hasSensitiveQuery,
   initAnalytics,
   initRouteTracking,
   type AnalyticsConfig,
@@ -25,14 +28,28 @@ const getAnalyticsConfig = createServerFn().handler(async () => {
   const cfg: AnalyticsConfig = {};
   const pick = (v: string | undefined) => (v && v.trim() ? v.trim() : undefined);
   cfg.tiktokPixelId = pick(process.env.TIKTOK_PIXEL_ID);
+  // Codex final-fold Blocker 1 (comment 5300270649): while the request URL
+  // carries a sensitive app query (token/session_id/gift code/auth or reset
+  // secrets/raw next/…), SSR must OMIT the Google tag loader + bootstrap —
+  // the page consumes the credential and scrubs the URL client-side BEFORE
+  // measurement initializes on the clean URL (TikTok is client-only and is
+  // deferred by initAnalytics for the same pages). getRequestUrl() is the
+  // incoming page URL during SSR (AsyncLocalStorage request context); outside
+  // a request context (client RPC re-fetch) it throws → not sensitive → the
+  // tags render exactly as before. Same allowlist as the client page-view
+  // guard (hasSensitiveQuery), so SSR and client always agree on "dirty".
+  try {
+    cfg.sensitive = hasSensitiveQuery(getRequestUrl().search);
+  } catch {
+    cfg.sensitive = false;
+  }
   return cfg;
 });
 
-// Canonical Google tag bootstrap supplied by Google Ads for this account.
-// It lives directly in the shared document head so every route has a ready
-// gtag queue before React mounts. send_page_view:false keeps trackPageView()
-// as the single page-view fire point.
-const GOOGLE_TAG_BOOTSTRAP = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}window.gtag=window.gtag||gtag;gtag('consent','default',{ad_storage:'granted',analytics_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'});gtag('js',new Date());gtag('config','${GOOGLE_ADS_ID}',{send_page_view:false});`;
+// The canonical Google tag bootstrap lives in src/lib/analytics.ts
+// (GOOGLE_TAG_BOOTSTRAP) — shared with injectGoogleTagIfNeeded() so the
+// sensitive-query pages can re-initialize measurement on the clean URL after
+// the route scrubs the credential.
 
 export const Route = createRootRoute({
   head: () => ({
@@ -143,7 +160,7 @@ function RootComponent() {
     };
   }, [cfg, router]);
   return (
-    <RootDocument>
+    <RootDocument omitPixels={!!cfg?.sensitive}>
       <Outlet />
       <SpecialOffer />
       <TrialModal />
@@ -153,13 +170,22 @@ function RootComponent() {
   );
 }
 
-function RootDocument({ children }: { children: ReactNode }) {
+function RootDocument({ children, omitPixels }: { children: ReactNode; omitPixels?: boolean }) {
   return (
     <html lang="en">
       <head>
         <meta name="referrer" content="strict-origin" />
-        <script async src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`} />
-        <script dangerouslySetInnerHTML={{ __html: GOOGLE_TAG_BOOTSTRAP }} />
+        {/* Codex final-fold Blocker 1: while a sensitive app query (token/
+            session_id/code/next/…) is the active document URL, SSR must not
+            emit the third-party Google loader/bootstrap — the route consumes
+            the credential and scrubs the URL, then flushDeferredPixels()
+            initializes measurement on the clean URL. */}
+        {!omitPixels && (
+          <script async src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`} />
+        )}
+        {!omitPixels && (
+          <script dangerouslySetInnerHTML={{ __html: GOOGLE_TAG_BOOTSTRAP }} />
+        )}
         <HeadContent />
       </head>
       <body>

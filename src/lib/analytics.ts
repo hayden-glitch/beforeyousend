@@ -15,6 +15,11 @@ import { onPageEnter, initScrollSampling, sessionT, sessionDt } from "./sessionP
 export type AnalyticsConfig = {
   tiktokPixelId?: string;
   googleAdsId?: string;
+  // SSR decision (Codex final-fold Blocker 1, comment 5300270649): true when
+  // the incoming page request carried a sensitive app query key — SSR omits
+  // the Google loader/bootstrap for that document and the client defers the
+  // TikTok load until the route scrubs the URL.
+  sensitive?: boolean;
 };
 
 export type AnalyticsEvent =
@@ -212,6 +217,13 @@ declare global {
 let initialized = false;
 export const GOOGLE_ADS_ID = "AW-18234635191";
 export const GOOGLE_SIGNUP_DESTINATION = `${GOOGLE_ADS_ID}/XeTXCOT1muEcELfn-fZD`;
+// Canonical Google tag bootstrap supplied by Google Ads for this account. It
+// lives directly in the shared document head (clean pages only — see
+// __root.tsx) so every route has a ready gtag queue before React mounts.
+// send_page_view:false keeps trackPageView() as the single page-view fire
+// point. injectGoogleTagIfNeeded() reuses it to re-initialize measurement on
+// the clean URL after a sensitive-query page scrubs its credential.
+export const GOOGLE_TAG_BOOTSTRAP = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}window.gtag=window.gtag||gtag;gtag('consent','default',{ad_storage:'granted',analytics_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'});gtag('js',new Date());gtag('config','${GOOGLE_ADS_ID}',{send_page_view:false});`;
 // Dedup window (audit 85fbc48d Fix 3): page_view/page_enter collapse query-string
 // variations of the SAME pathname within 30s per tab — "/?a=1" and "/?a=2" on one
 // route load count once, and the ttclid redirect hop collapses with the final
@@ -234,71 +246,19 @@ export async function initAnalytics(cfg: AnalyticsConfig): Promise<void> {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
 
-  const w = window;
-
   try {
     if (cfg.tiktokPixelId) {
-      // Official TikTok base-code equivalent: ttq must be an ARRAY with
-      // deferred methods (not a plain object) or TikTok's events.js won't
-      // pick up events. Mirrors TikTok's own snippet, then loads + fires page.
-      const ttqMethods = [
-        "page", "track", "identify", "instances", "debug", "on", "off",
-        "once", "ready", "alias", "group", "enableCookie", "disableCookie",
-        "holdConsent", "revokeConsent", "grantConsent",
-      ];
-      const holder = w as unknown as { ttq?: unknown; TiktokAnalyticsObject?: unknown };
-      // TikTok's official snippet sets the global pointer FIRST. events.js
-      // line 1 runs `window[window.TiktokAnalyticsObject]._env = ...` and
-      // crashes with "Cannot set properties of undefined (setting '_env')"
-      // sitewide when the pointer is missing (QA bd99fbf8).
-      if (typeof holder.TiktokAnalyticsObject === "undefined") {
-        holder.TiktokAnalyticsObject = "ttq";
-      }
-      const existing = holder.ttq;
-      if (
-        existing &&
-        !Array.isArray(existing) &&
-        typeof (existing as { load?: unknown }).load === "function"
-      ) {
-        // The TikTok SDK already initialized itself (its script won the load
-        // race). Never clobber the real SDK with a stub — just make sure our
-        // pixel is loaded. (Load-order race guard.) No page() here: the
-        // initial page_view is fired exactly once by trackPageView() below,
-        // which also skips the ttclid redirect hop (see trackPageView).
-        (existing as { load: (id: string) => void }).load(cfg.tiktokPixelId);
+      // Codex final-fold Blocker 1 (comment 5300270649): while the URL still
+      // carries a sensitive app query (token/session_id/code/next/…), DEFER
+      // the TikTok third-party script load. The consuming route scrubs the URL
+      // (child effects run before this root effect — confirm/redeem scrub on
+      // mount; login/pricing/consultations scrub once the fetch resolves);
+      // flushDeferredPixels() then loads the pixel on the clean URL. The SSR
+      // head already omitted the Google loader/bootstrap for the same pages.
+      if (hasSensitiveQuery(location.search)) {
+        pendingPixelId = cfg.tiktokPixelId;
       } else {
-        // ttq must stay duck-typed loose (any): the real TikTok SDK object and
-        // our deferred-method stub share no common shape, and strict typing
-        // keeps rejecting both (TS2352/TS2769). Casts below keep it safe.
-        let ttq: any = Array.isArray(existing) ? existing : undefined;
-        if (!ttq) {
-          ttq = [] as any;
-          holder.ttq = ttq;
-        }
-        const setAndDefer = (m: string) => {
-          ttq[m] = function (...args: any[]) {
-            ttq.push([m].concat(args));
-          };
-        };
-        ttqMethods.forEach(setAndDefer);
-        ttq.load = function (id: string) {
-          const r = "https://analytics.tiktok.com/i18n/pixel/events.js";
-          ttq._i = ttq._i || {};
-          ttq._i[id] = [];
-          ttq._t = ttq._t || {};
-          ttq._t[id] = +new Date();
-          const s = document.createElement("script");
-          s.type = "text/javascript";
-          s.async = true;
-          s.src = r + "?sdkid=" + id + "&lib=ttq";
-          const first = document.getElementsByTagName("script")[0];
-          first?.parentNode?.insertBefore(s, first);
-        };
-        ttq.load(cfg.tiktokPixelId);
-        // No ttq.page() here on purpose: the pixel must fire exactly once per
-        // page load, and trackPageView() is the single fire point (it runs on
-        // every load via initAnalytics's tail and on every route change, and
-        // skips the ttclid redirect hop so ad clicks aren't double-counted).
+        loadTikTokPixel(cfg.tiktokPixelId);
       }
     }
 
@@ -354,6 +314,114 @@ export async function initAnalytics(cfg: AnalyticsConfig): Promise<void> {
 
 // SPA route-change tracking. TanStack Router emits `onResolved` after each
 // client-side navigation completes (link clicks, back/forward, search changes).
+
+// Official TikTok base-code equivalent: ttq must be an ARRAY with deferred
+// methods (not a plain object) or TikTok's events.js won't pick up events.
+// Mirrors TikTok's own snippet, then loads the pixel. No ttq.page() here on
+// purpose: the pixel must fire exactly once per page load, and trackPageView()
+// is the single fire point (it runs on every load via initAnalytics's tail and
+// on every route change, and skips the ttclid redirect hop so ad clicks aren't
+// double-counted).
+let pendingPixelId: string | undefined; // TikTok pixel deferred (dirty URL at init)
+function loadTikTokPixel(pixelId: string): void {
+  try {
+    const w = window;
+    const ttqMethods = [
+      "page", "track", "identify", "instances", "debug", "on", "off",
+      "once", "ready", "alias", "group", "enableCookie", "disableCookie",
+      "holdConsent", "revokeConsent", "grantConsent",
+    ];
+    const holder = w as unknown as { ttq?: unknown; TiktokAnalyticsObject?: unknown };
+    // TikTok's official snippet sets the global pointer FIRST. events.js
+    // line 1 runs `window[window.TiktokAnalyticsObject]._env = ...` and
+    // crashes with "Cannot set properties of undefined (setting '_env')"
+    // sitewide when the pointer is missing (QA bd99fbf8).
+    if (typeof holder.TiktokAnalyticsObject === "undefined") {
+      holder.TiktokAnalyticsObject = "ttq";
+    }
+    const existing = holder.ttq;
+    if (
+      existing &&
+      !Array.isArray(existing) &&
+      typeof (existing as { load?: unknown }).load === "function"
+    ) {
+      // The TikTok SDK already initialized itself (its script won the load
+      // race). Never clobber the real SDK with a stub — just make sure our
+      // pixel is loaded. (Load-order race guard.)
+      (existing as { load: (id: string) => void }).load(pixelId);
+    } else {
+      // ttq must stay duck-typed loose (any): the real TikTok SDK object and
+      // our deferred-method stub share no common shape, and strict typing
+      // keeps rejecting both (TS2352/TS2769). Casts below keep it safe.
+      let ttq: any = Array.isArray(existing) ? existing : undefined;
+      if (!ttq) {
+        ttq = [] as any;
+        holder.ttq = ttq;
+      }
+      const setAndDefer = (m: string) => {
+        ttq[m] = function (...args: any[]) {
+          ttq.push([m].concat(args));
+        };
+      };
+      ttqMethods.forEach(setAndDefer);
+      ttq.load = function (id: string) {
+        const r = "https://analytics.tiktok.com/i18n/pixel/events.js";
+        ttq._i = ttq._i || {};
+        ttq._i[id] = [];
+        ttq._t = ttq._t || {};
+        ttq._t[id] = +new Date();
+        const s = document.createElement("script");
+        s.type = "text/javascript";
+        s.async = true;
+        s.src = r + "?sdkid=" + id + "&lib=ttq";
+        const first = document.getElementsByTagName("script")[0];
+        first?.parentNode?.insertBefore(s, first);
+      };
+      ttq.load(pixelId);
+    }
+  } catch {
+    /* tracking must never break the page */
+  }
+}
+
+// Re-initialize the Google tag on a page whose SSR head omitted it (a
+// sensitive-query page). Idempotent: no-ops if gtag is already a function or a
+// loader script is already in the document (a clean SSR page always has one).
+function injectGoogleTagIfNeeded(): void {
+  try {
+    if (typeof window === "undefined" || typeof window.gtag === "function") return;
+    if (document.querySelector('script[src*="googletagmanager.com/gtag/js"]')) return;
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = `https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`;
+    document.head.appendChild(s);
+    const boot = document.createElement("script");
+    boot.text = GOOGLE_TAG_BOOTSTRAP;
+    document.head.appendChild(boot);
+  } catch {
+    /* tracking must never break the page */
+  }
+}
+
+// Codex final-fold Blocker 1: once a sensitive-query page has been scrubbed
+// clean (the consuming route's history.replaceState), initialize the deferred
+// third-party measurement on the clean URL — TikTok pixel + Google loader/
+// bootstrap — BEFORE any page payload fires. While the URL is still dirty this
+// no-ops and waits for the next clean opportunity (a route's track() call or
+// the next navigation's trackPageView).
+function flushDeferredPixels(): void {
+  if (!pendingPixelId) return;
+  try {
+    if (typeof window !== "undefined" && hasSensitiveQuery(window.location.search)) return;
+  } catch {
+    return; // can't inspect the URL — keep waiting
+  }
+  const id = pendingPixelId;
+  pendingPixelId = undefined;
+  injectGoogleTagIfNeeded();
+  if (id) loadTikTokPixel(id);
+}
+
 function visitorId(): string {
   const found = document.cookie.match(/(?:^|;\s*)bys_vid=([^;]+)/)?.[1];
   if (found) return found;
@@ -423,17 +491,23 @@ const NEVER_PERSIST_KEYS = new Set<string>([
 ]);
 
 // Behavioral assessment keys stripped from third-party payloads even when the
-// event IS allowlisted (kept first-party only if the event persists them).
-const NEVER_AD_KEYS = new Set<string>(["score", "band", "folder", "gap", "label", "coverage", "missing"]);
+// event IS allowlisted. Track A P0 #2 (Codex final-fold): assessment values are
+// structural usage ONLY — they never leave the app at all (see SAFE_PERSIST_KEYS).
+const NEVER_AD_KEYS = new Set<string>(["score", "band", "folder", "gap", "label", "coverage", "gaps", "missing"]);
 
 // Explicit per-event safe-key schema: ONLY these structural keys may persist
 // (unknown/future keys are dropped, not stored — never a silent denylist).
+// Track A P0 #2 (Codex final-fold comment 5300270649 Blocker 2): quiz/assessment
+// VALUES (score/band) and assessment-detail keys (label/gap/coverage/gaps/
+// missing — record-health grades, lamp labels, date-range gaps) are structural
+// usage ONLY: they flow through the quiz/panel response itself and are NEVER
+// analytics metadata, client-persisted or server-ingested. `q` (question
+// index) and `folder` (structural classifier) remain.
 const SAFE_PERSIST_KEYS = new Set<string>([
   "dt", "t", "sp", "kind", "path", "referrer", "attribution",
   "step", "variant", "source", "mode", "auth", "example", "status", "timeout",
   "interval", "tier", "intro", "count", "n", "chars", "remaining", "module",
-  "edit", "target", "context", "item", "week", "plan", "q",
-  "score", "band", "label", "gap", "folder", "coverage", "gaps", "missing",
+  "edit", "target", "context", "item", "week", "plan", "q", "folder",
   "dest", "filed", "needsSorting", "skipped", "total", "campaign",
 ]);
 
@@ -498,7 +572,13 @@ function sanitizeReferrer(ref: string): string | undefined {
 // suppresses third-party page payloads until the route scrubs the URL.
 const SAFE_UI_PARAMS = new Set(["tab", "checkin", "example", "source", "variant", "q", "plan", "ok", "sort", "from"]);
 
-function hasNonAttributionQuery(search: string): boolean {
+// Sensitive-query detection shared by the client page-view guard and the SSR
+// head decision (__root.tsx getAnalyticsConfig): while the URL carries any
+// query key that is NOT a known ad-attribution param or a safe UI param
+// (token, session_id, gift code, auth/reset secrets, raw next, …), third-party
+// measurement must NOT boot — the consuming route captures the credential and
+// scrubs the URL, and only then does measurement initialize on the clean URL.
+export function hasSensitiveQuery(search: string): boolean {
   if (!search || search === "?") return false;
   try {
     const q = new URLSearchParams(search);
@@ -514,6 +594,11 @@ function hasNonAttributionQuery(search: string): boolean {
 export function trackPageView(path?: string): void {
   try {
     if (typeof window === "undefined") return;
+    // Codex final-fold Blocker 1: if this page loaded dirty (sensitive query —
+    // SSR omitted the Google loader, TikTok deferred) and the route has since
+    // scrubbed the URL, bootstrap measurement NOW on the clean URL so the
+    // payload below is the first thing the pixels see.
+    flushDeferredPixels();
     // Fix 3 follow-up (2026-08-13): a redirect flag still set when this fires
     // means a bounce/hop navigation is mid-flight (auth-gate /home → / lands
     // here via SPA nav — initAnalytics already counted the route that really
@@ -545,7 +630,7 @@ export function trackPageView(path?: string): void {
     // /pricing, /consultations, /redeem, /login), ALL third-party page payloads
     // are skipped until the route scrubs the URL. First-party persistence
     // (pathname-only) is unaffected.
-    const dirty = hasNonAttributionQuery(location.search);
+    const dirty = hasSensitiveQuery(location.search);
     if (!dirty) {
       if (typeof window.gtag === "function") {
         window.gtag("event", "page_view", { page_path: pathname });
@@ -601,6 +686,10 @@ export function initRouteTracking(router: {
 export function track(event: AnalyticsEvent, data?: Record<string, unknown>): void {
   try {
     if (typeof window === "undefined") return;
+    // Codex final-fold Blocker 1: same clean-URL bootstrap as trackPageView —
+    // the scrub sites call track() right after history.replaceState, so this
+    // is the "measurement starts on the clean URL" moment for those flows.
+    flushDeferredPixels();
     const w = window;
     const payload = data ?? {};
     // Track A (Codex consolidated order §1+§2): ALL events persist first-party
