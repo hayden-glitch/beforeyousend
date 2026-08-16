@@ -1,0 +1,3 @@
+{"gate":"(c) track dirty vs clean","verdict":"FAIL","detail":{"clickedDirty":"TIMEOUT","dirty3p":[],"dirty1p":0,"clickedClean":"TIMEOUT","clean3p":0,"clean1p":0}}
+{"gate":"(f) return capture survives scrub/401","verdict":"FAIL","detail":{"afterScrub":"/pricing","needLoginHref":"EXC"}}
+{"gate":"(g) tiktok callback disabled","verdict":"PASS","detail":{"callbackStatus":404,"callbackBody":"{\"error\":\"TikTok connection is not available right now.\"}","connectedPageStatus":200}}

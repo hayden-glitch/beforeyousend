@@ -1,0 +1,12 @@
+{"gate":"(a) clean recovery","verdict":"PASS","detail":{"t3":6,"gtagFn":true,"sample":["https://www.googletagmanager.com/gtag/js?id=AW-18234635191","https://www.google.com/ccm/collect?rcb=3&frm=0&apvc=1&auid=272248016.1786841137&dt=Pricing%20%E2%80%94%20Before%20You%20Send&tid=AW-18234635191&en=page_view&dl=https%3A%2F%2Fsite-g5m3q3bm4-hayden-8284s-projects.vercel.app%2Fpricing&scrsrc=www.googletagmanager.com&rnd=251556169.1786841137&navt=n&npa=0&gtm=45be68c1v9260562219za200zd9260562219xec&gcs=G111&gcd=13t3t3t3t5l1&dma=0&tag_exp=115938466~115938468~118395333~118897920~118897930~119367802~119367810~119527019~120213116~120385423~120495808&tft=1786841137047&tfd=1431&tids=AW-18234635191&fmt=8","https://ad.doubleclick.net/ccm/s/collect?auid=272248016.1786841137&gtm=45be68c1v9260562219za200zd9260562219xec&fmt=8"]}}
+{"gate":"(b) dirty /pricing?email=","verdict":"PASS","detail":{"scrubAt":2,"samples":["/pricing?email=dad%40test.com","/pricing"],"pre3p":0,"post3p":2,"total":16}}
+{"gate":"(b) dirty /login?next=","verdict":"PASS","detail":{"scrubAt":2,"samples":["/login?next=/pricing","/login"],"pre3p":0,"post3p":8,"total":35}}
+{"gate":"(d) safe tab=FAQ","verdict":"PASS","detail":{"url":"/pricing?tab=FAQ","t3":6}}
+{"gate":"(d) unknown tab=EVILHACK","verdict":"PASS","detail":{"scrubAt":1,"samples":["/pricing?tab=EVILHACK"],"pre3p":0,"post3p":2,"total":16}}
+{"gate":"(c) track dirty vs clean","verdict":"FAIL","detail":{"clicked":"Annual","dirty3p":2,"dirty1p":0,"clean3p":2}}
+{"gate":"(e) login next=/pricing","verdict":"PASS","detail":{"afterScrub":"/pricing","final":"/pricing"}}
+{"gate":"(f) return capture survives scrub/401","verdict":"FAIL","detail":{"url":"/pricing","loginHref":"EXC"}}
+{"gate":"(g) tiktok callback","verdict":"FAIL","detail":{"status":200}}
+{"gate":"(j) checkout steady","verdict":"FAIL","detail":{"s":503,"j":{"error":"Payments are paused in this preview — nothing can be charged.","payments_disabled":true}}}
+{"gate":"(j) checkout command","verdict":"FAIL","detail":{"s":503,"j":{"error":"Payments are paused in this preview — nothing can be charged.","payments_disabled":true}}}
+{"gate":"(j) checkout ultimate","verdict":"FAIL","detail":{"s":503,"j":{"error":"Payments are paused in this preview — nothing can be charged.","payments_disabled":true}}}

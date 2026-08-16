@@ -1,0 +1,35 @@
+[
+  {
+    "gate": "(c) track dirty vs clean",
+    "verdict": "FAIL",
+    "detail": {
+      "clickedDirty": null,
+      "dirty3p": [
+        "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/18234635191/?ra",
+        "https://www.google.com/ccm/collect?rcb=11&frm=0&apvc=0&auid=1714909930.178684201"
+      ],
+      "dirty1p": 0,
+      "clickedClean": null,
+      "clean3p": 3,
+      "clean1p": 0,
+      "needLoginAnchor": null
+    }
+  },
+  {
+    "gate": "(f) CTA->401->?next= login link",
+    "verdict": "FAIL",
+    "detail": {
+      "clicked2": null,
+      "needLoginHref": null,
+      "signInMsg": false
+    }
+  },
+  {
+    "gate": "(f2) checkout=success scrub+confirm",
+    "verdict": "FAIL",
+    "detail": {
+      "afterScrub": "/pricing",
+      "body": "Skip to content Before You Send . Pricing Sign in Simple, honest pricing. Start with a free review — no account needed. "
+    }
+  }
+]

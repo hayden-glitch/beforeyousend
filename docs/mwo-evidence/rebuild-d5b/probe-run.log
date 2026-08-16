@@ -1,0 +1,14 @@
+nohup: ignoring input
+(a) clean recovery PASS [object Object]
+(b) dirty /pricing?email= PASS [object Object]
+(b) dirty /login?next= PASS [object Object]
+(d) safe tab=FAQ PASS [object Object]
+(d) unknown tab=EVILHACK PASS [object Object]
+(c) track dirty vs clean FAIL [object Object]
+(e) login next=/pricing PASS [object Object]
+(f) return capture survives scrub/401 FAIL [object Object]
+(g) tiktok callback FAIL [object Object]
+(j) checkout steady FAIL [object Object]
+(j) checkout command FAIL [object Object]
+(j) checkout ultimate FAIL [object Object]
+PROBE-DONE

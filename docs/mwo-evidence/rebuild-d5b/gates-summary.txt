@@ -1,0 +1,12 @@
+(a) clean recovery | PASS | {'t3': 6, 'gtagFn': True, 'sample': ['https://www.googletagmanager.com/gtag/js?id=AW-18234635191', 'https://www.google.com/ccm/collect?rcb=3&frm=0&apv
+(b) dirty /pricing?email= | PASS | {'scrubAt': 2, 'pre3p': 0, 'post3p': 2, 'total': 16}
+(b) dirty /login?next= | PASS | {'scrubAt': 2, 'pre3p': 0, 'post3p': 8, 'total': 35}
+(d) safe tab=FAQ | PASS | {'url': '/pricing?tab=FAQ', 't3': 6}
+(d) unknown tab=EVILHACK | PASS | {'scrubAt': 1, 'pre3p': 0, 'post3p': 2, 'total': 16}
+(c) track dirty vs clean | FAIL | {'clicked': 'Annual', 'dirty3p': 2, 'dirty1p': 0, 'clean3p': 2}
+(e) login next=/pricing | PASS | {'afterScrub': '/pricing', 'final': '/pricing'}
+(f) return capture survives scrub/401 | FAIL | {'url': '/pricing', 'loginHref': 'EXC'}
+(g) tiktok callback | FAIL | {'status': 200}
+(j) checkout steady | FAIL | {'s': 503, 'j': {'error': 'Payments are paused in this preview — nothing can be charged.', 'payments_disabled': True}}
+(j) checkout command | FAIL | {'s': 503, 'j': {'error': 'Payments are paused in this preview — nothing can be charged.', 'payments_disabled': True}}
+(j) checkout ultimate | FAIL | {'s': 503, 'j': {'error': 'Payments are paused in this preview — nothing can be charged.', 'payments_disabled': True}}
