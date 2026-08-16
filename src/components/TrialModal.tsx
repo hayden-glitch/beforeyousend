@@ -13,7 +13,6 @@ import {
   loginIntakeActive,
   type PayBrand,
   trialOpenPending,
-  setTrialOpenPending,
   clearTrialOpenPending,
 } from "~/lib/trial";
 import { IconClose } from "~/components/icons";
