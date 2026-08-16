@@ -187,7 +187,7 @@ function Redeem() {
             )}
             <a href={nextHref} className="btn-primary mt-6 block min-h-12 w-full text-center">Create a free account</a>
             <a href={nextHref} className="mt-3 block min-h-11 text-center text-base font-semibold text-forest underline underline-offset-4">Sign in</a>
-            <p className="mt-4 text-sm leading-relaxed text-stone">Sign in or create a free account — then enter the code and the month is yours. No card.</p>
+            <p className="mt-4 text-sm leading-relaxed text-stone">Sign in or create a free account — then enter the code and the month is yours.</p>
           </div>
         )}
       </div>

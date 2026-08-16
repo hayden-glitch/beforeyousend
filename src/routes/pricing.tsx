@@ -767,7 +767,12 @@ function Pricing() {
           </p>
         </section>
       </main>
-      <SiteFooter />
+      {/* Mobile-only bottom clearance for the sticky "Choose a plan" bar
+          (77px emulated / ~95px with safe-area inset) so the © line is
+          never covered at max scroll. md:pb-0 — bar is md:hidden. */}
+      <div className="pb-16 md:pb-0">
+        <SiteFooter />
+      </div>
       {/* Mobile sticky CTA — NEVER hardwired to Ultimate (§12). Neutral
           "Choose a plan" until a meaningful selection (a plan card tap),
           then it reflects the selected plan + current price. Hidden for

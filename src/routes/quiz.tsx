@@ -523,7 +523,7 @@ function Quiz() {
               </div>
             )}
             <p className="mt-4 text-sm leading-relaxed text-cream/60">
-              Your free account stays free as long as you like — no card, no surprises.
+              Your free account stays free as long as you like.
             </p>
           </>
         )}

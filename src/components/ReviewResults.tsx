@@ -1067,8 +1067,8 @@ function EmailCapture({ draft, reviewText, noun = REVIEW_NOUN, onSubmitted }: { 
       </div>
       <p className="mt-3 text-sm text-stone">
         {variant === "b"
-          ? "No card. No spam. Cancel anytime. Your draft stays private."
-          : "No card. No spam. Cancel anytime. We never sell your data."}
+          ? "Cancel anytime. Your draft stays private."
+          : "Cancel anytime. We never sell your data."}
       </p>
       <p className="mt-2 text-sm text-stone">{noun.savedLine}</p>
       {state === "error" && error && (
@@ -1155,8 +1155,8 @@ function CaptureSheet({ draft, reviewText, nudge, noun = REVIEW_NOUN, onDismiss,
         </form>
         <p className="mt-3 text-sm text-stone">
           {variant === "b"
-            ? "No card. No spam. Cancel anytime. Your draft stays private."
-            : "No card. No spam. Cancel anytime. We never sell your data."}
+            ? "Cancel anytime. Your draft stays private."
+            : "Cancel anytime. We never sell your data."}
         </p>
         <p className="mt-2 text-sm text-stone">{noun.savedLine}</p>
         {state === "error" && error && (

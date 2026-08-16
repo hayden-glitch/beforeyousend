@@ -10,7 +10,7 @@ export const Route = createFileRoute("/login")({
   head: () => ({
     ...seoHead({
       title: "Create your free account — Before You Send",
-      description: "Create your free account in seconds — no card needed. Keep your reviews, your log, and your record in one place.",
+      description: "Create your free account in seconds. Keep your reviews, your log, and your record in one place.",
       path: "/login",
     }),
   }),

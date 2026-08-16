@@ -786,7 +786,7 @@ function ReviewFallback({ draft, error, onRetry }: { draft: string; error: strin
           )}
         </form>
       )}
-      <p className="mt-3 text-center text-sm text-stone">No card. No spam. Your message stays yours.</p>
+      <p className="mt-3 text-center text-sm text-stone">Your message stays yours.</p>
 
       <button type="button" onClick={onRetry} className="btn-ghost mt-4 w-full">
         Try again
