@@ -167,10 +167,12 @@ function HeroRollingWords() {
             {PANIC},
           </text>
         </svg>
-        <svg className="hero-x" viewBox="0 0 120 60" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-          <line className="s1" x1="6" y1="8" x2="114" y2="52" />
-          <line className="s2" x1="114" y1="8" x2="6" y2="52" />
-        </svg>
+        <span className="hero-x-wrap" aria-hidden="true">
+          <svg className="hero-x" viewBox="0 0 120 60" preserveAspectRatio="none" focusable="false">
+            <line className="s1" x1="6" y1="8" x2="114" y2="52" />
+            <line className="s2" x1="114" y1="8" x2="6" y2="52" />
+          </svg>
+        </span>
       </span>
     </div>
   );

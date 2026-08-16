@@ -527,18 +527,22 @@
 .hero-roll[data-phase="calm"] .hero-panic-wrap {
   opacity: 0;
 }
-.hero-roll .hero-x {
+.hero-roll .hero-x-wrap {
   position: absolute;
-  /* All-four-inset sizing (NOT width/height): the box is guaranteed 128%
-     wider and 120% taller than the panic word's own box, so the X strokes
-     always cross the full word — measured against the panic text bbox at
-     every width (Chrome ignores width:124% when inset left/right are also
-     set — verified 2026-08-16). */
-  left: -14%;
-  right: -14%;
-  top: -10%;
-  bottom: -10%;
+  /* X overlay box: a PLAIN div (not the SVG — Chrome ignores CSS width on
+     this SVG, treating it as 100% of its containing block; verified
+     2026-08-16), 5.6em wide centered on the 3.4em panic word so the
+     diagonal strokes cross the full word incl. the comma at every width. */
+  left: -1.1em;
+  top: -0.11em;
+  width: 5.6em;
+  height: 1.32em;
   pointer-events: none;
+}
+.hero-roll .hero-x {
+  display: block;
+  width: 100%;
+  height: 100%;
   overflow: visible;
 }
 .hero-roll .hero-x line {
