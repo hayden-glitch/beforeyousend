@@ -20,6 +20,7 @@ import {
   initRouteTracking,
   type AnalyticsConfig,
 } from "~/lib/analytics";
+import { clearReloadGuard } from "~/lib/reloadGuard";
 
 const getAnalyticsConfig = createServerFn().handler(async () => {
   const cfg: AnalyticsConfig = {};
@@ -143,6 +144,9 @@ function RootComponent() {
   const cfg = Route.useLoaderData();
   const router = useRouter();
   useEffect(() => {
+    // Successful mount → clear the stale-chunk reload guard, so a LATER
+    // deploy in this tab session can still self-heal once (see reloadGuard.ts).
+    clearReloadGuard();
     void initAnalytics(cfg);
     const stopRouteTracking = initRouteTracking(router);
     return () => {

@@ -485,7 +485,7 @@ function Quiz() {
         ) : (
           <>
             <p className="mt-3 text-base leading-relaxed text-cream/85">
-              Free means free. No credit card. Just a calmer way to handle the next exchange.
+              Free means free. Just a calmer way to handle the next exchange.
             </p>
             <form onSubmit={submitEmail} noValidate className="mt-5 flex flex-col gap-3 sm:flex-row">
               <label htmlFor="quiz-email" className="sr-only">
