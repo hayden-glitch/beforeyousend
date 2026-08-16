@@ -74,6 +74,13 @@ const COMPARE_ROWS: [string, string, string, string, string][] = [
   ["Priority support", "—", "—", "—", "Included"],
   ["Early access + kickstart", "—", "—", "—", "Included"],
 ];
+// Mobile decision aid (blocker #3): answers "Which plan fits me?" BEFORE the
+// exhaustive inventory. One honest line per plan — no invented stats.
+const FIT_GUIDE: [PlanKey, string][] = [
+  ["steady", "Ongoing reviews and a full history — without the record tools."],
+  ["command", "Reviews plus your whole record — organized and ready."],
+  ["ultimate", "Everything in Command Center, plus a consultation and all one-time packs."],
+];
 // Safe demo data (spec §14 — tangible product sample instead of more bullets):
 // what a Command Center record looks like. Same shape as the landing chain.
 const LEDGER_SAMPLE: { date: string; title: string; kind: string }[] = [
@@ -87,6 +94,9 @@ function Pricing() {
   // The 4 top tabs are GONE (§12) — the deep link now scrolls to the section
   // on the single page. tab is a SAFE_UI_VALUE so it survives the scrub.
   const [deepTab, setDeepTab] = useState<DeepTab>(null);
+  // Blocker #3: the mobile "One-time tools" disclosure — auto-opens when a
+  // tools-card deep link (?tab=One-time) lands on the section.
+  const [onetimeOpen, setOnetimeOpen] = useState(false);
   const [selected, setSelected] = useState<PlanKey | null>(null); // §12: sticky CTA stays neutral until a meaningful selection
   const [isAnnual, setAnnual] = useState(false); // Monthly is the default (owner direction)
   const [busy, setBusy] = useState("");
@@ -157,7 +167,10 @@ function Pricing() {
     scrubReturnUrl();
     const snap = returnRef.current;
     setCheckinActive(snap?.checkin === "50");
-    if (snap?.tab === "One-time" || snap?.tab === "Compare" || snap?.tab === "FAQ") setDeepTab(snap.tab as DeepTab);
+    if (snap?.tab === "One-time" || snap?.tab === "Compare" || snap?.tab === "FAQ") {
+      setDeepTab(snap.tab as DeepTab);
+      if (snap.tab === "One-time") setOnetimeOpen(true);
+    }
     fetch("/api/auth/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : { user: null }))
       .then((j) => { setIsUltimate(j.user?.profile?.tier === "ultimate"); setMyTier(j.quota?.tier || j.user?.profile?.tier || "free"); setAttorneyPrepOwned(!!j.entitlements?.attorneyPrep); setRecordReview(j.entitlements?.recordReview || { entitled: false, kind: "none" }); })
@@ -351,6 +364,32 @@ function Pricing() {
   const planName = (k: PlanKey) => PLAN_META[k].name;
   const stickyLabel = selected ? `Get ${planName(selected)} · ${money(price(selected))}/${isAnnual ? "yr" : "mo"}` : "Choose a plan";
 
+  // One-time action renderer — shared by the mobile disclosure rows and the
+  // desktop card grid so the entitlement/guard logic (Record Review allowance,
+  // Ultimate inclusion, Attorney Prep ownership) stays EXACTLY as before.
+  function oneTimeAction(n: string, included: boolean) {
+    if (n === "Record Review") {
+      if (recordReview?.entitled && recordReview.kind === "purchased") {
+        return <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Record Review unlocked ✓</span>;
+      }
+      if (recordReview?.entitled) {
+        return <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>;
+      }
+      return <button onClick={() => checkout("record_review")} className="btn-ghost mt-4 w-full">Buy Record Review</button>;
+    }
+    if (isUltimate && included) {
+      return <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>;
+    }
+    if (n === "Attorney Prep Pack" && attorneyPrepOwned) {
+      return <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Attorney Prep Pack unlocked ✓</span>;
+    }
+    if (n === "Sort My Pile") return <button onClick={() => checkout("sortpile")} className="btn-ghost mt-4 w-full">Buy Sort My Pile</button>;
+    if (n === "Review Top-Up") return <button onClick={() => checkout("topup")} className="btn-ghost mt-4 w-full">Buy Review Top-Up</button>;
+    if (n === "Gift a Month") return <button onClick={() => checkout("gift")} className="btn-ghost mt-4 w-full">Buy Gift a Month</button>;
+    if (n === "Attorney Prep Pack") return <button onClick={() => checkout("attorney_prep_pack")} className="btn-ghost mt-4 w-full">Buy Attorney Prep Pack</button>;
+    return <button onClick={() => checkout("consultation")} className="btn-ghost mt-4 w-full">Buy One Conversation</button>;
+  }
+
   return (
     <div className="min-h-dvh">
       <SiteHeader active="pricing" />
@@ -524,72 +563,65 @@ function Pricing() {
           </div>
         )}
 
-        {/* One-time packs — a separate section BELOW memberships, so they never
-            compete with the subscription decision at the top (§12). */}
-        <section id="one-time" aria-label="One-time packs" className="mt-14">
-          <h2 className="text-2xl font-bold tracking-tight text-ink">One-time packs</h2>
-          <p className="mt-1.5 max-w-xl text-base leading-relaxed text-stone">Buy once, no subscription. Useful when a plan is more than you need right now.</p>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            {ONETIME.map(([n, p, d, included]) => (
-              <article key={n} className="card flex flex-col p-5">
-                <div className="flex items-baseline justify-between gap-3">
-                  <h3 className="text-lg font-semibold text-ink">{n}</h3>
-                  <p className="text-2xl font-semibold tabular-nums text-ink">{p}</p>
-                </div>
-                <p className="mt-2 flex-1 text-base leading-relaxed text-stone">{d}</p>
-                {n === "Record Review" ? (
-                  recordReview?.entitled && recordReview.kind === "purchased" ? (
-                    <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Record Review unlocked ✓</span>
-                  ) : recordReview?.entitled ? (
-                    // kind === "ultimate" — allowance available this year.
-                    <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>
-                  ) : (
-                    // Not entitled — Ultimate members who used their 1/year
-                    // allowance see the Buy button too (honest: they can buy more).
-                    <button onClick={() => checkout("record_review")} className="btn-ghost mt-4 w-full">Buy Record Review</button>
-                  )
-                ) : isUltimate && included ? (
-                  <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>
-                ) : n === "Attorney Prep Pack" && attorneyPrepOwned ? (
-                  <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Attorney Prep Pack unlocked ✓</span>
-                ) : n === "Sort My Pile" ? (
-                  <button onClick={() => checkout("sortpile")} className="btn-ghost mt-4 w-full">Buy Sort My Pile</button>
-                ) : n === "Review Top-Up" ? (
-                  <button onClick={() => checkout("topup")} className="btn-ghost mt-4 w-full">Buy Review Top-Up</button>
-                ) : n === "Gift a Month" ? (
-                  <button onClick={() => checkout("gift")} className="btn-ghost mt-4 w-full">Buy Gift a Month</button>
-                ) : n === "Attorney Prep Pack" ? (
-                  <button onClick={() => checkout("attorney_prep_pack")} className="btn-ghost mt-4 w-full">Buy Attorney Prep Pack</button>
-                ) : (
-                  <button onClick={() => checkout("consultation")} className="btn-ghost mt-4 w-full">Buy One Conversation</button>
-                )}
-              </article>
-            ))}
-          </div>
-          <p className="mt-3 text-sm text-stone">One-time, no subscription — or already included in Ultimate Co-Parent.</p>
-        </section>
-
-        {/* Comparison — a concise section farther down, not a top-level tab (§12). */}
+        {/* Comparison — a concise section farther down, not a top-level tab
+            (§12). Mobile (blocker #3): decision-first — a "Which plan fits
+            me?" guide, then the full list behind ONE collapsible surface with
+            per-feature accordion rows. NO repeated full-width cards. Desktop
+            keeps the unchanged comparison table. */}
         <section id="compare" aria-label="Compare plans" className="mt-14">
           <h2 className="text-2xl font-bold tracking-tight text-ink">Compare everything</h2>
           <p className="mt-1.5 max-w-xl text-base leading-relaxed text-stone">The full list, in one place.</p>
-          {/* Mobile card layout — one card per feature row. No table at
-              <md (audit TOP-10 #1 CRITICAL — the 4-col table is unreadable
-              at 390px; sticky-column bleed is sidestepped entirely). */}
-          <div className="mt-5 space-y-4 md:hidden">
-            {COMPARE_ROWS.map((r) => (
-              <div key={r[0]} className="card p-5">
-                <p className="font-semibold text-ink">{r[0]}</p>
-                <div className="mt-3 space-y-2">
-                  {["Free", "Steady", "Command", "Ultimate"].map((p, i) => (
-                    <div key={p} className="flex items-center justify-between gap-3">
-                      <span className={`text-sm ${i === 2 ? "font-semibold text-forest" : "text-stone"}`}>{p}</span>
-                      <span className={`text-sm ${i === 2 ? "font-semibold text-forest" : "text-ink"}`}>{r[i + 1]}</span>
+          {/* Mobile — compact progressive disclosure (<md). */}
+          <div className="mt-5 md:hidden">
+            <div className="card p-5">
+              <p className="font-semibold text-ink">Which plan fits me?</p>
+              <div className="mt-3 space-y-2">
+                {FIT_GUIDE.map(([k, line]) => (
+                  <div key={k} className="rounded-[10px] border border-line bg-cream-deep/50 px-3.5 py-2.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="text-sm font-semibold text-ink">{PLAN_META[k].name}</p>
+                      <p className="text-sm font-semibold tabular-nums text-forest">
+                        {money(price(k))}<span className="text-xs font-normal text-stone">/{isAnnual ? "yr" : "mo"}</span>
+                      </p>
                     </div>
-                  ))}
-                </div>
+                    <p className="mt-0.5 text-sm leading-snug text-stone">{line}</p>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+            <details className="group mt-4 overflow-hidden rounded-[14px] border border-line bg-card shadow-card">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <span className="text-sm font-semibold text-ink">Compare plans — full list</span>
+                <span className="flex items-center gap-1.5 text-sm text-stone">
+                  {COMPARE_ROWS.length} features
+                  <IconChevronDown className="h-4 w-4 text-stone transition-transform duration-200 group-open:rotate-180" />
+                </span>
+              </summary>
+              <div className="divide-y divide-line border-t border-line">
+                {COMPARE_ROWS.map((r) => {
+                  const headline = r[3] !== "—" ? r[3] : r[4] !== "—" ? r[4] : r[2];
+                  return (
+                    <details key={r[0]} className="group/row">
+                      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
+                        <span className="text-sm font-medium text-ink">{r[0]}</span>
+                        <span className="flex items-center gap-2 text-sm">
+                          <span className={r[3] !== "—" ? "font-semibold text-forest" : "text-stone"}>{headline}</span>
+                          <IconChevronDown className="h-3.5 w-3.5 shrink-0 text-stone transition-transform duration-200 group-open/row:rotate-180" />
+                        </span>
+                      </summary>
+                      <div className="px-4 pb-3 pt-1">
+                        {(["Free", "Steady", "Command", "Ultimate"] as const).map((p, i) => (
+                          <div key={p} className="flex items-center justify-between gap-3 py-1 text-sm">
+                            <span className={i === 2 ? "font-semibold text-forest" : "text-stone"}>{p}</span>
+                            <span className={i === 2 ? "font-semibold text-forest" : "text-ink"}>{r[i + 1]}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            </details>
           </div>
           {/* Desktop table — ≥md only, min-w [640px] so it fits without
               horizontal scroll at md; sticky first column keeps its bg. */}
@@ -614,6 +646,55 @@ function Pricing() {
               </tbody>
             </table>
           </div>
+        </section>
+
+        {/* One-time packs — BELOW the membership decision AND the comparison.
+            On mobile they sit behind a compact "One-time tools" disclosure
+            (auto-opens for ?tab=One-time deep links from the tools cards), so
+            they never compete with — or card-farm below — the plan choice. */}
+        <section id="one-time" aria-label="One-time packs" className="mt-14">
+          <h2 className="text-2xl font-bold tracking-tight text-ink">One-time packs</h2>
+          <p className="mt-1.5 max-w-xl text-base leading-relaxed text-stone">Buy once, no subscription. Useful when a plan is more than you need right now.</p>
+          {/* Mobile — one disclosure, compact rows, dimmer than the plan cards. */}
+          <details
+            className="group mt-5 overflow-hidden rounded-[14px] border border-line bg-card shadow-card md:hidden"
+            open={onetimeOpen}
+            onToggle={(e) => setOnetimeOpen(e.currentTarget.open)}
+          >
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <span className="text-sm font-semibold text-ink">One-time tools</span>
+              <span className="flex items-center gap-1.5 text-sm text-stone">
+                {ONETIME.length} items
+                <IconChevronDown className="h-4 w-4 text-stone transition-transform duration-200 group-open:rotate-180" />
+              </span>
+            </summary>
+            <div className="divide-y divide-line border-t border-line">
+              {ONETIME.map(([n, p, d, included]) => (
+                <div key={n} className="px-4 py-3.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h3 className="text-base font-semibold text-ink">{n}</h3>
+                    <p className="text-lg font-semibold tabular-nums text-ink">{p}</p>
+                  </div>
+                  <p className="mt-0.5 text-sm leading-relaxed text-stone">{d}</p>
+                  {oneTimeAction(n, included)}
+                </div>
+              ))}
+            </div>
+          </details>
+          {/* Desktop — the unchanged card grid (≥md only). */}
+          <div className="mt-5 hidden gap-4 sm:grid-cols-2 md:grid">
+            {ONETIME.map(([n, p, d, included]) => (
+              <article key={n} className="card flex flex-col p-5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="text-lg font-semibold text-ink">{n}</h3>
+                  <p className="text-2xl font-semibold tabular-nums text-ink">{p}</p>
+                </div>
+                <p className="mt-2 flex-1 text-base leading-relaxed text-stone">{d}</p>
+                {oneTimeAction(n, included)}
+              </article>
+            ))}
+          </div>
+          <p className="mt-3 text-sm text-stone">One-time, no subscription — or already included in Ultimate Co-Parent.</p>
         </section>
 
         {/* FAQ below the decision, not a mode (§12). */}
