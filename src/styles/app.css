@@ -341,6 +341,14 @@
   .input {
     @apply min-h-12 w-full rounded-xl border border-line bg-cream px-4 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none;
   }
+  /* /login quiet auth shell (§13) — static placeholder shapes that mirror the
+     signup card; no spinner, no "One moment…" loading-only surface. */
+  .login-shell {
+    min-height: 16rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
   .card {
     @apply rounded-[14px] border border-line bg-card shadow-card;
   }
