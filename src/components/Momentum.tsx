@@ -23,13 +23,13 @@ export default function Momentum({ weekCount, recent }: Props) {
   }
 
   return (
-    <div className="rounded-3xl border border-line bg-card p-6 shadow-card">
+    <div className="card p-5">
       <p className="text-sm text-stone">This week</p>
       <p className="mt-1 font-display text-2xl font-semibold text-forest">
         {weekCount} message{weekCount === 1 ? "" : "s"} reviewed this week
       </p>
       {scores.length === 1 && (
-        <p className="mt-3 text-base text-stone">Last message: {scores[0]}</p>
+        <p className="mt-3 text-base text-stone">Last message impact: <span className="tabular-nums">{scores[0]}</span> of 100</p>
       )}
       {scores.length >= 2 && (
         <div className="mt-3 border-t border-line pt-4">

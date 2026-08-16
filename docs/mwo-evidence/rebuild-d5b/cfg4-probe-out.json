@@ -1,0 +1,71 @@
+[
+  {
+    "gate": "(c0) tail noise (no interaction, clean URL)",
+    "verdict": "INFO",
+    "detail": {
+      "count": 0,
+      "reqs": []
+    }
+  },
+  {
+    "gate": "(c1) pushState dirty only",
+    "verdict": "CHECK",
+    "detail": {
+      "count": 2,
+      "reqs": [
+        "googleads.g.doubleclick.net/pagead/viewthroughconversion/182",
+        "www.google.com/ccm/collect"
+      ]
+    }
+  },
+  {
+    "gate": "(c2) click Get Steady CLEAN",
+    "verdict": "PASS",
+    "detail": {
+      "clickedClean": "Get Steady",
+      "clean3p": [
+        "googleads.g.doubleclick.net/pagead/viewthroughconversion/182",
+        "www.google.com/ccm/collect",
+        "www.google-analytics.com/g/collect"
+      ],
+      "clean1p": 4
+    }
+  },
+  {
+    "gate": "(c) track dirty vs clean (corrected)",
+    "verdict": "FAIL",
+    "detail": {
+      "clickedDirty": "Get Steady",
+      "dirty3p": [
+        "googleads.g.doubleclick.net/pagead/viewthroughconversion/182",
+        "www.google.com/ccm/collect"
+      ],
+      "dirty1p": 3,
+      "cleanControl": {
+        "clean3p": [
+          "googleads.g.doubleclick.net/pagead/viewthroughconversion/182",
+          "www.google.com/ccm/collect",
+          "www.google-analytics.com/g/collect"
+        ],
+        "clean1p": 4
+      }
+    }
+  },
+  {
+    "gate": "(f) CTA->401->?next= login link",
+    "verdict": "PASS",
+    "detail": {
+      "clickedF": "Get Steady",
+      "needLoginHref": "/login?next=%2Fpricing",
+      "signInMsg": true
+    }
+  },
+  {
+    "gate": "(f2) checkout=success scrub",
+    "verdict": "PASS",
+    "detail": {
+      "afterScrub": "TIMEOUT",
+      "confirmMsgShown": "TIMEOUT"
+    }
+  }
+]

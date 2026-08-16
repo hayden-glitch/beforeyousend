@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { track } from "~/lib/analytics";
+import { valueDelivered } from "~/lib/offer";
 import {
   trialDismissed,
   markTrialDismissed,
@@ -14,17 +15,19 @@ import {
 } from "~/lib/trial";
 import { IconClose } from "~/components/icons";
 
-// 24-hour free trial modal (owner direction 2026-08-13). Short, kind, direct:
-// a dad dwelling on pricing (2s) or a high-intent page (10s) gets one quiet
-// offer of a REAL free 24 hours — the full paid experience, no card, no catch,
-// one per person ever. Never on /quiz /confirm /onboarding /owner /verification
-// /redeem; never for paid users, active-trial users, prior-trial users, or
-// anyone who dismissed (30-day cookie). Mutually exclusive with the Special
-// Offer (shared window lock — one modal at a time; the trial wins on /pricing
-// by firing first). Device-aware pay row: the visitor's OWN phone's tap-to-pay
-// mark (Apple Pay on iOS, Google Pay on Android) is a little more prominent,
-// the main cards small beside it — desktop gets a plain card row. No urgency
-// words anywhere; the trial is real.
+// 24-hour free trial modal (owner direction 2026-08-13; GPT cleanup
+// 2026-08-16). Short, kind, direct: a dad dwelling on a high-intent page
+// (10s) gets one quiet offer of a REAL free 24 hours — the full paid
+// experience, no card, no catch, one per person ever. On /pricing the SAME
+// offer is an explicit inline action (never an automatic modal over the
+// comparison — see pricing.tsx openTrial / the bys:open-trial listener
+// below). Never on /quiz /confirm /onboarding /owner /verification /redeem;
+// never for paid users, active-trial users, prior-trial users, or anyone who
+// dismissed (30-day cookie). Mutually exclusive with the Special Offer
+// (shared window lock — one modal at a time). Device-aware pay row: the
+// visitor's OWN phone's tap-to-pay mark (Apple Pay on iOS, Google Pay on
+// Android) is a little more prominent, the main cards small beside it —
+// desktop gets a plain card row. No urgency words anywhere; the trial is real.
 
 const TRIAL_FAST = "/pricing";
 const TRIAL_SLOW = ["/", "/faq", "/about", "/consultations", "/login", "/contact", "/trust"];
@@ -191,6 +194,15 @@ export default function TrialModal() {
   // /login with the 3-question intake showing is deferred too (owner
   // 2026-08-13): the intake IS the engagement; the trial starts quietly at
   // account confirm for anyone who carried intent.
+  // Value gate (conversion-cycle-1, owner 2026-08-13): on / and /login the
+  // offer never fires before a review completes in this session — the reward
+  // lands first, the ask comes after (mirrors SpecialOffer's value gate).
+  // /pricing was EXEMPT by owner decision (2026-08-13) with a fast ~2s idle
+  // trigger; GPT cleanup (2026-08-16): that automatic 2s modal is GONE — the
+  // pricing offer is now an explicit inline action (bys:open-trial below),
+  // so the value-gate lines below only matter for the remaining auto-dwell
+  // paths. Read FRESH at fire time from sessionStorage, so a late delivery
+  // still un-gates / and /login.
   const gated = useCallback(
     () =>
       TRIAL_NEVER.includes(pathname) ||
@@ -199,35 +211,73 @@ export default function TrialModal() {
       modalOpen() ||
       trialShownThisSession() ||
       trialDismissed() ||
+      (pathname !== TRIAL_FAST && !valueDelivered()) ||
       auth === null ||
       !auth.eligible,
     [pathname, auth]
   );
 
-  // Dwell timer: /pricing after ~2s, high-intent pages after ~10s. Re-armed on
-  // path change. Gating is re-checked at FIRE time, never stale.
+  // Dwell timer: high-intent pages after ~10s. /pricing is deliberately NOT
+  // armed — GPT cleanup (2026-08-16): the trial offer there is an explicit
+  // inline action, never an automatic modal over the plan comparison. Re-armed
+  // on path change AND on value delivery (bys:checkin-value, dispatched by
+  // ReviewTool/home right after markValueDelivered) — a visitor who lands
+  // before reviewing must still get the offer after their first review, not
+  // miss it because the pre-value arm already elapsed. Gating is re-checked at
+  // FIRE time, never stale.
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [valueAt, setValueAt] = useState(0);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const dwell = pathname === TRIAL_FAST ? 2000 : 10000;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = null;
-    if (show || gated()) return;
-    timerRef.current = setTimeout(() => {
+    const arm = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = null;
-      if (!gated()) {
-        setShow(true);
-        claimModal();
-        markTrialShown();
-        track("trial_modal_shown", { path: pathname });
-      }
-    }, dwell);
+      if (show || gated()) return;
+      if (pathname === TRIAL_FAST) return; // explicit inline action only on pricing
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        if (!gated()) {
+          setShow(true);
+          claimModal();
+          markTrialShown();
+          track("trial_modal_shown", { path: pathname });
+        }
+      }, 10000);
+    };
+    // Named handler so cleanup removes the SAME listener (Codex finding
+    // 2026-08-13: add/remove used two different anonymous fns, so the cleanup
+    // never detached anything and the listener leaked on every pathname/show/
+    // auth change). Same named-handler pattern as CoParentCheckIn.tsx.
+    const onCheckinValue = () => setValueAt((v) => v + 1);
+    arm();
+    window.addEventListener("bys:checkin-value", onCheckinValue);
     return () => {
+      window.removeEventListener("bys:checkin-value", onCheckinValue);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, show, auth, gated]);
+  }, [pathname, show, auth, gated, valueAt]);
+
+  // GPT cleanup (2026-08-16): explicit-open path — pricing's inline
+  // `Free 24 hours · no card` button dispatches bys:open-trial. This is a
+  // DELIBERATE user action, so it does NOT count against the once-per-session
+  // flag and is not value-gated: if the visitor just closed the sheet they may
+  // choose to open it again. The real eligibility rules are unchanged and are
+  // enforced here (one trial per person ever, 30-day dismiss, paid users,
+  // active-trial users, and never while another dialog holds the lock).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onOpenRequest = () => {
+      if (show || modalOpen() || trialDismissed() || auth === null || !auth.eligible) return;
+      setShow(true);
+      claimModal();
+      markTrialShown();
+      track("trial_modal_shown", { path: pathname, source: "pricing_inline" });
+    };
+    window.addEventListener("bys:open-trial", onOpenRequest);
+    return () => window.removeEventListener("bys:open-trial", onOpenRequest);
+  }, [show, auth, pathname]);
 
   // Release the shared lock when the modal closes for ANY reason.
   useEffect(() => {
@@ -330,7 +380,7 @@ export default function TrialModal() {
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="bys-sheet absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-[2rem] border-t-2 border-forest bg-card p-6 shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[2rem] sm:border-2"
+        className="bys-sheet absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-[14px] border-t border-line bg-card p-6 shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[14px] sm:border"
       >
         <div className="bys-grabber" aria-hidden="true" />
         <div className="flex items-start justify-between gap-4">
@@ -350,9 +400,9 @@ export default function TrialModal() {
           A free 24 hours of Before You Send.
         </h2>
         <p className="mt-2 text-base leading-relaxed text-stone">
-          We think you'd be a good fit — see for yourself. No card, no catch.
+          The full experience, free for one day. No card, no catch.
         </p>
-        <div className="mt-4 rounded-2xl border border-line bg-cream-deep/60 px-4 py-3">
+        <div className="mt-4 rounded-xl border border-line bg-cream-deep/60 px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-forest-soft">
             Everything, unlocked for one day
           </p>

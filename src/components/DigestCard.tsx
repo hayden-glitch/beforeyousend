@@ -79,7 +79,7 @@ export default function DigestCard({ digest, tier, onGoLog }: Props) {
       : null;
 
   return (
-    <div className="rounded-3xl border border-line bg-card p-6 shadow-card">
+    <div className="card p-5">
       <p className="text-sm text-stone">Your week in messages</p>
       <p className="mt-1 font-display text-2xl font-semibold text-forest">
         {reviewed} reviewed · {sent} sent
@@ -95,7 +95,7 @@ export default function DigestCard({ digest, tier, onGoLog }: Props) {
       {toneLine && <p className="mt-1 text-base text-stone">{toneLine}</p>}
 
       {scores.length === 1 && (
-        <p className="mt-3 text-base text-stone">Last message: {scores[0]}</p>
+        <p className="mt-3 text-base text-stone">Last message impact: <span className="tabular-nums">{scores[0]}</span> of 100</p>
       )}
       {scores.length >= 2 && (
         <div className="mt-3 border-t border-line pt-4">

@@ -44,6 +44,7 @@ export default function CoParentCheckIn() {
   const [skipped, setSkipped] = useState(false);
   const [rec, setRec] = useState<CheckinRec | null>(null);
   const [busy, setBusy] = useState(false);
+  const [needLogin, setNeedLogin] = useState(false);
   const [msg, setMsg] = useState("");
   const [paid, setPaid] = useState(false);
   const [animKey, setAnimKey] = useState(0); // re-mounts step content (120ms fade/slide)
@@ -270,15 +271,10 @@ export default function CoParentCheckIn() {
       const r = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan: rec.plan,
-          interval: "month",
-          checkin: true,
-          q1: q1 || undefined,
-          q2: q2 || undefined,
-          q3: q3 || undefined,
-          rec: rec.rec,
-        }),
+        // Track B items 2+3: only the plan + checkin marker ride the request —
+        // the answers (q1/q2/q3/rec) never leave this device, so nothing
+        // sensitive can reach Stripe metadata or any URL.
+        body: JSON.stringify({ plan: rec.plan, interval: "month", checkin: true }),
       });
       const d = await r.json();
       if (d.url) {
@@ -286,12 +282,17 @@ export default function CoParentCheckIn() {
         location.href = d.url;
         return;
       }
+      if (r.status === 401 || d.login_required) {
+        setMsg("Sign in to finish — your answers are still on this page, and your purchase will be linked to your account.");
+        setNeedLogin(true);
+        return;
+      }
       setMsg(d.error || "Checkout is not available right now.");
     } catch {
       setMsg("Checkout is not available right now.");
     }
     setBusy(false);
-  }, [rec, q1, q2, q3]);
+  }, [rec]);
 
   if (group !== "on") return null;
 
@@ -308,7 +309,7 @@ export default function CoParentCheckIn() {
         <div
           className={`fixed z-[35] left-1/2 w-[92vw] max-w-md -translate-x-1/2 ${pathname === "/home" ? "bottom-[max(calc(84px+env(safe-area-inset-bottom)),5.5rem)]" : "bottom-[max(12px,env(safe-area-inset-bottom))]"}`}
         >
-          <div className="flex items-center gap-3 rounded-full border border-forest/30 bg-forest py-3 pl-5 pr-3 shadow-lg">
+          <div className="flex items-center gap-3 rounded-2xl border border-forest/30 bg-forest py-3 pl-5 pr-3 shadow-lg">
             <button
               type="button"
               onClick={open}
@@ -504,6 +505,11 @@ export default function CoParentCheckIn() {
                 {msg}
               </p>
             )}
+        {needLogin && (
+          <a href={`/login?next=${encodeURIComponent(pathname + window.location.search)}`} className="btn-primary mt-3 block w-full text-center">
+            Sign in to continue
+          </a>
+        )}
           </div>
         </div>
       )}

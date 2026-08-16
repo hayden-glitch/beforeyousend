@@ -3,12 +3,15 @@
 import Stripe from "stripe";
 import * as crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
-import { readUsers, writeUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, insertConsultation, getTrial, startTrial, clearMetrics, customerMetrics } from "./storage";
+import { readUsers, readReviews, writeReviews, pruneReviews, deleteUserData, readLog, writeLog, readTimeline, writeTimeline, addSignup, signupReviews, reviewsThisMonth, incrementAnonReview, incrementAnonReviewVid, refundAnonReview, userReviewUsage, anonReviewVidUsed, incrementUserReview, refundUserReview, upsertSessionFromPageView, getSessionAttribution, paidEventRecent, addEvent, metricsSummary, eventsForVid, upsertAuthSession, getAuthSession, deleteAuthSession, purgeExpiredAuthSessions, upsertConfirmToken, getConfirmToken, deleteConfirmToken, purgeExpiredConfirmTokens, confirmRateHit, organizerTrialCount, markOrganizerTrial, incrementOrganizerTrialIp, readOrganizerFiles, readOrganizerFilesMeta, addOrganizerFile, deleteOrganizerFile, deleteReview, updateOrganizerFile, organizerClassifyCountToday, incrementOrganizerClassify, deleteSignups, purgeOldSignups, readReviewsForUser, readLogForUser, readTimelineForUser, readCaseSummary, writeCaseSummary, readActionCenter, writeActionCenter, addSessionPlay, sessionPlayForVisitor, upsertTikTokToken, readTikTokToken, addTikTokPublish, readTikTokPublishes, insertReviewEvent, updateReviewEventSent, reviewEventsRecent, reviewEventsWeekCount, reviewEventsCountToday, findRecentReviewedLog, insertGiftCode, getGiftCode, getGiftCodeBySession, redeemGiftCode, giftCodesForGiver, reviewEventsDigest, updateUserProfile, adjustUserCredits, appendProcessedSession, grantTopUp, grantSortPile, grantEntitlement, grantSubscription, setUserPassword, confirmUser, extendGiftUntil, clearSubscriptionExpiry, insertConsultation, insertAttorneyPack, insertRecordReview, attorneyPacksForUser, recordReviewsForUser, saveRecordReviewReport, latestRecordReviewReport, deleteRecordReviewBySession, getTrial, startTrial, clearMetrics, customerMetrics, claimFulfillment, getFulfillmentClaim, markFulfillmentProcessed, reclaimFulfillment, releaseFulfillmentClaim, deleteFulfillmentClaimsByUser } from "./storage";
 import { computeImpactScore } from "./impactScore";
+import { buildRecordReview } from "./recordReview";
 import { TAXONOMY, folderBySlug } from "./taxonomy";
 // Shared rule classifier (landing "Sort one thing free" demo + Organizer
 // fallback + Sort My Pile rule path) — single source of truth, see ruleClassify.ts.
 import { ruleFolderFor, fallbackOrganizerClassify, RECORD_HEALTH_MISSING_RULES } from "./ruleClassify";
+import { expDate, expEsc, buildExportSectionsHtml, exportPackCss } from "./exportPack";
+import { buildAttorneyPack } from "./attorneyPack";
 
 
 var TIER_LIMITS = { free: 5, steady: 30, command: Infinity, ultimate: Infinity };
@@ -57,6 +60,43 @@ function sortPileActive(user) {
 function organizerEnabled(user) {
   const t = userTier(user);
   return t === "command" || t === "ultimate" || sortPileActive(user);
+}
+// Attorney Prep Pack (one-time, 2026-08-12): entitlement = Ultimate tier OR a
+// durable paid grant. The grant is stamped on profile.attorneyPrep at verified
+// paid confirm (sync fast-path for pricing/UI); the canonical durable row is
+// bys_attorney_packs, written in the same confirm (session_id UNIQUE, mirrors
+// bys_consultations). Re-download stays possible — the grant IS the entitlement;
+// pack generation/download is a later build. Server gates must never trust the
+// client: check this helper (and the durable row where the stamp is missing).
+function attorneyPrepEntitled(user) {
+  if (userTier(user) === "ultimate") return true;
+  return user?.profile?.attorneyPrep === true;
+}
+// Record Review (one-time $29.50, 2026-08-13, Stage 1 money path): entitlement =
+// (a) a durable purchased grant (kind='purchase' row — permanent) OR (b) Ultimate
+// tier with an unused annual allowance (no redemption row in the rolling 365-day
+// window — Ultimate gets 1 per year). Every confirm/redeem writes a durable row
+// (bys_record_reviews, session_id UNIQUE, kind purchase|redemption) so the
+// 1/year window is enforced server-side by created_at. Read failure degrades to
+// not-entitled (Buy button) — the pricing card never shows a false unlock.
+// Shape: { entitled, kind: 'ultimate'|'purchased'|'none', nextAvailableAt? }.
+async function recordReviewEntitlement(user) {
+  if (user?.profile?.recordReview === true) return { entitled: true, kind: "purchased" };
+  let rows = [];
+  try {
+    rows = await recordReviewsForUser(user.id);
+  } catch (err) {
+    console.warn("[record-review] entitlement read failed:", err);
+  }
+  if (rows.some((r) => r.kind === "purchase")) return { entitled: true, kind: "purchased" };
+  if (userTier(user) === "ultimate") {
+    const DAY = 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - 365 * DAY;
+    const inWindow = rows.map((r) => new Date(r.createdAt).getTime()).filter((t) => t > cutoff).sort((a, b) => a - b);
+    if (inWindow.length === 0) return { entitled: true, kind: "ultimate" };
+    return { entitled: false, kind: "none", nextAvailableAt: new Date(inWindow[0] + 365 * DAY).toISOString() };
+  }
+  return { entitled: false, kind: "none" };
 }
 // Gift-code alphabet: 32 chars (no I/L/O/0/1) -> 8 chars ~ 1.1e12 combos.
 // Single-use + auth'd redeem makes brute force infeasible.
@@ -107,7 +147,11 @@ function resolveLLM() {
   return { key, base: base2, model };
 }
 var llm = resolveLLM();
-var isProd2 = false;
+// Restored runtime production detection (Codex a96c03f): hardcoding `false`
+// here silently enabled the DEV-only sample fallback for REAL drafts in
+// production whenever a provider key was missing. Mirror serve.ts's isProd —
+// production never serves the deterministic sample to a real draft.
+var isProd2 = process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
 var fallbackAllowed = !isProd2 && process.env.ALLOW_DEV_FALLBACK !== "0";
 if (!llm && fallbackAllowed) {
   console.warn("[review] No LLM key configured (SAMBANOVA_API_KEY / OPENAI_API_KEY / LLM_API_KEY) — using the DEV-ONLY sample fallback. Set a key to serve live reviews.");
@@ -580,12 +624,10 @@ async function handleReview(req) {
         // a successful stream (lazy, like the anon slot), so a failed or
         // killed stream can never burn a paid credit. Re-reads the user row so
         // a concurrent write (top-up, tier change) isn't clobbered.
-        claimSignedIn = () => readUsers().then((users2) => {
-          const u2 = users2.find((x3) => x3.id === u.id);
-          if (u2 && Number(u2.profile?.credits || 0) > 0) {
-            u2.profile = { ...u2.profile || {}, credits: Number(u2.profile?.credits || 0) - 1 };
-            return writeUsers(users2);
-          }
+        // Track B Round 4: atomic single-row decrement (only when the row
+        // still has credits) — never a whole-table snapshot flush.
+        claimSignedIn = () => adjustUserCredits(u.id, -1, true).then((claimed) => {
+          if (claimed === null) console.warn("[review] credit claim skipped: no credits left");
         }).catch((err) => console.warn("[review] credit claim failed:", err));
       } else {
         const limit = reviewLimitFor(u);
@@ -779,10 +821,26 @@ async function handleReview(req) {
         if (!example && !session) {
           refundAnonReview(ip).catch((e2) => console.warn("[review] ip refund failed:", e2));
         }
-        try {
-          controller.enqueue(enc.encode(JSON.stringify({ type: "error", message, ...(errCode ? { code: errCode } : {}) }) + `
+        // Example resilience (Codex defense-in-depth): the labeled homepage
+        // example must ALWAYS complete — when a provider failure hits the
+        // example path, nothing streamed, and the client has not aborted,
+        // replay the deterministic sample and finish cleanly. Real drafts
+        // never take this branch; they keep the honest error event below.
+        if (example && collected.length === 0 && !ac.signal.aborted) {
+          try {
+            for (const ev of fallbackEvents(draft)) {
+              controller.enqueue(enc.encode(ev + `
 `));
-        } catch {}
+            }
+            controller.enqueue(enc.encode(JSON.stringify({ type: "done" }) + `
+`));
+          } catch {}
+        } else {
+          try {
+            controller.enqueue(enc.encode(JSON.stringify({ type: "error", message, ...(errCode ? { code: errCode } : {}) }) + `
+`));
+          } catch {}
+        }
       } finally {
         try {
           controller.close();
@@ -857,12 +915,10 @@ async function handleAnalyze(req) {
       // Credits path: READ-ONLY gate here — the credit is claimed only after
       // a successful stream (lazy, like the anon slot), so a failed or
       // killed stream can never burn a paid credit.
-      claimSignedIn = () => readUsers().then((users2) => {
-        const u2 = users2.find((x3) => x3.id === u.id);
-        if (u2 && Number(u2.profile?.credits || 0) > 0) {
-          u2.profile = { ...u2.profile || {}, credits: Number(u2.profile?.credits || 0) - 1 };
-          return writeUsers(users2);
-        }
+      // Track B Round 4: atomic single-row decrement (only when the row
+      // still has credits) — never a whole-table snapshot flush.
+      claimSignedIn = () => adjustUserCredits(u.id, -1, true).then((claimed) => {
+        if (claimed === null) console.warn("[analyze] credit claim skipped: no credits left");
       }).catch((err) => console.warn("[analyze] credit claim failed:", err));
     } else {
       const limit = reviewLimitFor(u);
@@ -1469,7 +1525,7 @@ async function handleConfirm(req) {
     await writeReviews((await readReviews()).concat(signupAdopt.map(function (x) { return { id: crypto.randomUUID(), userId: user.id, draft: x.draft, blocks: [], review: x.review, createdAt: x.ts }; })));
     await deleteSignups(user.email);
   }
-  await writeUsers(users);
+  await confirmUser(user.id, user.email, user.confirmedAt, intake);
   await deleteConfirmToken(t);
   const st = token();
   const exp = Date.now() + SESSION_TTL_MS;
@@ -1524,11 +1580,11 @@ async function handlePassword(req) {
           return json3({ error: "That's not the current password — try again." }, 400);
       }
       su.password = await hashPassword(password);
-      await writeUsers(users);
+      await setUserPassword(su.id, su.email, su.password);
       return json3({ ok: true, user: { id: su.id, email: su.email, profile: su.profile } }, 200);
     }
     su.password = await hashPassword(password);
-    await writeUsers(users);
+    await setUserPassword(su.id, su.email, su.password);
     return json3({ ok: true, user: { id: su.id, email: su.email, profile: su.profile } }, 200);
   }
   const pending = await getConfirmToken(t);
@@ -1565,7 +1621,7 @@ async function handlePassword(req) {
     await writeReviews((await readReviews()).concat(signupAdopt.map(function (x) { return { id: crypto.randomUUID(), userId: user.id, draft: x.draft, blocks: [], review: x.review, createdAt: x.ts }; })));
     await deleteSignups(user.email);
   }
-  await writeUsers(users);
+  await setUserPassword(user.id, user.email, user.password, user.confirmedAt, user.createdAt);
   await deleteConfirmToken(t);
   const st = token();
   const exp = Date.now() + SESSION_TTL_MS;
@@ -1671,7 +1727,7 @@ async function handleSignup(req) {
     await writeReviews((await readReviews()).concat(signupAdopt.map(function (x) { return { id: crypto.randomUUID(), userId: user.id, draft: x.draft, blocks: [], review: x.review, createdAt: x.ts }; })));
     await deleteSignups(user.email);
   }
-  await writeUsers(users);
+  await setUserPassword(user.id, user.email, user.password, user.confirmedAt, user.createdAt, intake);
   const st = token();
   const exp = Date.now() + SESSION_TTL_MS;
   // A2 (owner's auto-logout report): persist the session in Neon BEFORE
@@ -1721,7 +1777,7 @@ async function handleTrialStart(req) {
   if (!row || !created)
     return json3({ error: "You've already used your free trial." }, 409);
   u.profile = { ...(u.profile || {}), trialUntil: row.expiresAt };
-  try { await writeUsers(users); } catch (err) { console.warn("[trial] profile mirror failed:", err); }
+  try { await updateUserProfile(u.id, { trialUntil: row.expiresAt }); } catch (err) { console.warn("[trial] profile mirror failed:", err); }
   addEvent({ vid: visitorVid(req) || "server", name: "trial_start", meta: { source: "trial_modal" } }).catch(function (err) { console.warn("[trial] event failed:", err); });
   return json3({ ok: true, expiresAt: row.expiresAt });
 }
@@ -1755,7 +1811,7 @@ async function authMe(req) {
   var needsKidBackfill = kidList.some(function (c) { return !c || typeof c.id !== "string" || !c.id; });
   if (needsKidBackfill) {
     u.profile = { ...(u.profile || {}), children: kidList.map(function (c) { return c && typeof c.id === "string" && c.id ? c : { ...(c || {}), id: crypto.randomUUID() }; }) };
-    try { await writeUsers(users); } catch (err) { console.warn("[authMe] child id backfill failed:", err); }
+    try { await updateUserProfile(u.id, { children: u.profile.children }); } catch (err) { console.warn("[authMe] child id backfill failed:", err); }
   }
   // 24-hour free trial: the bys_trials row is the durable record; mirror its
   // expires_at onto profile.trialUntil so the synchronous userTier() gate
@@ -1771,7 +1827,7 @@ async function authMe(req) {
       const cur = u.profile?.trialUntil ? new Date(u.profile.trialUntil).getTime() : 0;
       if (Math.abs(cur - exp) > 1000) {
         u.profile = { ...(u.profile || {}), trialUntil: tr.expiresAt };
-        try { await writeUsers(users); } catch (err) { console.warn("[authMe] trial mirror backfill failed:", err); }
+        try { await updateUserProfile(u.id, { trialUntil: tr.expiresAt }); } catch (err) { console.warn("[authMe] trial mirror backfill failed:", err); }
       }
     } else {
       trial = { active: false, expiresAt: null, used: false };
@@ -1821,7 +1877,19 @@ async function authMe(req) {
     },
     organizerTrial: { used: orgTrialCount >= ORGANIZER_TRIAL_LIMIT, remaining: Math.max(0, ORGANIZER_TRIAL_LIMIT - orgTrialCount), count: orgTrialCount },
     organizerFiles: { hasAny: hasOrgFiles },
-    trial
+    trial,
+    entitlements: {
+      // Attorney Prep Pack: Ultimate tier OR a durable paid grant. Server-side
+      // authority (never trust the client); the pricing card reads this to show
+      // "Already included in Ultimate" / "unlocked" instead of a Buy button.
+      attorneyPrep: attorneyPrepEntitled(u),
+// Record Review (2026-08-13): purchased grant (permanent) OR Ultimate
+      // 1/year allowance. Server-side authority (never trust the client); the
+      // pricing card reads this to show "Record Review unlocked" / "Already
+      // included in Ultimate" instead of a Buy button. Read failure degrades
+      // to not-entitled (Buy button) — never a false unlock.
+      recordReview: await recordReviewEntitlement(u).catch(() => ({ entitled: false, kind: "none" }))
+    }
   }, 200, { "Set-Cookie": sessionCookies(req, s.token, 2592000) });
 }
 async function authLogout(req) {
@@ -1840,6 +1908,38 @@ async function handleAccountDelete(req) {
   const u = users.find((x2) => x2.id === s.userId);
   if (!u)
     return json3({ error: "Account not found." }, 404);
+  // Track B item 8: never orphan a live renewing subscription. Cancel it FIRST
+  // (so no further renewals can charge after the account is gone); only delete
+  // the app user once the subscription is confirmed cancelled. QA preview
+  // (BYS_PAYMENTS_QA_GUARD) simulates the cancel so destructive tests can run
+  // without touching Stripe; the log proves the cancel was attempted.
+  const subId = u.profile?.stripeSubscriptionId;
+  const custId = u.profile?.stripeCustomerId;
+  if (subId && custId && u.profile?.tier && u.profile.tier !== "free") {
+    if (process.env.BYS_PAYMENTS_QA_GUARD === "true") {
+      // P0 hotfix (work order 5300912458): never log the subscription id —
+      // the QA line proves the cancel was attempted without exposing it.
+      console.warn("[account-delete] QA guard: simulating subscription cancellation (no Stripe call)");
+    } else if (process.env.STRIPE_SECRET_KEY) {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
+      try {
+        await stripe.subscriptions.cancel(subId);
+        // P0 hotfix: bounded log — no subscription id, no app user id.
+        console.log("[account-delete] subscription cancelled before account deletion");
+      } catch (err) {
+        // P0 hotfix: never dump the raw Stripe exception (it can embed ids,
+        // emails, request/response bodies, headers). Emit bounded non-sensitive
+        // operational status only: error class/code + HTTP status code.
+        const e = err as { type?: unknown; code?: unknown; statusCode?: unknown };
+        const cls = typeof e.type === "string" && e.type ? e.type : typeof e.code === "string" && e.code ? e.code : "unknown";
+        const sc = typeof e.statusCode === "number" ? e.statusCode : 0;
+        console.error(`[account-delete] subscription cancel failed: class=${String(cls)} statusCode=${sc}`);
+        return json3({ error: "We couldn't cancel your subscription yet. Cancel it in your billing portal first (Settings → Manage billing), then delete your account.", cancel_required: true }, 502);
+      }
+    } else {
+      return json3({ error: "We couldn't verify your subscription's status. Cancel it in your billing portal first (Settings → Manage billing), then delete your account.", cancel_required: true }, 502);
+    }
+  }
   await deleteUserData(u.id, u.email);
   sessions.delete(s.token);
   deleteAuthSession(s.token).catch(() => {});
@@ -2026,6 +2126,9 @@ async function handleGiftPurchase(req) {
   const s = getSession(req);
   if (!s)
     return json3({ error: "Sign in required." }, 401);
+  const qb = qaPaymentsBlocked();
+  if (qb)
+    return qb;
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
   const giftPrice = await resolveStripePrice(stripe, "gift", "month");
   const origin2 = new URL(req.url).origin;
@@ -2097,16 +2200,15 @@ async function handleGiftRedeem(req) {
   if (new Date(g.createdAt).getTime() < Date.now() - 90 * 24 * 60 * 60 * 1000)
     return json3({ error: "That code has expired." }, 410);
   if (g.giverId === u.id)
-    return json3({ error: "This is your own gift code — share it with another dad." }, 400);
+    return json3({ error: "This is your own gift code — share it with another co-parent." }, 400);
   const claimed = await redeemGiftCode(code, u.id);
   if (!claimed)
     return json3({ error: "That code has already been used." }, 409);
   // Roll forward from the latest of now / any banked gift / any paid renews-at,
-  // so a gift redeemed under a paid account is banked, not wasted.
-  const base = Math.max(Date.now(), new Date(u.profile?.giftUntil || 0).getTime(), new Date(u.profile?.tierRenewsAt || 0).getTime());
-  const validUntil = new Date(base + 30 * 24 * 60 * 60 * 1000).toISOString();
-  u.profile = { ...u.profile || {}, giftUntil: validUntil };
-  await writeUsers(users);
+  // so a gift redeemed under a paid account is banked, not wasted. Computed in
+  // SQL from the CURRENT row (Track B Round 4) so a concurrent grant on the
+  // same account is preserved and two redemptions stack.
+  const validUntil = (await extendGiftUntil(u.id)) || new Date(Math.max(Date.now(), new Date(u.profile?.giftUntil || 0).getTime(), new Date(u.profile?.tierRenewsAt || 0).getTime()) + 30 * 24 * 60 * 60 * 1000).toISOString();
   return json3({ ok: true, validUntil });
 }
 async function handleReviews(req, method) {
@@ -2178,11 +2280,15 @@ async function handleProfile(req) {
   const u = users.find((x2) => x2.id === s.userId);
   if (!u)
     return json3({ error: "Account not found." }, 404);
+  // Track B Round 4: collect ONLY the keys this request changed and persist
+  // them as a row-scoped JSONB merge — never a whole-table snapshot flush.
+  let profilePatch: any = null;
   // Onboarding payloads always send name+situation+help together; only run the
   // full overwrite when at least one of those keys is present, so a children-only
   // POST (Organizer child-folder capture) never wipes the dad's profile fields.
   if (b2.name !== undefined || b2.situation !== undefined || b2.help !== undefined) {
     u.profile = { ...u.profile || {}, name: String(b2.name || "").slice(0, 100), situation: Array.isArray(b2.situation) ? b2.situation.slice(0, 10) : [], help: Array.isArray(b2.help) ? b2.help.slice(0, 10) : [], completed: true };
+    profilePatch = { ...(profilePatch || {}), name: u.profile.name, situation: u.profile.situation, help: u.profile.help, completed: true };
   }
   // profile.children — JSONB merge (NEVER the full-overwrite path above): the
   // child's folder is the emotional centerpiece; first entry is the folder's
@@ -2210,6 +2316,7 @@ async function handleProfile(req) {
       // are his own organizer rows, never keyed to the child slot). The
       // child-scoped Exchange Tone ratings + to-do lists go with the folder.
       u.profile = { ...u.profile || {}, children: [], weekRatings: {}, todos: {} };
+      profilePatch = { ...(profilePatch || {}), children: [], weekRatings: {}, todos: {} };
     } else if (!kids.length) {
       return json3({ error: "A child's name needs at least one character." }, 400);
     } else if (kids.length === 1 && backfilled.length > 0) {
@@ -2225,11 +2332,14 @@ async function handleProfile(req) {
         // its own id, but the existing slot is the authority once assigned).
         nextKids[matchIdx] = { ...kids[0], id: backfilled[matchIdx]?.id || kids[0].id };
         u.profile = { ...u.profile || {}, children: nextKids };
+        profilePatch = { ...(profilePatch || {}), children: nextKids };
       } else {
         u.profile = { ...u.profile || {}, children: backfilled.concat(kids).slice(0, 4) };
+        profilePatch = { ...(profilePatch || {}), children: u.profile.children };
       }
     } else {
       u.profile = { ...u.profile || {}, children: kids };
+      profilePatch = { ...(profilePatch || {}), children: kids };
     }
   }
   // Batch 2 (Design 1): one-tap weekly Exchange Tone rating — a dad's OWN
@@ -2247,6 +2357,7 @@ async function handleProfile(req) {
       var wrNext = {};
       for (var wi = 0; wi < wrKeys.length; wi++) wrNext[wrKeys[wi]] = wrMap[wrKeys[wi]];
       u.profile = { ...u.profile || {}, weekRatings: { ...((u.profile || {}).weekRatings || {}), [wrChild]: wrNext } };
+      profilePatch = { ...(profilePatch || {}), weekRatings: u.profile.weekRatings };
     }
   }
   // Batch 2 (Design 1): {Name}'s list — child-scoped manual to-dos keyed by
@@ -2268,8 +2379,9 @@ async function handleProfile(req) {
     if (tArr.filter(function (x) { return !x.done; }).length > 20)
       return json3({ error: "That's more than 20 open items — the list holds 20 at a time." }, 400);
     u.profile = { ...u.profile || {}, todos: { ...((u.profile || {}).todos || {}), [tChild]: tArr } };
+    profilePatch = { ...(profilePatch || {}), todos: u.profile.todos };
   }
-  await writeUsers(users);
+  if (profilePatch) await updateUserProfile(u.id, profilePatch);
   return json3({ ok: true, user: { id: u.id, email: u.email, profile: u.profile } });
 }
 var TIMELINE_CATEGORIES2 = ["exchange", "school", "medical", "communication", "court", "other"];
@@ -2954,30 +3066,9 @@ async function handleSortPilePoll(req, jobId) {
 // phone, prints cleanly) and returned as an attachment. Honest framing only:
 // it's his record, organized for him — no legal/admissibility claims.
 var EXPORT_402 = "The Export pack is part of the Command Center plan.";
-var EXPORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-var EXPORT_TONES = { gentle: "Gentle", direct: "Direct", firm: "Firm but Neutral", neutral: "Neutral" };
-function expDate(d) {
-  if (!d) return "";
-  var m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return String(d);
-  var mon = EXPORT_MONTHS[(Number(m[2]) - 1 + 12) % 12];
-  return mon + " " + Number(m[3]) + ", " + m[1];
-}
-function expEsc(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-function expBlocksHtml(blocks) {
-  if (!Array.isArray(blocks) || !blocks.length) return "";
-  var out = [];
-  for (var i = 0; i < blocks.length; i++) {
-    var b = blocks[i] || {};
-    if (b.kind === "section" || b.kind === "rewrite") out.push('<p class="label">' + expEsc(b.title) + "</p>");
-    else if (b.kind === "para" || b.kind === "item" || b.kind === "rwtext") out.push('<p class="txt">' + expEsc(b.text) + "</p>");
-  }
-  return out.join("\n");
-}
+// Export assembly moved to src/lib/exportPack.ts (2026-08-12): expDate/expEsc/
+// expBlocksHtml + all section HTML are shared with the Attorney Prep Pack so
+// both downloads render the identical full-record sections.
 async function handleExport(req) {
   var s = getSession(req);
   if (!s) return json3({ error: EXPORT_402 }, 402);
@@ -3008,62 +3099,52 @@ async function handleExport(req) {
     return json3({ error: "We couldn't prepare your record right now — give it a minute and try again." }, 502);
   }
   var generatedAt = expDate(new Date().toISOString());
-  var total = reviews.length + log.length + timeline.length + files.length + (cs && cs.text ? 1 : 0);
-  var html = "";
-  html += "<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>Your Record — Before You Send</title><style>";
-  html += "body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#faf7ef;color:#2a2a28;line-height:1.55}.wrap{max-width:760px;margin:0 auto;padding:40px 20px 80px}header{border-bottom:2px solid #1f3d2b;padding-bottom:20px;margin-bottom:28px}h1{font-size:26px;color:#1f3d2b;margin:0 0 6px}.sub{color:#6b6b62;font-size:14px;margin:4px 0}h2{font-size:19px;color:#1f3d2b;margin:36px 0 2px}.count{color:#6b6b62;font-size:13px;margin:0 0 12px}.card{border:1px solid #e5e0d4;border-radius:14px;padding:16px 18px;margin:10px 0;background:#fff}.meta{color:#6b6b62;font-size:12.5px;margin:0}.label{font-size:11px;font-weight:700;letter-spacing:.06em;color:#1f3d2b;text-transform:uppercase;margin:12px 0 2px}.txt{white-space:pre-wrap;font-size:14.5px;margin:4px 0}.note{background:#f1ece0;border-radius:10px;padding:12px 14px;font-size:13px;color:#6b6b62;margin:10px 0}.empty{color:#6b6b62;font-style:italic;font-size:14px}.tags{font-size:12.5px;color:#6b6b62}@media print{body{background:#fff}.card{break-inside:avoid}}";
-  html += "</style></head><body><div class=\"wrap\"><header><h1>Your Record — Before You Send</h1><p class=\"sub\">Exported " + expEsc(generatedAt) + ". Everything you've saved — saved reviews, communication log, event timeline, organizer documents, and your case summary — in one file.</p><p class=\"sub\">This is your own record from Before You Send. It is not legal advice.</p></header>";
-  html += '<div class="note">' + reviews.length + " saved review" + (reviews.length === 1 ? "" : "s") + " · " + log.length + " log entr" + (log.length === 1 ? "y" : "ies") + " · " + timeline.length + " timeline event" + (timeline.length === 1 ? "" : "s") + " · " + files.length + " organizer document" + (files.length === 1 ? "" : "s") + (cs && cs.text ? " · Case summary: yes" : "") + "</div>";
-  if (total === 0) html += '<div class="note">Nothing saved yet. This file will fill in as you save reviews, log entries, and documents.</div>';
-  html += "<h2>Case Summary</h2>";
-  if (cs && cs.text) html += '<p class="count">Generated ' + expEsc(expDate(cs.generatedAt)) + '</p><div class="card"><div class="txt">' + expEsc(cs.text) + "</div></div>";
-  else html += '<p class="empty">No case summary yet.</p>';
-  html += "<h2>Saved Reviews</h2>";
-  if (!reviews.length) html += '<p class="empty">No entries yet.</p>';
-  for (var i = 0; i < reviews.length; i++) {
-    var r = reviews[i];
-    var score = computeImpactScore(Array.isArray(r.blocks) ? r.blocks : []).score;
-    html += '<div class="card"><p class="meta">' + expEsc(expDate(r.createdAt)) + " · Message Impact Score " + score + "/100</p>";
-    html += '<p class="label">Your message</p><p class="txt">' + expEsc(r.draft) + "</p>";
-    var bh = expBlocksHtml(r.blocks);
-    html += bh ? '<p class="label">Review</p>' + bh : (r.review ? '<p class="label">Review</p><p class="txt">' + expEsc(r.review) + "</p>" : "");
-    html += "</div>";
-  }
-  html += "<h2>Communication Log</h2>";
-  if (!log.length) html += '<p class="empty">No entries yet.</p>';
-  for (var j = 0; j < log.length; j++) {
-    var l = log[j];
-    html += '<div class="card"><p class="meta">' + expEsc(expDate(l.date)) + " · " + (l.direction === "sent" ? "Sent by me" : "Received from co-parent") + " · " + expEsc(l.topic || "other") + (l.tone && l.tone !== "reviewed" ? " · " + expEsc(EXPORT_TONES[l.tone] || l.tone) : "") + '</p><p class="txt">' + expEsc(l.message) + "</p>";
-    if (l.notes) html += '<p class="label">Private notes</p><p class="txt">' + expEsc(l.notes) + "</p>";
-    html += "</div>";
-  }
-  html += "<h2>Event Timeline</h2>";
-  if (!timeline.length) html += '<p class="empty">No entries yet.</p>';
-  for (var k = 0; k < timeline.length; k++) {
-    var t = timeline[k];
-    html += '<div class="card"><p class="meta">' + expEsc(expDate(t.date)) + " · " + expEsc(String(t.category || "other").replace(/-/g, " ")) + '</p><p class="txt"><strong>' + expEsc(t.title) + "</strong></p>";
-    if (t.details) html += '<p class="txt">' + expEsc(t.details) + "</p>";
-    html += "</div>";
-  }
-  html += "<h2>Organizer Documents</h2>";
-  if (!files.length) html += '<p class="empty">No entries yet.</p>';
-  for (var m2 = 0; m2 < files.length; m2++) {
-    var f = files[m2];
-    var folder = f.folder ? String(f.folder).replace(/-/g, " ") : "";
-    var cat = f.category ? String(f.category).replace(/-/g, " ") : "";
-    html += '<div class="card"><p class="meta">' + (f.kind === "image" ? "Photo, screenshot, or PDF" : "Pasted text") + (f.createdAt ? " · " + expEsc(expDate(f.createdAt)) : "") + (folder ? " · " + expEsc(folder) + (cat ? " › " + expEsc(cat) : "") : "") + "</p>";
-    html += '<p class="txt"><strong>' + expEsc(f.title || (f.kind === "text" ? "Pasted text" : "Untitled document")) + "</strong></p>";
-    if (f.summary) html += '<p class="label">Summary</p><p class="txt">' + expEsc(f.summary) + "</p>";
-    if (f.kind === "text" && f.content) html += '<p class="label">Text</p><p class="txt">' + expEsc(f.content) + "</p>";
-    if (f.kind !== "text" && f.description) html += '<p class="label">Description</p><p class="txt">' + expEsc(f.description) + "</p>";
-    if (f.reason) html += '<p class="label">Why it was filed here</p><p class="txt">' + expEsc(f.reason) + "</p>";
-    if (Array.isArray(f.tags) && f.tags.length) html += '<p class="tags">Tags: ' + expEsc(f.tags.join(", ")) + "</p>";
-    html += "</div>";
-  }
-  html += '<div class="note">Downloaded from your Before You Send account on ' + expEsc(generatedAt) + ". This file contains your own saved records — nothing more, nothing less.</div></div></body></html>";
+  var html = "<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>Your Record — Before You Send</title><style>" + exportPackCss() + "</style></head><body><div class=\"wrap\"><header><h1>Your Record — Before You Send</h1><p class=\"sub\">Exported " + expEsc(generatedAt) + ". Everything you've saved — saved reviews, communication log, event timeline, organizer documents, and your case summary — in one file.</p><p class=\"sub\">This is your own record from Before You Send. It is not legal advice.</p></header>";
+  html += buildExportSectionsHtml(reviews, log, timeline, files, cs, generatedAt);
+  html += "</div></body></html>";
   var fname = "Before-You-Send-Record-" + new Date().toISOString().slice(0, 10) + ".html";
   return new Response(html, { status: 200, headers: toHeaders({ "Content-Type": "text/html; charset=utf-8", "Content-Disposition": 'attachment; filename="' + fname + '"', "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }) });
 }
+// ---- Attorney Prep Pack (one-time $24.50) ------------------------------
+// Stage 2 DELIVERABLE (2026-08-12): generates the self-contained HTML pack
+// from the dad's OWN record — cover sheet, case chronology, evidence/document
+// index, communication-pattern summary, and the full record bundle. The
+// entitlement is the Stage-1 grant (Ultimate OR a durable profile.attorneyPrep
+// stamp) — the same server-side authority the pricing card and dashboard read;
+// re-download = regenerate on demand (no HTML blobs persisted). Deterministic
+// first: the LLM only polishes the narrative paragraph; on any provider
+// failure the pack still assembles completely from the record. The honest
+// footer "Prepared from your record — communication guidance, not legal advice."
+// is baked into the HTML; this route never implies attorney review.
+var ATTORNEY_PREP_402 = "The Attorney Prep Pack is a one-time purchase — you can get it from the One-time tab on the pricing page.";
+async function handleAttorneyPack(req) {
+  var s = getSession(req);
+  if (!s) return json3({ error: ATTORNEY_PREP_402 }, 402);
+  var users = await readUsers(), u = users.find(function (x) { return x.id === s.userId; });
+  if (!u) return json3({ error: "Account not found." }, 404);
+  if (!attorneyPrepEntitled(u)) return json3({ error: ATTORNEY_PREP_402 }, 402);
+  var reviews, log, timeline, files, cs;
+  try {
+    reviews = (await readReviewsForUser(u.id)).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+    log = await readLogForUser(u.id);
+    timeline = await readTimelineForUser(u.id);
+    files = await readOrganizerFilesMeta(u.id);
+    cs = await readCaseSummary(u.id);
+  } catch (err) {
+    console.warn("[attorney-pack] record gather failed:", err);
+    return json3({ error: "We couldn't prepare your pack right now — give it a minute and try again." }, 502);
+  }
+  var pack;
+  try {
+    pack = await buildAttorneyPack({ user: u, reviews: reviews, log: log, timeline: timeline, files: files, caseSummary: cs }, llm);
+  } catch (err) {
+    console.warn("[attorney-pack] assembly failed:", err);
+    return json3({ error: "We couldn't prepare your pack right now — please try again." }, 502);
+  }
+  addEvent({ vid: visitorVid(req) || "server", name: "attorney_pack_generate", plan: userTier(u), meta: { fallback: pack.fallback } }).catch(function (err) { console.warn("[attorney-pack] event failed:", err); });
+  return new Response(pack.html, { status: 200, headers: toHeaders({ "Content-Type": "text/html; charset=utf-8", "Content-Disposition": 'attachment; filename="' + pack.filename + '"', "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }) });
+}
+
 // ---- Case Summary (Command Center paid feature) -----------------------------
 // A calm, factual overview of the dad's OWN saved record (Communication Log,
 // Event Timeline, Organizer documents with summaries/tags, saved reviews).
@@ -3807,10 +3888,14 @@ async function handleActionCenter(req, method) {
 }
 
 var SUBSCRIPTION_PLANS = ["steady", "command", "ultimate"];
-var PLAN_LABELS2 = { steady: "Steady", command: "Command Center", ultimate: "Ultimate Co-Parent", consultation: "Consultation", topup: "Review Top-Up", gift: "Gift a month of Steady", sortpile: "Sort My Pile" };
+var PLAN_LABELS2 = { steady: "Steady", command: "Command Center", ultimate: "Ultimate Co-Parent", consultation: "Consultation", topup: "Review Top-Up", gift: "Gift a month of Steady", sortpile: "Sort My Pile", attorney_prep_pack: "Attorney Prep Pack", record_review: "Record Review" };
 function planCents(plan, interval) {
   if (plan === "consultation")
     return Number(process.env.PRICE_CONSULTATION_USD_CENTS || 3950);
+  if (plan === "attorney_prep_pack")
+    return Number(process.env.PRICE_ATTORNEY_PREP_USD_CENTS || 2450);
+  if (plan === "record_review")
+    return Number(process.env.PRICE_RECORD_REVIEW_USD_CENTS || 2950);
   if (plan === "subscription")
     plan = "command";
   const byPlan = {
@@ -3833,7 +3918,7 @@ async function resolveStripePrice(stripe, plan, interval, opts = {}) {
   if (!cents)
     throw new Error(`No price configured for plan ${plan}/${interval}.`);
   const name = opts.productName || `Before You Send ${PLAN_LABELS2[plan] || plan}`;
-  const isOneTime = plan === "consultation" || plan === "topup" || plan === "gift" || plan === "sortpile";
+  const isOneTime = plan === "consultation" || plan === "topup" || plan === "gift" || plan === "sortpile" || plan === "attorney_prep_pack" || plan === "record_review";
   const products = await stripe.products.list({ active: true, limit: 100 });
   const product = products.data.find((p2) => p2.name === name);
   if (product) {
@@ -3878,6 +3963,57 @@ async function resolveCheckinCoupon(stripe, once) {
   stripeCoupons.set(id, coupon.id);
   return coupon.id;
 }
+// ---- Track B (R6 payment durability): pre-pay account invariant -----------
+// No entitlement-bearing Checkout may exist without a resolved app user. The
+// user id is stamped on client_reference_id AND metadata.user_id so both the
+// browser confirm and the verified webhook can only grant to the account that
+// owns the checkout. Top-Up was previously unstamped and anonymous — fixed.
+const LOGIN_REQUIRED_MSG = "Sign in to start checkout — your purchase is linked to your account.";
+function qaPaymentsBlocked() {
+  // Round-6 preview safety (Codex 2026-08-14): preview deployments must NOT be
+  // able to create live-mode Stripe Checkout Sessions (no Stripe test key is
+  // available without dashboard access, which we do not have). The explicit
+  // server-side QA guard blocks payment completion in the preview entirely.
+  return process.env.BYS_PAYMENTS_QA_GUARD === "true"
+    ? json3({ error: "Payments are paused in this preview — nothing can be charged.", payments_disabled: true }, 503)
+    : null;
+}
+function stampCheckoutParams(userId, base) {
+  return { ...base, client_reference_id: userId, metadata: { ...(base.metadata || {}), user_id: userId } };
+}
+// One-time products (topup / sortpile / attorney / record review): minimal
+// metadata — plan + credits only, plus the user stamp. No q1/q2/q3/rec, no
+// free-text anywhere in Stripe metadata.
+function oneTimeCheckoutParams(o) {
+  return stampCheckoutParams(o.userId, {
+    mode: "payment",
+    line_items: [{ price: o.priceId, quantity: 1 }],
+    managed_payments: { enabled: false },
+    metadata: { plan: o.plan, ...(o.credits ? { credits: o.credits } : {}) },
+    success_url: `${o.origin}/pricing?checkout=success&plan=${o.plan}&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${o.origin}/pricing?checkout=cancelled`
+  });
+}
+// Subscriptions + consultation: minimal metadata (plan/interval/user_id +
+// the non-sensitive promo markers offer/checkin). Check-In q1/q2/q3/rec were
+// removed from Stripe metadata entirely (Track B item 3).
+function buildSubscriptionParams(o) {
+  const meta = { plan: o.plan, user_id: o.userId };
+  if (!o.consultation) meta.interval = o.interval;
+  if (o.offer) meta.offer = "true";
+  if (o.checkin) meta.checkin = "true";
+  const params = {
+    mode: o.consultation ? "payment" : "subscription",
+    line_items: [{ price: o.priceId, quantity: 1 }],
+    managed_payments: { enabled: false },
+    client_reference_id: o.userId,
+    metadata: meta,
+    success_url: `${o.origin}${o.successPath}?checkout=success&plan=${o.plan}&interval=${o.interval}&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${o.origin}${o.cancelPath}?checkout=cancelled`
+  };
+  if (o.coupon) params.discounts = [{ coupon: o.coupon }];
+  return params;
+}
 async function handleCheckout(req) {
   if (!process.env.STRIPE_SECRET_KEY)
     return json3({ error: "Payments are not enabled yet — checkout will be active soon." }, 503);
@@ -3891,52 +4027,74 @@ async function handleCheckout(req) {
   if (plan === "subscription")
     plan = "command";
   const interval = body?.interval === "year" ? "year" : "month";
+  // Track B P0 (pre-pay account invariant): no entitlement-bearing Checkout may
+  // be created without a resolved app user. The user id is stamped on
+  // client_reference_id + metadata.user_id so the browser confirm and the
+  // verified webhook can only grant to the account that owns the checkout.
+  // Top-Up is explicitly included — it was previously unstamped and open to
+  // anonymous sessions. Gift stays auth-gated in handleGiftPurchase.
+  const sessionUser = getSession(req);
+  if (!sessionUser)
+    return json3({ error: LOGIN_REQUIRED_MSG, login_required: true }, 401);
+  // Round-6 preview safety: with the QA guard on, never create a Stripe
+  // Checkout Session (no test key is available without dashboard access; the
+  // live restricted key must never be exercised from a public preview).
+  const qaBlocked = qaPaymentsBlocked();
+  if (qaBlocked)
+    return qaBlocked;
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
+  const origin = new URL(req.url).origin;
   if (plan === "topup") {
     const topupPrice = await resolveStripePrice(stripe, "topup", "month");
-    const origin2 = new URL(req.url).origin;
-    const topupSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: topupPrice, quantity: 1 }], managed_payments: { enabled: false }, metadata: { plan: "topup", credits: "10" }, success_url: `${origin2}/pricing?checkout=success&plan=topup&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin2}/pricing?checkout=cancelled` });
+    const topupSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "topup", priceId: topupPrice, userId: sessionUser.userId, origin, credits: "10" }));
     return json3({ url: topupSession.url, plan: "topup", interval: "month" });
   }
   if (plan === "sortpile") {
     // Sort My Pile — one-time $19.50 (1950c). Grants 30 days of the live
-    // Organizer (profile.sortUntil) on confirm. Stamped with the buyer's user
-    // id so a lost session cookie on the success return can still link.
+    // Organizer (profile.sortUntil) on fulfillment.
     const sortPrice = await resolveStripePrice(stripe, "sortpile", "month");
-    const origin4 = new URL(req.url).origin;
-    const sessionUser4 = getSession(req);
-    const sortSession = await stripe.checkout.sessions.create({ mode: "payment", line_items: [{ price: sortPrice, quantity: 1 }], managed_payments: { enabled: false }, client_reference_id: sessionUser4 ? sessionUser4.userId : undefined, metadata: { plan: "sortpile", ...sessionUser4 ? { user_id: sessionUser4.userId } : {} }, success_url: `${origin4}/pricing?checkout=success&plan=sortpile&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin4}/pricing?checkout=cancelled` });
+    const sortSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "sortpile", priceId: sortPrice, userId: sessionUser.userId, origin }));
     return json3({ url: sortSession.url, plan: "sortpile", interval: "month" });
+  }
+  if (plan === "attorney_prep_pack") {
+    // Attorney Prep Pack — one-time $24.50 (2450c). Durable grant written on
+    // fulfillment (bys_attorney_packs row + profile.attorneyPrep stamp).
+    const appPrice = await resolveStripePrice(stripe, "attorney_prep_pack", "month");
+    const appSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "attorney_prep_pack", priceId: appPrice, userId: sessionUser.userId, origin }));
+    return json3({ url: appSession.url, plan: "attorney_prep_pack", interval: "month" });
+  }
+  if (plan === "record_review") {
+    // Record Review — one-time $29.50 (2950c). Durable grant written on
+    // fulfillment (bys_record_reviews row kind='purchase' + stamp).
+    const rrPrice = await resolveStripePrice(stripe, "record_review", "month");
+    const rrSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "record_review", priceId: rrPrice, userId: sessionUser.userId, origin }));
+    return json3({ url: rrSession.url, plan: "record_review", interval: "month" });
   }
   if (plan !== "consultation" && !SUBSCRIPTION_PLANS.includes(plan))
     return json3({ error: "Choose a valid plan." }, 400);
   const isCheckin = body?.checkin === true;
   const isIntro = plan === "ultimate" && interval === "month" && body?.offer === true && !isCheckin;
   const priceId = isIntro ? await resolveStripePrice(stripe, "ultimate", "month", { cents: Number(process.env.PRICE_ULTIMATE_INTRO_USD_CENTS || 1999), productName: "Before You Send Ultimate Co-Parent", cacheKey: "ultimate:intro" }) : await resolveStripePrice(stripe, plan, interval);
-  const origin = new URL(req.url).origin;
   const successPath = plan === "consultation" ? "/consultations" : "/pricing";
   const cancelPath = plan === "consultation" ? "/consultations" : "/pricing";
-  const sessionUser = getSession(req);
   const coupon = isCheckin ? await resolveCheckinCoupon(stripe, plan === "consultation") : undefined;
-  const checkinMeta = isCheckin
-    ? {
-        checkin: "true",
-        q1: typeof body?.q1 === "string" ? body.q1.slice(0, 40) : undefined,
-        q2: typeof body?.q2 === "string" ? body.q2.slice(0, 40) : undefined,
-        q3: typeof body?.q3 === "string" ? body.q3.slice(0, 40) : undefined,
-        rec: typeof body?.rec === "string" ? body.rec.slice(0, 40) : undefined
-      }
-    : {};
-  const session = await stripe.checkout.sessions.create({
-    mode: plan === "consultation" ? "payment" : "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
-    managed_payments: { enabled: false },
-    client_reference_id: sessionUser ? sessionUser.userId : undefined,
-    metadata: plan === "consultation" ? { plan, type: "consultation", ...sessionUser ? { user_id: sessionUser.userId } : {}, ...checkinMeta } : { plan, interval, ...isIntro ? { offer: "true" } : {}, ...sessionUser ? { user_id: sessionUser.userId } : {}, ...checkinMeta },
-    discounts: coupon ? [{ coupon }] : undefined,
-    success_url: `${origin}${successPath}?checkout=success&plan=${plan}&interval=${interval}&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}${cancelPath}?checkout=cancelled`
-  });
+  // Track B item 3 (metadata minimization): Check-In q1/q2/q3/rec no longer
+  // ride in Stripe metadata (or anywhere server-side). Only user/plan/interval
+  // plus the non-sensitive promo markers (offer/checkin) are kept — the
+  // Ultimate intro schedule and the Check-In coupon mechanics are unchanged.
+  const session = await stripe.checkout.sessions.create(buildSubscriptionParams({
+    plan,
+    interval,
+    userId: sessionUser.userId,
+    priceId,
+    origin,
+    successPath,
+    cancelPath,
+    offer: isIntro,
+    checkin: isCheckin,
+    consultation: plan === "consultation",
+    coupon
+  }));
   return json3({ url: session.url, plan, interval, offer: isIntro, checkin: isCheckin });
 }
 function tierFromCheckoutSession(session) {
@@ -3974,6 +4132,275 @@ async function handlePortal(req) {
   } catch {
     return json3({ error: "We couldn't open the billing portal right now." }, 502);
   }
+}
+// ---- Track B item 4+5: shared durable fulfillment --------------------------
+// ONE function fulfills a verified paid checkout, used by BOTH the browser
+// confirm (UX/recovery) and the verified Stripe webhook (the durable grant
+// path), for subscriptions AND every one-time product. Atomic idempotency:
+// the bys_fulfillment_claims unique session_id claim (item 5) guarantees that
+// webhook/confirm/retries can never double-grant credits/entitlements/events.
+// Round 3 test hooks (NO-OP in production): set only by the Track B fixture
+// (run-tests.ts, via __trackB.setStaleReclaimHooks) to synchronize concurrent
+// webhook retries at the stale-reclaim boundary and to crash the reclaim
+// winner before grant/mark. They are module-local and never fed from requests
+// or env, so the deployed bundle is inert unless a test process sets them.
+type StaleReclaimHook = {
+  beforeReclaim?: (sessionId: string) => Promise<void>;
+  afterReclaim?: (sessionId: string) => Promise<void>;
+};
+let trackBStaleReclaimHook: StaleReclaimHook | null = null;
+async function fulfillCheckoutSession(opts) {
+  const { stripe, session, sessionId, u, vid, paidVid, caller } = opts;
+  // caller: "confirm" (browser return — UX/recovery) or "webhook" (Stripe
+  // delivery loop). The webhook is the durability path: it must NEVER 2xx
+  // while another invocation owns a fresh 'processing' claim, or it tells
+  // Stripe "delivered" with nobody guaranteed to finish the grant.
+  const isWebhook = caller === "webhook";
+  const now = new Date();
+  const processed = Array.isArray(u.profile?.processedSessions) ? u.profile.processedSessions : [];
+  // Legacy/extra guard: sessions processed before the claim table existed
+  // (or a claim row that was manually removed) no-op via the profile stamp.
+  if (processed.includes(sessionId)) {
+    const k2 = session.metadata?.plan === "sortpile" ? "sortpile" : undefined;
+    // Round 2 self-heal: if the grantor crashed AFTER the profile stamp but
+    // BEFORE markFulfillmentProcessed, the claim row is stuck 'processing'
+    // while the grant is already durable (every grant branch writes the stamp
+    // before finalize). The stamp proves completion — record the claim as
+    // processed so no later stale-reclaim can re-run the grant.
+    const claim = await getFulfillmentClaim(sessionId).catch(() => null);
+    if (claim && claim.status === "processing" && claim.userId === u.id)
+      await markFulfillmentProcessed(sessionId, { selfHealed: true }).catch((err) => console.warn("[checkout] claim self-heal mark failed:", err));
+    return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0), ...(k2 ? { kind: k2, sortUntil: u.profile?.sortUntil } : {}) };
+  }
+  // Atomic claim (DB unique constraint on session_id). Exactly one invocation
+  // wins; the loser inspects the claim and explicitly distinguishes
+  // 'processed' from a still-'processing' claim owned by someone else.
+  const planName = typeof session.metadata?.plan === "string" ? session.metadata.plan : "payment";
+  const claimed = await claimFulfillment(sessionId, u.id, planName);
+  if (!claimed) {
+    const claim = await getFulfillmentClaim(sessionId);
+    if (claim && claim.userId && claim.userId !== u.id)
+      return { error: "This purchase belongs to a different account. Sign in with the account you bought it with.", status: 403 };
+    if (claim && claim.status === "processed")
+      return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+    if (!claim) {
+      // The row vanished between the failed claim and this read (e.g. a
+      // gift-mint failure released it mid-race): a retry must re-claim and
+      // re-run. The webhook returns retryable; the browser confirm soft-succeeds.
+      if (isWebhook)
+        return { error: "Fulfillment state unavailable — retry.", status: 409 };
+      return { ok: true, alreadyProcessed: true, claimPending: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+    }
+    // claim.status === 'processing' (explicit). Fresh = another invocation is
+    // mid-grant; stale (>5 min) = the original grantor crashed and a retry may
+    // reclaim and complete the grant.
+    const age = Date.now() - new Date(claim.claimedAt || Date.now()).getTime();
+    if (age > 5 * 60 * 1000) {
+      // Round 3 test hook (no-op in production): synchronize concurrent
+      // webhook retries so both read the stale claim before either reclaims.
+      if (isWebhook && trackBStaleReclaimHook) await trackBStaleReclaimHook.beforeReclaim?.(sessionId);
+      const reclaimed = await reclaimFulfillment(sessionId).catch(() => false);
+      if (!reclaimed) {
+        // Round 3 (Codex 5299273144): losing the stale-reclaim UPDATE is NOT a
+        // basis for a webhook 2xx. Concrete race: A and B both see the stale
+        // claim; A wins reclaimFulfillment() and refreshes claimed_at; B's
+        // UPDATE returns 0 rows; the old code returned {ok:true,
+        // alreadyProcessed:true} -> webhook 200 -> if A then crashes before
+        // grant/mark, Stripe has a 200 from B and no remaining delivery to
+        // recover the order. Re-read the claim and branch by its CURRENT
+        // state — never 2xx merely because this invocation lost the UPDATE.
+        const fresh = await getFulfillmentClaim(sessionId).catch(() => null);
+        if (fresh && fresh.userId && fresh.userId !== u.id)
+          return { error: "This purchase belongs to a different account. Sign in with the account you bought it with.", status: 403 };
+        if (fresh && fresh.status === "processed")
+          return { ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+        if (!fresh) {
+          // Row vanished (e.g. a gift-mint failure released it mid-race): a
+          // retry must re-claim and re-run. Webhook retryable; browser soft.
+          if (isWebhook)
+            return { error: "Fulfillment state unavailable — retry.", status: 409 };
+          return { ok: true, alreadyProcessed: true, claimPending: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+        }
+        // fresh.status === 'processing': the winner refreshed the claim and is
+        // mid-grant (or will crash and be reclaimed by a later retry after the
+        // stale window). Webhook retryable; browser confirm soft claimPending.
+        if (isWebhook)
+          return { error: "Fulfillment already in progress by another request — retry later.", status: 409, claimProcessing: true };
+        return { ok: true, alreadyProcessed: true, claimPending: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+      }
+      // Round 3 test hook (no-op in production): pause/crash the reclaim
+      // winner BEFORE it grants or marks. A throw propagates out of
+      // fulfillCheckoutSession and the webhook's outer catch turns it into a
+      // retryable 500 — exactly the "crashed after reclaim" durability window
+      // that must stay non-2xx for every invocation that did not finish.
+      if (isWebhook && trackBStaleReclaimHook) await trackBStaleReclaimHook.afterReclaim?.(sessionId);
+      // reclaimed: THIS invocation is now the grantor — fall through.
+    } else if (isWebhook) {
+      // Round 2 (chosen option, documented): retryable 409, not a bounded poll.
+      // Stripe retries with backoff; the retry reclaims if the owner crashed
+      // (after the 5-min stale window) or sees 'processed' if the owner
+      // finished. Never 2xx a fresh 'processing' claim we don't own.
+      return { error: "Fulfillment already in progress by another request — retry later.", status: 409, claimProcessing: true };
+    } else {
+      // Browser confirm: soft success — the owner (typically the webhook) will
+      // finish the grant momentarily; a reload re-runs this and self-heals.
+      return { ok: true, alreadyProcessed: true, claimPending: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0) };
+    }
+  }
+  // Canonical "any verified paid grant" event — fires exactly once per Stripe
+  // session because the claim gates every branch below. Coarse fields only
+  // (kind/plan/interval); never session ids, emails, or codes (Track A/B hygiene).
+  const logPurchaseCompleted = (kind, planName2, interval) => {
+    addEvent({ vid, name: "purchase_completed", plan: planName2 || session.metadata?.plan || "payment", meta: { kind, ...(interval ? { interval } : {}) } }).catch((err) => console.warn("[checkout] purchase_completed event failed:", err));
+  };
+  const finalize = async (outcome, result) => {
+    // A failed mark MUST surface (never log-and-2xx): the webhook's outer
+    // try/catch turns it into a retryable 500, and the retry self-heals via the
+    // profile stamp written before finalize in every grant branch — no double
+    // grant, no stranded order.
+    await markFulfillmentProcessed(sessionId, outcome);
+    return result;
+  };
+  if (session.mode === "payment") {
+    if (session.metadata?.plan === "topup") {
+      const n = Number(session.metadata?.credits || 10);
+      // Track B Round 4: atomic credits+n + processedSessions append computed
+      // from the CURRENT row (concurrent top-ups stack; the stamp can never
+      // diverge from the credits).
+      const credits = await grantTopUp(u.id, n, sessionId);
+      if (credits === null) return { error: "Account not found.", status: 404 };
+      logPurchaseCompleted("topup", "topup");
+      return await finalize({ kind: "topup", credits }, { ok: true, kind: "topup", credits });
+    }
+    if (session.metadata?.plan === "gift") {
+      // One-time payment verified -> mint the single-use code. The giver's own
+      // profile is untouched. bys_gift_codes.session_id is UNIQUE, so two
+      // parallel confirms can never mint two codes (fallback to the first row).
+      const already = await getGiftCodeBySession(sessionId);
+      let gRow = already;
+      if (!gRow) {
+        const code = makeGiftCode();
+        try {
+          gRow = await insertGiftCode({ id: code, giverId: u.id, months: 1, sessionId });
+        } catch {
+          gRow = await getGiftCodeBySession(sessionId);
+        }
+      }
+      if (!gRow) {
+        // Insert failed for a non-conflict reason — release the claim so a
+        // retry can re-run; never fabricate a code.
+        console.error("[gift] code mint failed (session id redacted)");
+        await releaseFulfillmentClaim(sessionId).catch(() => {});
+        return { error: "We couldn't create your gift code right now — try again.", status: 500 };
+      }
+      await appendProcessedSession(u.id, sessionId);
+      logPurchaseCompleted("gift", "gift");
+      const gCreated = gRow.createdAt ? new Date(gRow.createdAt).getTime() : Date.now();
+      return await finalize({ kind: "gift" }, { ok: true, kind: "gift", gift: { code: gRow.id, validUntil: new Date(gCreated + 90 * 24 * 60 * 60 * 1000).toISOString() } });
+    }
+    if (session.metadata?.plan === "sortpile") {
+      // Sort My Pile: grant 30 days of the live Organizer (sortUntil). The
+      // stack is computed in SQL from the CURRENT row (GREATEST(now, existing)
+      // + 30d) so concurrent purchases stack instead of clobbering.
+      const sortUntil = await grantSortPile(u.id, sessionId);
+      if (!sortUntil) return { error: "Account not found.", status: 404 };
+      logPurchaseCompleted("sortpile", "sortpile");
+      addEvent({ vid, name: "sortpile_purchase", plan: userTier(u), meta: { sortUntil } }).catch(function (err) { console.warn("[sortpile] purchase event failed:", err); });
+      return await finalize({ kind: "sortpile" }, { ok: true, kind: "sortpile", sortUntil });
+    }
+    if (session.metadata?.plan === "attorney_prep_pack") {
+      // Attorney Prep Pack: durable grant — profile.attorneyPrep is the sync
+      // stamp; the bys_attorney_packs row is the canonical record
+      // (ON CONFLICT (session_id) makes double-delivery safe).
+      await grantEntitlement(u.id, sessionId, "attorneyPrep");
+      logPurchaseCompleted("attorney_prep_pack", "attorney_prep_pack");
+      insertAttorneyPack({
+        userId: u.id,
+        email: u.email || "",
+        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
+        sessionId
+      }).catch((err) => console.warn("[attorney-prep] insert failed:", err));
+      addEvent({ vid, name: "attorney_prep_pack_purchase", plan: "attorney_prep_pack", meta: { kind: "purchase" } }).catch((err) => console.warn("[attorney-prep] event failed:", err));
+      return await finalize({ kind: "attorney_prep_pack" }, { ok: true, kind: "attorney_prep_pack" });
+    }
+    if (session.metadata?.plan === "record_review") {
+      // Record Review: durable grant — profile.recordReview sync stamp +
+      // bys_record_reviews row (kind='purchase', session_id UNIQUE).
+      await grantEntitlement(u.id, sessionId, "recordReview");
+      logPurchaseCompleted("record_review", "record_review");
+      insertRecordReview({
+        userId: u.id,
+        email: u.email || "",
+        kind: "purchase",
+        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
+        sessionId
+      }).catch((err) => console.warn("[record-review] insert failed:", err));
+      addEvent({ vid, name: "record_review_purchase", plan: "record_review", meta: { kind: "purchase" } }).catch((err) => console.warn("[record-review] event failed:", err));
+      return await finalize({ kind: "record_review" }, { ok: true, kind: "record_review" });
+    }
+    // Consultation (mode payment, no plan-specific stamp beyond the durable row)
+    await appendProcessedSession(u.id, sessionId);
+    if (session.metadata?.plan === "consultation") {
+      // Durable consultation record — ON CONFLICT (session_id) makes a
+      // double-delivery safe. amount_total is cents.
+      insertConsultation({
+        userId: u.id,
+        email: u.email || "",
+        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
+        sessionId
+      }).catch((err) => console.warn("[consultation] insert failed:", err));
+      logPurchaseCompleted("consultation", "consultation");
+      addEvent({ vid, name: "consultation_purchased", plan: "consultation", meta: { kind: "purchase" } }).catch((err) => console.warn("[consultation] event failed:", err));
+    }
+    return await finalize({ kind: "payment", plan: session.metadata?.plan || "payment" }, { ok: true, kind: "payment" });
+  }
+  if (session.mode !== "subscription")
+    return { error: "That session isn't a subscription.", status: 400 };
+  const mapped = tierFromCheckoutSession(session);
+  if (!mapped)
+    return { error: "We couldn't match that session to a plan.", status: 400 };
+  const renews = new Date(now);
+  if (mapped.interval === "year")
+    renews.setFullYear(renews.getFullYear() + 1);
+  else
+    renews.setMonth(renews.getMonth() + 1);
+  // Track B Round 4: single-statement row-scoped subscription grant (tier,
+  // renews-at, Stripe ids, processedSessions) — never a whole-table flush.
+  await grantSubscription(u.id, sessionId, {
+    tier: mapped.tier,
+    tierSince: u.profile?.tierSince || now.toISOString(),
+    tierRenewsAt: renews.toISOString(),
+    stripeCustomerId: typeof session.customer === "string" ? session.customer : (session.customer?.id || ""),
+    stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : (session.subscription?.id || "")
+  });
+  // Server-side funnel record (owner dashboard "paid" step). Exactly-once via
+  // the claim + a 5-minute vid-level dedupe. Attribution rides when available.
+  {
+    const paidVid2 = paidVid || vid;
+    const recent = await paidEventRecent(paidVid2).catch(() => false);
+    if (!recent) {
+      const sess = await getSessionAttribution(paidVid2).catch(function () { return null; });
+      addEvent({
+        vid: paidVid2,
+        name: "paid",
+        plan: mapped.tier,
+        meta: { interval: mapped.interval, ...(sess?.source ? { source: sess.source, ...(sess.campaign ? { campaign: sess.campaign } : {}) } : {}) }
+      }).catch((err) => console.warn("[checkout] paid event failed:", err));
+    }
+  }
+  logPurchaseCompleted("subscription", mapped.tier, mapped.interval);
+  let introOffer = false;
+  if (session.metadata?.offer === "true") {
+    try {
+      const sched = await createIntroSchedule(stripe, session);
+      introOffer = !!sched;
+      if (!sched)
+        console.warn("[checkout] intro offer: no subscription on session, schedule skipped");
+    } catch (err) {
+      console.error("[checkout] intro schedule creation failed:", err);
+    }
+  }
+  return await finalize({ kind: "subscription", tier: mapped.tier, interval: mapped.interval }, { ok: true, tier: mapped.tier, interval: mapped.interval, paymentStatus: session.payment_status, introOffer });
 }
 async function handleCheckoutConfirm(req) {
   if (!process.env.STRIPE_SECRET_KEY)
@@ -4034,127 +4461,24 @@ async function handleCheckoutConfirm(req) {
     u = users.find((x2) => x2.id === sessionUserId) || null;
   if (!u)
     return json3({ error: "Sign in to link a purchase to your account." }, 401);
-  const processed = Array.isArray(u.profile?.processedSessions) ? u.profile.processedSessions : [];
-  if (processed.includes(sessionId)) {
-    const k2 = session.metadata?.plan === "sortpile" ? "sortpile" : undefined;
-    return json3({ ok: true, alreadyProcessed: true, tier: u.profile?.tier, credits: Number(u.profile?.credits || 0), ...(k2 ? { kind: k2, sortUntil: u.profile?.sortUntil } : {}) });
+  // Shared durable fulfillment — the browser confirm is now UX/recovery, not
+  // the sole grant path: the verified webhook fulfills the same session with
+  // the same atomic claim (Track B items 4+5). ownership/paid checks above are
+  // unchanged.
+  const paidVid = req.headers.get("cookie")?.match(/(?:^|;\s*)bys_vid=([^;]+)/)?.[1] || "server";
+  let out;
+  try {
+    out = await fulfillCheckoutSession({ stripe, session, sessionId, users, u, vid: visitorVid(req) || "server", paidVid });
+  } catch (err) {
+    // The grant landed (stamp written before finalize) but the claim mark
+    // failed — tell the user it is settling; a reload self-heals to
+    // "already processed" via the stamp guard.
+    console.error("[checkout] confirm fulfillment failed:", err);
+    return json3({ error: "Your purchase is confirmed — the grant is still settling. Reload in a minute and it will show up." }, 500);
   }
-  const now = new Date;
-  if (session.mode === "payment") {
-    if (session.metadata?.plan === "topup") {
-      const n = Number(session.metadata?.credits || 10);
-      const grant = applyTopUpGrant(u.profile, n, sessionId);
-      u.profile = grant.profile;
-      await writeUsers(users);
-      return json3({ ok: true, kind: "topup", credits: grant.credits });
-    }
-    if (session.metadata?.plan === "gift") {
-      // One-time payment verified -> mint the single-use code. The giver's own
-      // profile is untouched (no invented reward — owner decision §10 default).
-      // L3: the mint is atomic per Stripe session — bys_gift_codes.session_id
-      // is UNIQUE, so two parallel confirms (two tabs on the success URL) can
-      // never mint two codes: the pre-check returns an already-minted code and
-      // the second INSERT falls back to the first row on the constraint.
-      const already = await getGiftCodeBySession(sessionId);
-      let gRow = already;
-      if (!gRow) {
-        const code = makeGiftCode();
-        try {
-          gRow = await insertGiftCode({ id: code, giverId: u.id, months: 1, sessionId });
-        } catch {
-          gRow = await getGiftCodeBySession(sessionId);
-        }
-      }
-      if (!gRow) {
-        // Insert failed for a non-conflict reason — leave the session
-        // unprocessed so a retry can still mint; never fabricate a code.
-        console.error("[gift] code mint failed for session", sessionId);
-        return json3({ error: "We couldn't create your gift code right now — try again." }, 500);
-      }
-      u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
-      await writeUsers(users);
-      const gCreated = gRow.createdAt ? new Date(gRow.createdAt).getTime() : Date.now();
-      return json3({ ok: true, kind: "gift", gift: { code: gRow.id, validUntil: new Date(gCreated + 90 * 24 * 60 * 60 * 1000).toISOString() } });
-    }
-    if (session.metadata?.plan === "sortpile") {
-      // Sort My Pile: grant 30 days of the live Organizer (sortUntil). Rolled
-      // forward from the latest of now / any existing sortUntil so a second
-      // purchase stacks instead of being wasted. Idempotent via processedSessions.
-      const base = Math.max(Date.now(), new Date(u.profile?.sortUntil || 0).getTime());
-      const sortUntil = new Date(base + 30 * 24 * 60 * 60 * 1000).toISOString();
-      u.profile = { ...u.profile || {}, sortUntil, processedSessions: [...processed, sessionId] };
-      await writeUsers(users);
-      addEvent({ vid: visitorVid(req) || "server", name: "sortpile_purchase", plan: userTier(u), meta: { sortUntil } }).catch(function (err) { console.warn("[sortpile] purchase event failed:", err); });
-      return json3({ ok: true, kind: "sortpile", sortUntil });
-    }
-    u.profile = { ...u.profile || {}, processedSessions: [...processed, sessionId] };
-    await writeUsers(users);
-    if (session.metadata?.plan === "consultation") {
-      // Durable consultation record (audit 25ffae58 H4): owner-facing surface is
-      // a post-freeze background item — the durable row is the deliverable.
-      // ON CONFLICT (session_id) makes a double-confirm safe. amount_total is
-      // cents; the session is a paid one-time payment here so it is set.
-      insertConsultation({
-        userId: u.id,
-        email: u.email || "",
-        amountCents: typeof session.amount_total === "number" ? session.amount_total : 0,
-        sessionId
-      }).catch((err) => console.warn("[consultation] insert failed:", err));
-      addEvent({ vid: visitorVid(req) || "server", name: "consultation_purchased", plan: "consultation", meta: { sessionId } }).catch((err) => console.warn("[consultation] event failed:", err));
-    }
-    return json3({ ok: true, kind: "payment" });
-  }
-  if (session.mode !== "subscription")
-    return json3({ error: "That session isn't a subscription." }, 400);
-  const mapped = tierFromCheckoutSession(session);
-  if (!mapped)
-    return json3({ error: "We couldn't match that session to a plan." }, 400);
-  const renews = new Date(now);
-  if (mapped.interval === "year")
-    renews.setFullYear(renews.getFullYear() + 1);
-  else
-    renews.setMonth(renews.getMonth() + 1);
-  u.profile = {
-    ...u.profile || {},
-    stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id || u.profile?.stripeCustomerId,
-    stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id || u.profile?.stripeSubscriptionId,
-    tier: mapped.tier,
-    tierSince: u.profile?.tierSince || now.toISOString(),
-    tierRenewsAt: renews.toISOString(),
-    processedSessions: [...processed, sessionId]
-  };
-  await writeUsers(users);
-  // Server-side funnel record — the owner dashboard's "paid" step no longer
-  // depends on client JS firing (which is what broke during the incident).
-  // Conversion-tracking Fixes 4+5 (audit 85fbc48d): stamp the buyer session's
-  // source/campaign (a Google Ads click survives checkout) and skip the write
-  // when a `paid` row for this vid landed in the last 5 minutes (single source
-  // of truth — no double-count when both paths ever fire).
-  {
-    const paidVid = req.headers.get("cookie")?.match(/(?:^|;\s*)bys_vid=([^;]+)/)?.[1] || "server";
-    const recent = await paidEventRecent(paidVid).catch(() => false);
-    if (!recent) {
-      const sess = await getSessionAttribution(paidVid).catch(function () { return null; });
-      addEvent({
-        vid: paidVid,
-        name: "paid",
-        plan: mapped.tier,
-        meta: { interval: mapped.interval, ...(sess?.source ? { source: sess.source, ...(sess.campaign ? { campaign: sess.campaign } : {}) } : {}) }
-      }).catch((err) => console.warn("[checkout] paid event failed:", err));
-    }
-  }
-  let introOffer = false;
-  if (session.metadata?.offer === "true") {
-    try {
-      const sched = await createIntroSchedule(stripe, session);
-      introOffer = !!sched;
-      if (!sched)
-        console.warn("[checkout] intro offer: no subscription on session, schedule skipped");
-    } catch (err) {
-      console.error("[checkout] intro schedule creation failed:", err);
-    }
-  }
-  return json3({ ok: true, tier: mapped.tier, interval: mapped.interval, paymentStatus: session.payment_status, introOffer });
+  if (out.error)
+    return json3({ error: out.error }, out.status || 500);
+  return json3(out);
 }
 
 // Stripe webhook (H2): receives checkout.session.completed and
@@ -4164,78 +4488,161 @@ async function handleCheckoutConfirm(req) {
 // Fail-safe: with no STRIPE_WEBHOOK_SECRET configured we verify nothing and 200
 // WITHOUT processing — unsigned events are never trusted.
 async function handleStripeWebhook(req) {
+  // Track B item 6: signature verification is mandatory. Missing secret -> 503
+  // (non-2xx, Stripe retries with backoff — never silently 200). Invalid
+  // signature -> 400. Verified/duplicate events -> 2xx (idempotent via the
+  // atomic fulfillment claim).
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   const raw = await req.text();
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_missing", { apiVersion: "2025-02-24.acacia" });
+  if (!secret) {
+    console.warn("[webhook] STRIPE_WEBHOOK_SECRET not configured — returning 503 (Stripe will retry), nothing processed");
+    return json3({ error: "Webhook not configured." }, 503);
+  }
+  const sig = req.headers.get("stripe-signature") || "";
   let event;
-  if (secret) {
-    const sig = req.headers.get("stripe-signature") || "";
-    try {
-      event = stripe.webhooks.constructEvent(raw, sig, secret);
-    } catch {
-      console.warn("[webhook] signature verification failed");
-      return json3({ error: "Invalid signature." }, 400);
-    }
-  } else {
-    console.warn("[webhook] STRIPE_WEBHOOK_SECRET not configured — dropping event unprocessed:", raw.slice(0, 160));
-    return new Response(null, { status: 200 });
+  try {
+    // Round 2: stripe >= 22 defaults to the WebCrypto (SubtleCrypto) provider,
+    // whose sync constructEvent() throws "cannot be used in a synchronous
+    // context" in both bun and Node >= 18 — every VALID webhook would 400.
+    // constructEventAsync is the correct call for this runtime.
+    event = await stripe.webhooks.constructEventAsync(raw, sig, secret);
+  } catch {
+    console.warn("[webhook] signature verification failed");
+    return json3({ error: "Invalid signature." }, 400);
   }
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
+      // Card-only checkout completes paid; anything else is not grantable yet.
+      if (session.payment_status !== "paid") {
+        console.log("[webhook] checkout session not paid yet — no-op");
+        return json3({ ok: true });
+      }
       const users = await readUsers();
-      const u = users.find((x) => session.client_reference_id && x.id === session.client_reference_id) ||
-        users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === (typeof session.customer === "string" ? session.customer : session.customer?.id));
+      // Resolve the app user from the stamp (client_reference_id wins, then
+      // metadata.user_id, then Stripe customer). No stamp = no user to grant.
+      const sessionUserId = (typeof session.client_reference_id === "string" && session.client_reference_id)
+        ? session.client_reference_id
+        : (typeof session.metadata?.user_id === "string" && session.metadata.user_id ? session.metadata.user_id : "");
+      const sessionCust = typeof session.customer === "string" ? session.customer : (session.customer?.id || "");
+      const u = (sessionUserId ? users.find((x) => x.id === sessionUserId) : null) ||
+        (sessionCust ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === sessionCust) : null);
       if (!u) {
-        console.warn("[webhook] checkout completed but no user matched session", session.id);
+        // Round 2: a PAID checkout that carries a stamp but whose user can't be
+        // resolved yet (account row lagging, eventual consistency) is retryable
+        // — never a silent 200. Only genuinely unstamped sessions (no user ever
+        // grantable) no-op with 200.
+        const stamped = Boolean(sessionUserId || sessionCust);
+        if (stamped) {
+          console.warn("[webhook] paid checkout completed but no user matched the stamp — 503 (retryable)");
+          return json3({ error: "User for this checkout not found yet — retry later.", retryable: true }, 503);
+        }
+        console.warn("[webhook] checkout completed with no user stamp — no-op");
         return json3({ ok: true });
       }
-      const processed = Array.isArray(u.profile?.processedSessions) ? u.profile.processedSessions : [];
-      if (processed.includes(session.id))
-        return json3({ ok: true, idempotent: true });
-      // M1: one-time plans (gift 499c, topup 950c, consultation 3950c) are
-      // granted ONLY by the confirm path — the webhook must never map a gift
-      // session to steady/month (999c collision) or stamp processedSessions.
-      if (session.mode !== "subscription")
-        return json3({ ok: true });
-      const mapped = tierFromCheckoutSession(session);
-      if (!mapped) {
-        console.warn("[webhook] no tier mapping for session", session.id);
+      // Shared durable fulfillment for subscriptions AND all one-time products
+      // (attorney pack, record review, consultations, top-up, give-a-month).
+      const out = await fulfillCheckoutSession({ stripe, session, sessionId: session.id, users, u, vid: "webhook", paidVid: "webhook", caller: "webhook" });
+      // Round 2: never log-and-200. Any fulfillment error/refusal is a
+      // retryable non-2xx so Stripe re-delivers; the claim keeps re-delivery
+      // idempotent. A fresh 'processing' claim owned by another invocation
+      // arrives here as {error, status:409} and returns 409.
+      if (out.error) {
+        console.warn("[webhook] fulfillment refused:", out.error, "->", out.status || 500, "(retryable, NOT 200)");
+        return json3({ error: out.error }, out.status || 500);
+      }
+      // 2xx ONLY when this invocation marked the claim processed, or the claim
+      // was already processed (out.alreadyProcessed).
+      console.log("[webhook] fulfilled " + (out.kind || out.tier || "payment") + " user=" + (typeof u.id === "string" ? u.id.slice(0, 8) : "?") + (out.alreadyProcessed ? " (already processed)" : ""));
+      return json3({ ok: true });
+    }
+    if (event.type === "invoice.paid") {
+      // Track B item 7 (renewals): a verified recurring payment advances the
+      // real Stripe current-period entitlement. Period end comes from the
+      // invoice's subscription lines (period.end, unix seconds) — the verified
+      // invoice IS the proof of payment, so no extra API call is needed.
+      const inv = event.data.object;
+      const customerId = typeof inv.customer === "string" ? inv.customer : inv.customer?.id;
+      const periodEnd = periodEndFromInvoice(inv);
+      if (!periodEnd) {
+        console.warn("[webhook] invoice.paid with no period — cannot advance");
         return json3({ ok: true });
       }
-      const now = new Date();
-      const renews = new Date(now);
-      if (mapped.interval === "year") renews.setFullYear(renews.getFullYear() + 1);
-      else renews.setMonth(renews.getMonth() + 1);
-      u.profile = {
-        ...u.profile || {},
-        stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id || u.profile?.stripeCustomerId,
-        stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id || u.profile?.stripeSubscriptionId,
-        tier: mapped.tier,
-        tierSince: u.profile?.tierSince || now.toISOString(),
-        tierRenewsAt: renews.toISOString(),
-        processedSessions: [...processed, session.id]
-      };
-      await writeUsers(users);
-      if (session.metadata?.offer === "true" && mapped.tier === "ultimate") {
-        createIntroSchedule(stripe, session).catch((err) => console.warn("[webhook] intro schedule failed:", err));
+      const users = await readUsers();
+      const u = customerId ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId) : null;
+      if (!u) {
+        console.warn("[webhook] invoice.paid but no user matched customer");
+        return json3({ ok: true });
       }
-      console.log("[webhook] granted tier", mapped.tier, "to", u.email);
-    } else if (event.type === "customer.subscription.deleted" || event.type === "customer.subscription.canceled") {
+      await updateUserProfile(u.id, { subscriptionStatus: "active", lastRenewalAt: new Date().toISOString(), tierRenewsAt: new Date(periodEnd * 1000).toISOString() });
+      console.log("[webhook] renewal advanced until", new Date(periodEnd * 1000).toISOString());
+      return json3({ ok: true });
+    }
+    if (event.type === "invoice.payment_failed") {
+      // Failed renewal: explicit grace — keep the paid tier, mark past_due, do
+      // NOT downgrade. Stripe retries the invoice on its own schedule; a later
+      // invoice.paid or subscription.deleted (retries exhausted) resolves it.
+      const inv = event.data.object;
+      const customerId = typeof inv.customer === "string" ? inv.customer : inv.customer?.id;
+      const users = await readUsers();
+      const u = customerId ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId) : null;
+      if (!u) {
+        console.warn("[webhook] invoice.payment_failed but no user matched customer");
+        return json3({ ok: true });
+      }
+      await updateUserProfile(u.id, { subscriptionStatus: "past_due", lastPaymentFailedAt: new Date().toISOString() });
+      console.log("[webhook] renewal failed — tier kept during grace (past_due)");
+      return json3({ ok: true });
+    }
+    if (event.type === "customer.subscription.canceled" || event.type === "customer.subscription.deleted") {
+      // Cancellation keeps paid-through access, then downgrades (lazily via
+      // userTier's tierRenewsAt expiry). An immediate cancel (current_period_end
+      // already past) downgrades now.
       const sub = event.data.object;
       const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
       const users = await readUsers();
-      const u = users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId);
-      if (!u) return json3({ ok: true });
-      u.profile = { ...u.profile || {}, tier: "free", tierSince: undefined, tierRenewsAt: undefined };
-      await writeUsers(users);
-      console.log("[webhook] subscription ended — downgraded", u.email, "to free");
+      const u = customerId ? users.find((x) => x.profile?.stripeCustomerId && x.profile.stripeCustomerId === customerId) : null;
+      if (!u) {
+        console.warn("[webhook] subscription ended but no user matched customer");
+        return json3({ ok: true });
+      }
+      const periodEnd = typeof sub.current_period_end === "number" ? sub.current_period_end * 1000 : 0;
+      const paidThrough = periodEnd > Date.now();
+      if (paidThrough) {
+        // Paid through period end — keep the tier until tierRenewsAt, then the
+        // existing lazy expiry in userTier() downgrades the account to free.
+        await updateUserProfile(u.id, { subscriptionStatus: "canceled", tierRenewsAt: new Date(periodEnd).toISOString() });
+        console.log("[webhook] subscription canceled — keeps paid access until", new Date(periodEnd).toISOString());
+      } else {
+        // Immediate downgrade: set tier free + canceled, and REMOVE the expiry
+        // keys so the lazy userTier() gate can never resurrect the paid tier.
+        await updateUserProfile(u.id, { tier: "free", subscriptionStatus: "canceled" });
+        await clearSubscriptionExpiry(u.id);
+        console.log("[webhook] subscription ended — downgraded to free");
+      }
+      return json3({ ok: true });
     }
   } catch (err) {
     console.error("[webhook] processing failed:", err);
+    // Processing error: retryable (non-2xx) so Stripe re-delivers — the
+    // atomic claim keeps any re-delivery idempotent.
+    return json3({ error: "Processing failed." }, 500);
   }
   return json3({ ok: true });
 }
+// Verified invoice period end (unix seconds): the max subscription-line period
+// end on the invoice — the real Stripe current-period entitlement boundary.
+function periodEndFromInvoice(inv) {
+  if (!inv || !Array.isArray(inv.lines?.data)) return null;
+  let maxEnd = 0;
+  for (const line of inv.lines.data) {
+    const end = line?.period?.end;
+    if (typeof end === "number" && end > maxEnd) maxEnd = end;
+  }
+  return maxEnd > 0 ? maxEnd : null;
+}
+
 function introPhaseEndSeconds(currentPeriodEnd) {
   const d2 = new Date(currentPeriodEnd * 1000);
   const day = d2.getUTCDate();
@@ -4243,11 +4650,6 @@ function introPhaseEndSeconds(currentPeriodEnd) {
   const dim = new Date(Date.UTC(d2.getUTCFullYear(), d2.getUTCMonth() + 1, 0)).getUTCDate();
   d2.setUTCDate(Math.min(day, dim));
   return Math.floor(d2.getTime() / 1000);
-}
-function applyTopUpGrant(profile, n, sessionId) {
-  const credits = (Number(profile?.credits) || 0) + n;
-  const processedSessions = [...Array.isArray(profile?.processedSessions) ? profile.processedSessions : [], sessionId];
-  return { profile: { ...profile || {}, credits, processedSessions }, credits };
 }
 async function createIntroSchedule(stripe, session) {
   const subId = typeof session.subscription === "string" ? session.subscription : null;
@@ -4312,24 +4714,62 @@ async function handleEvents(req: Request) {
   if (!name) return new Response(null, { status: 400 });
   const plan = typeof body?.plan === "string" ? body.plan.slice(0,40) : undefined;
   let meta = body?.meta && typeof body.meta === "object" ? body.meta : {};
-  // PII (audit MED): /confirm?token=... and /redeem?code=... put one-time
-  // credentials in the URL search string, and the raw path is persisted in
-  // bys_events.meta.path AND bys_session_play.path. Strip token/code query
-  // params at ingest (before any persist point); ttclid/gclid and every other
-  // param are kept so source attribution and referrer data survive.
-  const scrubUrl = (u: string): string => {
-    const qIdx = u.indexOf("?");
-    if (qIdx === -1) return u;
-    const base = u.slice(0, qIdx);
-    const kept = u.slice(qIdx + 1).split("&").filter((seg: string) => !/^(token|code)=/i.test(seg));
-    return kept.length > 0 ? `${base}?${kept.join("&")}` : base;
+  // Track A (Codex consolidated order §2+§3+§4): safe-key ingestion. SAFE_META_KEYS
+  // is a GLOBAL key allowlist, not a per-event schema (Codex final-fold Blocker 3,
+  // comment 5300418383) — sensitive keys (situation answers, credentials,
+  // payment ids, child/family ids, assessments, raw URLs, cross-platform click
+  // ids in event payloads) are dropped even if a future client sends them.
+  // Paths are forced pathname-only; referrer is reduced (external origin /
+  // same-origin pathname — never query/hash); attribution is allowlisted to the
+  // known ad params. The generic scrubber accepts primitives only; the narrow
+  // per-event additions below are the sole exception.
+  const SAFE_META_KEYS = new Set(["dt","t","sp","kind","path","referrer","attribution","step","variant","source","mode","auth","example","status","timeout","interval","tier","intro","count","n","chars","remaining","module","edit","target","context","item","week","plan","q","folder","dest","filed","needsSorting","skipped","total","campaign","depthPct"]);
+  const NEVER_META_KEYS = new Set(["q1","q2","q3","answer","answers","email","child","gender","next","token","session_id","sessionId","code","giftCode","draft","text","message","value","tone","promo","rec","recommendation","landingPath","rawPath","ttclid","gclid","gbraid","wbraid","gad","gad_source","gad_campaignid","gad_campaign","gad_adgroupid","gad_creative","gad_network","gad_device","gad_targetid","gad_placement","gad_interest","gad_keyword","gad_loc_interest","gad_loc_physical","gad_extension","gad_feeditemid","gad_target","gad_aceid","gad_cell","gad_audience","gad_clickid"]);
+  const AD_PARAMS_INGEST = ["ttclid","gclid","gbraid","wbraid","gad_source","gad_campaignid","gad_campaign","gad_adgroupid","gad_creative","gad_network","gad_device","gad_targetid","gad_placement","gad_interest","gad_keyword","gad_loc_interest","gad_loc_physical","gad_extension","gad_feeditemid","gad_target","gad_aceid","gad_cell","gad_audience","gad_clickid"];
+  const pathnameOnly = (u: unknown): string | undefined => {
+    if (typeof u !== "string" || !u) return undefined;
+    try { const qIdx = u.indexOf("?"); return qIdx === -1 ? u : u.slice(0, qIdx); } catch { return u; }
   };
-  if (typeof meta.path === "string" && /[?&](token|code)=/i.test(meta.path)) {
-    meta = { ...meta, path: scrubUrl(meta.path) };
+  const safeReferrer = (r: unknown): string | undefined => {
+    if (typeof r !== "string" || !r) return undefined;
+    try {
+      const u = new URL(r);
+      const host = requestHost(req);
+      return u.hostname === host || u.hostname.endsWith("." + host) ? u.pathname : u.origin;
+    } catch { return String(r).split(/[?#]/)[0] || undefined; }
+  };
+  const p0 = pathnameOnly(meta.path);
+  if (p0 !== undefined) meta.path = p0.slice(0, 300);
+  const r0 = safeReferrer(meta.referrer);
+  if (r0 !== undefined) meta.referrer = r0;
+  if (meta.attribution && typeof meta.attribution === "object" && !Array.isArray(meta.attribution)) {
+    const att: Record<string, string> = {};
+    for (const [k, v] of Object.entries(meta.attribution as Record<string, unknown>)) {
+      if (AD_PARAMS_INGEST.includes(k) && typeof v === "string") att[k] = v;
+    }
+    if (Object.keys(att).length) meta.attribution = att; else delete meta.attribution;
   }
-  if (typeof meta.landingPath === "string" && /[?&](token|code)=/i.test(meta.landingPath)) {
-    meta = { ...meta, landingPath: scrubUrl(meta.landingPath) };
+  const scrubbedMeta: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(meta)) {
+    if (NEVER_META_KEYS.has(k) || !SAFE_META_KEYS.has(k)) continue;
+    if (v === undefined || v === null) continue;
+    if (k === "attribution" && typeof v === "object") { scrubbedMeta[k] = v; continue; }
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") scrubbedMeta[k] = v;
   }
+  // Narrow event-specific validation (Codex final-fold Blocker 3, comment
+  // 5300418383) — mirrors the client's bounded per-event schema (analytics.ts
+  // CHECKOUT_WALLET_METHODS / FUNNEL_ENTRY_SLUGS): the ONLY array/constrained-
+  // string meta values that may persist, and only for the exact events that
+  // emit them. Enums are exactly what the client sends (no wildcards).
+  const CHECKOUT_WALLET_METHODS = new Set(["apple_pay", "google_pay"]);
+  const FUNNEL_ENTRY_SLUGS = new Set(["review", "post-review", "intake", "pricing"]);
+  if (name === "checkout_wallet_available" && Array.isArray(meta.methods)) {
+    const methods = [...new Set(meta.methods.filter((m: unknown): m is string => typeof m === "string" && CHECKOUT_WALLET_METHODS.has(m)))];
+    if (methods.length) scrubbedMeta.methods = methods;
+  } else if (name === "funnel_started" && typeof meta.entry === "string" && FUNNEL_ENTRY_SLUGS.has(meta.entry)) {
+    scrubbedMeta.entry = meta.entry;
+  }
+  meta = scrubbedMeta;
   // Metrics 2.0 — session play. sp_* rows (page enter/exit, scroll samples) are
   // replay-only: they land in bys_session_play but NEVER in bys_events, so the
   // funnel/hourly/depth panels stay clean. Regular events ALSO get a
@@ -4607,7 +5047,7 @@ async function tiktokTokenCall(params) {
     try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 400) }; }
     return { ok: res.ok, status: res.status, data };
   } catch (err) {
-    console.warn("[tiktok] token call failed:", err);
+    console.warn("[tiktok] token call failed:", String(err).slice(0, 200));
     return { ok: false, status: 0, data: { error: String(err) } };
   }
 }
@@ -4628,7 +5068,7 @@ async function tiktokValidToken() {
   if (!row.refreshToken) return null;
   const r = await tiktokRefresh(row.refreshToken);
   if (!r.ok || !r.data || !r.data.access_token) {
-    console.warn("[tiktok] refresh failed:", r.status, JSON.stringify(r.data).slice(0, 300));
+    console.warn("[tiktok] refresh failed: status=" + r.status + " (payload redacted)");
     return null;
   }
   await upsertTikTokToken({
@@ -4641,32 +5081,15 @@ async function tiktokValidToken() {
   return String(r.data.access_token);
 }
 // GET /api/tiktok/callback?code=...&state=... — OAuth redirect target.
-// Exchanges the code, stores tokens (single-row upsert), 302s to the friendly
-// connected page. On any failure it still 302s to the page with ?ok=0 — the
-// plain, factual "not connected" state — never a raw error dump.
-async function handleTikTokCallback(req) {
-  const url = new URL(req.url);
-  const code = url.searchParams.get("code") || "";
-  const state = url.searchParams.get("state") || "";
-  const errParam = url.searchParams.get("error") || "";
-  const base = "https://beforeyousend.org/tiktok-connected";
-  if (errParam || !code) {
-    console.warn("[tiktok] callback error:", errParam || "missing code", "state:", state ? "present" : "missing");
-    return Response.redirect(`${base}?ok=0`, 302);
-  }
-  const r = await tiktokExchangeCode(code);
-  if (!r.ok || !r.data || !r.data.access_token) {
-    console.warn("[tiktok] code exchange failed:", r.status, JSON.stringify(r.data).slice(0, 300));
-    return Response.redirect(`${base}?ok=0`, 302);
-  }
-  await upsertTikTokToken({
-    accessToken: String(r.data.access_token),
-    refreshToken: r.data.refresh_token ? String(r.data.refresh_token) : null,
-    openId: r.data.open_id ? String(r.data.open_id) : null,
-    scope: r.data.scope ? String(r.data.scope) : null,
-    expiresAt: Date.now() + Number(r.data.expires_in || 86400) * 1000,
-  });
-  return Response.redirect(`${base}?ok=1`, 302);
+// Track A (Codex consolidated order §5): TikTok Content Publishing is parked,
+// and this callback has no server-issued one-time state verification — an
+// unvalidated callback could overwrite the single stored token row via
+// login-CSRF/account substitution. Smallest safe option: disable the
+// callback/start surface entirely until an owner-bound state flow exists.
+// Nothing is exchanged or stored; the log line carries no code/state/token.
+async function handleTikTokCallback() {
+  console.warn("[tiktok] oauth callback disabled (parked — no state verification)");
+  return json3({ error: "TikTok connection is not available right now." }, 404);
 }
 // GET /api/tiktok/status — { connected, open_id, last_publish }. Public and
 // token-free by design (nothing sensitive leaks; tokens never leave the server).
@@ -4720,7 +5143,7 @@ async function handleTikTokPublish(req) {
       signal: AbortSignal.timeout(30000),
     });
   } catch (err) {
-    console.warn("[tiktok] publish call failed:", err);
+    console.warn("[tiktok] publish call failed:", String(err).slice(0, 200));
     return json3({ error: "TikTok publish request failed." }, 502);
   }
   const text = await res.text();
@@ -4730,10 +5153,96 @@ async function handleTikTokPublish(req) {
   const pubStatus = res.ok ? (data && data.data && data.data.status ? String(data.data.status) : "processing") : "error";
   await addTikTokPublish({ publishId, videoUrl, caption, status: pubStatus, apiStatus: res.ok ? String(res.status) : `error:${res.status}` });
   if (!res.ok) {
-    console.warn("[tiktok] publish rejected:", res.status, JSON.stringify(data).slice(0, 300));
+    console.warn("[tiktok] publish rejected: status=" + res.status + " (payload redacted)");
     return json3({ error: "TikTok rejected the publish.", detail: data && (data.error || data.raw) ? String(data.error || data.raw).slice(0, 300) : "unknown" }, 502);
   }
   return json3({ ok: true, publish_id: publishId, status: pubStatus }, 201);
+}
+// ---- Record Review (one-time $29.50 + Ultimate 1/year — Stage 2, 2026-08-13)
+// GET  /api/record-review — re-view the account's LATEST generated report
+//   (works even after an Ultimate allowance is spent — the report is his own;
+//   re-viewing never regenerates). Session-gated; returns { report|null }.
+// POST /api/record-review — generate a NEW report. Entitlement-gated (Stage 1
+//   recordReviewEntitlement): the purchased grant is permanent (unlimited
+//   regenerations); Ultimate redeems the 1/year allowance ONLY when a report is
+//   actually generated — the kind='redemption' insert IS the Stage 1 hook, and
+//   it is rolled back if persisting the report fails so a failed generate never
+//   silently burns the allowance. Sections are deterministic from the dad's own
+//   record (always complete); LLM polish rides on top when the provider is
+//   healthy. The report persists on the anchor bys_record_reviews row.
+var RECORD_REVIEW_402 = "Record Review is a one-time purchase, or included once a year with Ultimate.";
+async function handleRecordReview(req, method) {
+  var s = getSession(req);
+  if (!s) return json3({ error: "Sign in to your account to run a Record Review." }, 401);
+  var users = await readUsers(), u = users.find(function (x) { return x.id === s.userId; });
+  if (!u) return json3({ error: "Account not found." }, 404);
+  if (method === "GET") {
+    var latest = null;
+    try { latest = await latestRecordReviewReport(u.id); } catch (err) { console.warn("[record-review] latest read failed:", err); }
+    return json3({ report: latest && latest.reportHtml ? { html: latest.reportHtml, generatedAt: latest.reportGeneratedAt, fallback: !!latest.reportFallback } : null });
+  }
+  var tier0 = userTier(u);
+  addEvent({ vid: visitorVid(req) || "server", name: "record_review_started", plan: tier0 }).catch(function (err) { console.warn("[record-review] event failed:", err); });
+  var ent = await recordReviewEntitlement(u);
+  if (!ent.entitled) {
+    var msg = ent.nextAvailableAt
+      ? "Your one Record Review for this year is already used. You can buy another, or the allowance resets " + expDate(ent.nextAvailableAt) + "."
+      : RECORD_REVIEW_402;
+    return json3({ error: msg, nextAvailableAt: ent.nextAvailableAt || null }, 402);
+  }
+  var reviews, log, timeline, files, cs;
+  try {
+    reviews = (await readReviewsForUser(u.id)).sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+    log = await readLogForUser(u.id);
+    timeline = await readTimelineForUser(u.id);
+    files = await readOrganizerFilesMeta(u.id);
+    cs = await readCaseSummary(u.id);
+  } catch (err) {
+    console.warn("[record-review] record gather failed:", err);
+    return json3({ error: "We couldn't read your record right now — give it a minute and try again." }, 502);
+  }
+  var built;
+  try {
+    built = await buildRecordReview({ user: u, reviews: reviews, log: log, timeline: timeline, files: files, caseSummary: cs }, llm);
+  } catch (err) {
+    console.warn("[record-review] build failed:", err);
+    addEvent({ vid: visitorVid(req) || "server", name: "record_review_failed", plan: tier0 }).catch(function () {});
+    return json3({ error: "We couldn't prepare your Record Review right now — please try again in a minute." }, 500);
+  }
+  // Anchor + persist: purchased → the purchase row; ultimate → a NEW redemption
+  // row (the Stage 1 hook — consumed only now that a report generated).
+  var anchorSession = null, createdRedemption = false;
+  try {
+    if (ent.kind === "purchased") {
+      var rows = await recordReviewsForUser(u.id);
+      var purchaseRow = rows.find(function (r) { return r.kind === "purchase"; });
+      anchorSession = purchaseRow && purchaseRow.sessionId ? purchaseRow.sessionId : null;
+      if (!anchorSession) {
+        // Stamp-only purchase (the durable insert failed at confirm): mint the
+        // anchor row now so the report persists and the grant becomes durable
+        // (same token scheme as the redemption branch).
+        var pToken = "rr-" + String(u.id).slice(0, 8) + "-" + crypto.randomUUID();
+        var pRow = await insertRecordReview({ userId: u.id, email: u.email, kind: "purchase", amountCents: 0, sessionId: pToken });
+        anchorSession = pRow && pRow.sessionId ? pRow.sessionId : pToken;
+      }
+    } else {
+      var token = "rr-" + String(u.id).slice(0, 8) + "-" + crypto.randomUUID();
+      var red = await insertRecordReview({ userId: u.id, email: u.email, kind: "redemption", amountCents: 0, sessionId: token });
+      anchorSession = red && red.sessionId ? red.sessionId : token;
+      createdRedemption = true;
+    }
+    if (anchorSession) await saveRecordReviewReport(anchorSession, built.html, built.fallback);
+  } catch (err) {
+    console.warn("[record-review] persist failed:", err);
+    if (createdRedemption && anchorSession) {
+      try { await deleteRecordReviewBySession(anchorSession); } catch (err2) { console.warn("[record-review] rollback failed:", err2); }
+    }
+    addEvent({ vid: visitorVid(req) || "server", name: "record_review_failed", plan: tier0 }).catch(function () {});
+    return json3({ error: "We couldn't save your Record Review right now — please try again in a minute." }, 500);
+  }
+  addEvent({ vid: visitorVid(req) || "server", name: "record_review_generated", plan: tier0, meta: { fallback: built.fallback } }).catch(function (err) { console.warn("[record-review] event failed:", err); });
+  var ent2 = await recordReviewEntitlement(u).catch(function () { return ent; });
+  return json3({ ok: true, report: { html: built.html, generatedAt: built.generatedAt, fallback: built.fallback }, entitlement: ent2 });
 }
 export async function handleApiRequest(req: Request): Promise<Response | null> {
   const url = new URL(req.url), { pathname } = url, method = req.method;
@@ -4838,12 +5347,35 @@ export async function handleApiRequest(req: Request): Promise<Response | null> {
     return handleActionCenter(req, method);
   if (pathname === "/api/export" && method === "GET")
     return handleExport(req);
+  if (pathname === "/api/attorney-pack" && method === "GET")
+    return handleAttorneyPack(req);
   if (pathname === "/api/tiktok/callback" && method === "GET")
     return handleTikTokCallback(req);
   if (pathname === "/api/tiktok/status" && method === "GET")
     return handleTikTokStatus();
   if (pathname === "/api/tiktok/publish" && method === "POST")
     return handleTikTokPublish(req);
+  if (pathname === "/api/record-review" && (method === "GET" || method === "POST"))
+    return handleRecordReview(req, method);
   return null;
 }
 
+// ---- Track B test hooks (preview-only; used by /home/team/shared/track-b) --
+// Direct-invocation hooks for the Track B evidence suite. They expose the
+// durable-fulfillment and lifecycle internals so the preview can prove
+// behavior (atomic claim, webhook statuses, renewals, deletion) without ever
+// creating a live-mode Stripe Checkout Session. No-op in production: nothing
+// imports them except the evidence scripts.
+export const __trackB = {
+  fulfillCheckoutSession,
+  handleCheckoutConfirm,
+  handleStripeWebhook,
+  handleAccountDelete,
+  buildSubscriptionParams,
+  oneTimeCheckoutParams,
+  stampCheckoutParams,
+  qaPaymentsBlocked,
+  periodEndFromInvoice,
+  setStaleReclaimHooks(h: StaleReclaimHook | null) { trackBStaleReclaimHook = h; },
+  LOGIN_REQUIRED_MSG
+};

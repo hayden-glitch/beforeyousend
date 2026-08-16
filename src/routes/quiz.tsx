@@ -417,7 +417,7 @@ function Quiz() {
   return (
     <QuizShell wide>
       <LogoMark />
-      <div className="bys-wizard-in mt-6 rounded-3xl border border-line bg-card p-6 shadow-card sm:p-8">
+      <div className="bys-wizard-in card mt-6 p-6 sm:p-8">
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Your grade</p>
         <div className="mt-2 flex items-end gap-2">
           <span className="font-display text-6xl font-semibold leading-none text-forest">{res.total}</span>
@@ -445,7 +445,7 @@ function Quiz() {
       {/* Free account — the payoff (real free tier, honest). */}
       <section
         aria-label="Get your free account"
-        className="bys-wizard-in mt-5 rounded-3xl border-2 border-forest/25 bg-forest p-6 text-cream shadow-card sm:p-8"
+        className="bys-wizard-in mt-5 rounded-xl border border-forest/25 bg-forest p-6 text-cream sm:p-8"
       >
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-cream/75">
           Your free account is on the house — because you need it.
@@ -506,7 +506,7 @@ function Quiz() {
                   }
                 }}
                 placeholder="you@email.com"
-                className="min-h-12 w-full rounded-full border border-cream/30 bg-forest-soft/40 px-5 py-3 text-base text-cream placeholder:text-cream/50 focus:border-cream focus:outline-none"
+                className="min-h-12 w-full rounded-xl border border-cream/30 bg-forest-soft/40 px-5 py-3 text-base text-cream placeholder:text-cream/50 focus:border-cream focus:outline-none"
               />
               <button type="submit" disabled={capState === "saving"} className="btn-primary shrink-0 bg-cream text-forest hover:bg-cream-deep">
                 {capState === "saving" ? "One sec…" : "Get my free account"}

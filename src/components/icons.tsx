@@ -196,6 +196,18 @@ export function IconDownload({ className: _className }: IconProps) {
     </>
   );
 }
+// Gavel — used by the Attorney Prep Pack entry in the Command Center.
+export function IconGavel({ className: _className }: IconProps) {
+  return base(
+    <>
+      <path d="m14 6 4 4" />
+      <path d="M11.5 11.5 6 17a2.1 2.1 0 0 1-3-3l5.5-5.5" />
+      <path d="m8.5 8.5 7 7" />
+      <path d="M14 3.5l6.5 6.5" />
+      <path d="M5 21h14" />
+    </>
+  );
+}
 
 // Left arrow (back navigation).
 export function IconArrowLeft({ className: _className }: IconProps) {

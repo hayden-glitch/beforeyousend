@@ -605,6 +605,10 @@ for (let attempt = 1; ; attempt++) {
     Bun.serve({
       port: PORT,
       hostname: HOST,
+      // Record Review waits on the LLM up to ~45s; Bun's default 10s idleTimeout
+      // kills the request (socket idle while the handler awaits) before the
+      // deterministic fallback can respond. Raised so long generations complete.
+      idleTimeout: 120,
       async fetch(req) {
         const { pathname } = new URL(req.url);
         const method = req.method;

@@ -1,15 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, RefObject } from "react";
 import { streamReview, streamAnalyze, type ReviewEvent, type Attachment, EMAIL_RE, confirmPath, saveReview } from "~/lib/api";
-import { track } from "~/lib/analytics";
+import { track, trackFunnelOnce } from "~/lib/analytics";
 import { readCaptureVariant } from "~/lib/captureVariant";
 import { markValueDelivered } from "~/lib/offer";
 import { useReviewTyping } from "~/lib/useReviewTyping";
-import ReviewResults, { type ResultBlock } from "~/components/ReviewResults";
-import TomorrowDraftsList from "~/components/TomorrowDraftsList";
 import ModeSwitch, { type ToolMode } from "~/components/ModeSwitch";
-import AttachControl, { AttachChips } from "~/components/AttachControl";
+import type { ResultBlock } from "~/components/ReviewResults";
 import { scrollBehavior } from "~/lib/motion";
+import { DeferredMount } from "~/components/DeferredMount";
+import { IconAttach } from "./icons";
+// Performance (spec §23 + D7): ReviewResults is the post-review results panel
+// — it renders only AFTER a review/analysis has run, so it is split into its
+// own chunk and loaded lazily the first time results appear. The anonymous
+// landing path never imports it at startup.
+const ReviewResults = lazy(() => import("~/components/ReviewResults"));
+// Performance (D7): AttachControl (paperclip sheet + Steady enticement sheet,
+// ~40 KB) is Steady+-only UI. On the anonymous landing it is deferred to
+// idle (see the footer row below); only attach-capable users load it on
+// first paint. The free-tier ghost chip footprint is preserved meanwhile.
+const AttachControl = lazy(() => import("~/components/AttachControl"));
+const AttachChips = lazy(() =>
+  import("~/components/AttachControl").then((m) => ({ default: m.AttachChips }))
+);
+
+// Performance (spec §23): TomorrowDraftsList is a device-local drafts widget
+// that only matters to a SIGNED-IN visitor (anonymous dads have no drafts).
+// It is split into its own chunk via lazy() and rendered only after
+// /api/auth/me resolves the visitor as authenticated — the anonymous landing
+// path never imports it, so first paint excludes the drafts-list module.
+const TomorrowDraftsList = lazy(() => import("~/components/TomorrowDraftsList"));
 
 const EXAMPLE_DRAFT = `Can you please stop being so unreasonable? You never let me see the kids when it suits you, and you're always making excuses. I'm tired of your games — if this keeps up, I'll have my attorney take you back to court. The kids deserve better than how you treat them, and everyone knows it.`;
 
@@ -27,6 +47,24 @@ type Props = {
 };
 
 type Status = "idle" | "streaming" | "done" | "error";
+// Static twin of the free-tier attach chip (identical footprint, inert) shown
+// while the real AttachControl chunk loads after idle. D9 CLS fix: it now also
+// renders during the DeferredMount wait (placeholder), so the footer-left row
+// is 44px tall from first paint — the swap at the 2.5s cap causes zero reflow
+// (previously the row was 20px tall with only the counter, then grew 24px when
+// the chip mounted → CLS 0.083 on mobile). The live chip takes over within a
+// couple of seconds — the ratified enticement UX is unchanged.
+function AttachGhostChip() {
+  return (
+    <span
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold text-stone select-none"
+      aria-hidden="true"
+    >
+      <IconAttach className="h-5 w-5 shrink-0 text-forest-soft" />
+      <span>Steady</span>
+    </span>
+  );
+}
 interface ModeState {
   draft: string;
   blocks: ResultBlock[];
@@ -39,6 +77,35 @@ const IDLE: ModeState = { draft: "", blocks: [], status: "idle", error: "", quot
 function initialTool(): ToolMode {
   if (typeof window === "undefined") return "review";
   return new URLSearchParams(window.location.search).get("mode") === "analyze" ? "analyze" : "review";
+}
+// GPT cleanup (2026-08-16): guided-funnel fallback trigger. The funnel must
+// NOT auto-open ~1.4s after a review — the payoff has to be READ first. A
+// rewrite copy (ReviewResults dispatches ~1.2s after a successful copy) is
+// the primary trigger; this is the calm fallback for readers: 12s dwell
+// after completion, deferred in 3s steps (up to ~18s) while the user is
+// actively scrolling or has an active text selection — never interrupting
+// reading, selecting, or copying. GuidedFunnel (mounted in __root) still
+// owns eligibility (signed-out, once per page load) and the modal lock.
+let lastScrollAt = 0;
+if (typeof window !== "undefined") {
+  window.addEventListener("scroll", () => { lastScrollAt = Date.now(); }, { passive: true });
+}
+function scheduleGuidedFunnelFallback() {
+  if (typeof window === "undefined") return;
+  window.setTimeout(() => {
+    const tryFire = (roundsLeft: number) => {
+      if (roundsLeft <= 0) return; // stay quiet rather than interrupt
+      const scrolling = Date.now() - lastScrollAt < 2500;
+      const selecting =
+        typeof document !== "undefined" && !!document.getSelection()?.toString();
+      if (scrolling || selecting) {
+        window.setTimeout(() => tryFire(roundsLeft - 1), 3000);
+        return;
+      }
+      window.dispatchEvent(new CustomEvent("bys:guided-funnel"));
+    };
+    tryFire(6);
+  }, 12000);
 }
 
 export default function ReviewTool({ reviewRef }: Props) {
@@ -156,6 +223,16 @@ export default function ReviewTool({ reviewRef }: Props) {
           ...(variant ? { auth: "anon", variant, mode: "review" } : { auth: "anon", mode: "review" }),
           ...(exampleRunRef.current ? { example: true } : {}),
         });
+        // Round-6 guided funnel (R6-2): post-value entry point after the
+        // first review or the free example lands. GPT cleanup (2026-08-16):
+        // NEVER auto-opens 1.4s after completion — the payoff must be read
+        // first. Triggered by a rewrite copy (ReviewResults dispatches ~1.2s
+        // after a successful copy) or by this calm 12s fallback dwell
+        // (scheduleGuidedFunnelFallback — defers while the user scrolls or
+        // selects). GuidedFunnel (mounted in __root) decides eligibility
+        // (signed-out, once per page load) and fires the funnel events.
+        // Never carries draft text.
+        scheduleGuidedFunnelFallback();
       }
       // Co-Parent Check-In: second-chance trigger — pill may re-appear once.
       window.dispatchEvent(new CustomEvent("bys:checkin-value"));
@@ -185,6 +262,7 @@ export default function ReviewTool({ reviewRef }: Props) {
     setExampleResults(example);
     exampleRunRef.current = example;
     patch("review", { error: "", quota: false, status: "streaming", blocks: [] });
+    trackFunnelOnce("funnel_started", { entry: "review" });
     track("review_started", { example: example ? true : undefined, auth: "anon", mode: "review" });
     try {
       await streamReview(text, handleEvent, ac.signal, {
@@ -373,16 +451,27 @@ export default function ReviewTool({ reviewRef }: Props) {
       className="scroll-mt-24"
       aria-label="Free message review"
     >
-      <div className="rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8 max-[340px]:p-5">
-        <form onSubmit={onSubmit} noValidate>
-          {/* Two-mode AI Co-Parent: the mode pill is the FIRST element of the
-              card (spec §1). Order: [ModeSwitch] → [label] → [TomorrowDrafts] →
-              [textarea] → [footer row] → [submit]. */}
+      {/* The workplane (comp A / spec §3): the composer as the central working
+          plane of the page — hairline border, restrained 14px radius, ONE
+          elevated plane. No giant floating 2rem marketing card. */}
+      <div className="overflow-hidden rounded-[14px] border border-line bg-card shadow-card">
+        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+          {/* Two-mode AI Co-Parent: the segmented control is the FIRST element
+              (spec §1). Order: [ModeSwitch] → [sr-label] → [TomorrowDrafts] →
+              [textarea] → [footer row]. */}
           <ModeSwitch mode={tool} onChange={switchTool} />
-          <label htmlFor="draft" key={tool} className="field-label bys-mode-settle mt-5">
+        </div>
+        <form onSubmit={onSubmit} noValidate>
+          <label htmlFor="draft" key={tool} className="sr-only">
             {isAnalyze ? "What happened?" : "Your message to your co-parent"}
           </label>
-          <TomorrowDraftsList onLoad={(t) => { patch(tool, { draft: t }); }} />
+          {authed && (
+            <Suspense fallback={null}>
+              <div className="px-3 sm:px-4">
+                <TomorrowDraftsList onLoad={(t) => { patch(tool, { draft: t }); }} />
+              </div>
+            </Suspense>
+          )}
           <textarea
             id="draft"
             value={st.draft}
@@ -392,34 +481,25 @@ export default function ReviewTool({ reviewRef }: Props) {
             placeholder={isAnalyze ? "Tell it like it happened — what they said, what you did, where it left things. No need to be perfect." : "Paste or type the message you're about to send…"}
             rows={6}
             maxLength={5000}
-            className="input min-h-44 resize-y text-base leading-relaxed"
+            className="block min-h-44 w-full resize-y border-0 bg-transparent px-3 py-3 text-base leading-relaxed text-ink placeholder:text-taupe focus:outline-none focus:ring-0 sm:px-4"
           />
           {/* Attach chips (Steady+): between the textarea and the footer row. */}
           {attachments.length > 0 && (
-            <AttachChips
-              mode={tool}
-              attachments={attachments}
-              onRemove={(name) => setAttachments((prev) => prev.filter((a) => a.name !== name))}
-            />
+            <Suspense fallback={null}>
+              <div className="px-3 sm:px-4">
+                <AttachChips
+                  mode={tool}
+                  attachments={attachments}
+                  onRemove={(name) => setAttachments((prev) => prev.filter((a) => a.name !== name))}
+                />
+              </div>
+            </Suspense>
           )}
-          {/* Footer row — live counter + attach control, one right-aligned line
-              (landing-redesign F3; the counter keeps the honest 0/5000 readout). */}
-          <div className="mt-3 flex items-center justify-end gap-2">
-            <span className="text-sm text-stone">{st.draft.trim().length || 0}/5000</span>
-            <AttachControl
-              mode={tool}
-              canAttach={canAttach}
-              signedOut={!authed}
-              attachments={attachments}
-              onChange={setAttachments}
-              disabled={st.status === "streaming"}
-            />
-          </div>
-          {/* Quiet full-width rows above submit: review = the example chip;
-              analyze = the prompt chips (auto-hide once typed >120 chars). */}
+          {/* Quiet rows above the footer: review = the example chip; analyze =
+              the prompt chips (auto-hide once typed >120 chars). */}
           {isAnalyze ? (
             st.draft.trim().length <= 120 && (
-              <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="What happened">
+              <div className="mt-1 flex flex-wrap gap-2 px-3 sm:px-4" role="group" aria-label="What happened">
                 {PROMPT_CHIPS.map((c) => (
                   <button key={c.label} type="button" onClick={() => appendChip(c.prefix)} className="chip">
                     {c.label}
@@ -428,25 +508,57 @@ export default function ReviewTool({ reviewRef }: Props) {
               </div>
             )
           ) : (
-            <div className="mt-2 flex w-full justify-center">
+            <div className="mt-1 flex w-full justify-center px-3 sm:px-4">
               <button type="button" onClick={fillExampleAndRun} className="chip">
                 No draft? See a real example →
               </button>
             </div>
           )}
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="btn-primary mt-5 w-full text-lg"
-          >
-            <span key={tool} className="bys-mode-settle">
-              {st.status === "streaming"
-                ? isAnalyze ? "Analyzing…" : "Reviewing…"
-                : isAnalyze ? "Analyze this situation" : "Review My Message"}
-            </span>
-          </button>
-          <p className="mt-3 text-center text-base text-stone">
-            Free · No account · Private
+          {/* Footer row — attach + honest 0/5000 counter on the left, the
+              primary action on the right; stacks on mobile. */}
+          <div className="mt-2 flex flex-col gap-3 border-t border-line px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div className="flex items-center justify-between gap-3 sm:justify-start">
+              {canAttach ? (
+                <Suspense fallback={<span className="icon-btn min-h-11" aria-hidden="true" />}>
+                  <AttachControl
+                    mode={tool}
+                    canAttach={canAttach}
+                    signedOut={!authed}
+                    attachments={attachments}
+                    onChange={setAttachments}
+                    disabled={st.status === "streaming"}
+                  />
+                </Suspense>
+              ) : (
+                <DeferredMount capMs={2500} placeholder={<AttachGhostChip />}>
+                  <Suspense fallback={<AttachGhostChip />}>
+                    <AttachControl
+                      mode={tool}
+                      canAttach={canAttach}
+                      signedOut={!authed}
+                      attachments={attachments}
+                      onChange={setAttachments}
+                      disabled={st.status === "streaming"}
+                    />
+                  </Suspense>
+                </DeferredMount>
+              )}
+              <span className="text-sm text-taupe tabular-nums">{st.draft.trim().length || 0}/5000</span>
+            </div>
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="btn-primary w-full text-lg sm:w-auto sm:min-w-56"
+            >
+              <span key={tool} className="bys-mode-settle">
+                {st.status === "streaming"
+                  ? isAnalyze ? "Analyzing…" : "Reviewing…"
+                  : isAnalyze ? "Analyze this situation" : "Review my message"}
+              </span>
+            </button>
+          </div>
+          <p className="pb-4 text-center text-sm text-taupe">
+            Usually about 10–20 seconds.
           </p>
         </form>
 
@@ -454,7 +566,7 @@ export default function ReviewTool({ reviewRef }: Props) {
           <div ref={resultsWrapRef} aria-live="polite" className="scroll-mt-24">
             {st.status === "error" && (
               st.quota ? (
-                <div className="mt-8 rounded-3xl border border-red-300 bg-red-50 p-6">
+                <div className="mt-8 rounded-xl border border-red-300 bg-red-50 p-6">
                   <p className="text-base text-red-900">{st.error}</p>
                   <QuotaCTA draft={st.draft} />
                 </div>
@@ -463,17 +575,19 @@ export default function ReviewTool({ reviewRef }: Props) {
               )
             )}
             {st.status !== "error" && (
-              <ReviewResults
-                blocks={st.blocks}
-                mode={mode}
-                draft={st.draft}
-                streaming={st.status === "streaming"}
-                example={exampleResults}
-                captureAsk={!authed}
-                hideCapture={authed}
-                tool={tool}
-                onUseOwnMessage={useOwnMessage}
-              />
+              <Suspense fallback={<p className="mt-6 text-center text-sm text-taupe">Preparing your review…</p>}>
+                <ReviewResults
+                  blocks={st.blocks}
+                  mode={mode}
+                  draft={st.draft}
+                  streaming={st.status === "streaming"}
+                  example={exampleResults}
+                  captureAsk={!authed}
+                  hideCapture={authed}
+                  tool={tool}
+                  onUseOwnMessage={useOwnMessage}
+                />
+              </Suspense>
             )}
           </div>
         )}
@@ -520,7 +634,7 @@ function QuotaCTA({ draft }: { draft: string }) {
 
   if (state === "saved") {
     return (
-      <div className="mt-4 rounded-3xl border border-forest/25 bg-forest p-6 text-cream">
+      <div className="mt-4 rounded-xl border border-forest/25 bg-forest p-6 text-cream">
         <p className="text-lg font-semibold">Your free account is one step away.</p>
         <p className="mt-2 text-base text-cream/85">
           Your draft is saved and waiting. Use the in-app confirmation below to unlock 5 free uses a month.
@@ -537,7 +651,7 @@ function QuotaCTA({ draft }: { draft: string }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-4 rounded-3xl border border-forest/25 bg-forest p-6 text-cream" noValidate>
+    <form onSubmit={onSubmit} className="mt-4 rounded-xl border border-forest/25 bg-forest p-6 text-cream" noValidate>
       <p className="text-lg font-semibold">A free account gives you 5 uses every month — reviews and situation analyses both — and your history is saved.</p>
       <p className="mt-1 text-base text-cream/85">Your draft stays here — we'll save it to your new account.</p>
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -556,7 +670,7 @@ function QuotaCTA({ draft }: { draft: string }) {
               setError("");
             }
           }}
-          className="min-h-12 w-full rounded-full border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+          className="min-h-12 w-full rounded-xl border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
           required
         />
         <button type="submit" disabled={state === "saving"} className="btn-primary shrink-0">
@@ -573,12 +687,10 @@ function QuotaCTA({ draft }: { draft: string }) {
 }
 
 // The human failure fallback (owner direction, 2026-08-10): when a review fails
-// after the automatic retries, never dead-end the dad. Option A saves his
-// message through the existing account-creation flow (/api/save — draft carried
-// along, so nothing is lost); Option B is the real half-price Check-In offer
-// (bys-checkin-50 coupon via /pricing?checkin=50); "Try again" re-POSTs the
-// same draft and is quota-safe now that failed streams refund their slot. All
-// copy is honest — no "AI" word, no urgency, no invented numbers.
+// after the automatic retries, never dead-end the dad. He can save his message
+// through the existing account-creation flow (/api/save — draft carried along,
+// so nothing is lost) or retry the same quota-safe request. A failed core
+// result is never a moment for a payment pitch.
 function ReviewFallback({ draft, error, onRetry }: { draft: string; error: string; onRetry: () => void }) {
   const [showSave, setShowSave] = useState(false);
   const [email, setEmail] = useState("");
@@ -614,7 +726,7 @@ function ReviewFallback({ draft, error, onRetry }: { draft: string; error: strin
 
   if (state === "saved") {
     return (
-      <div className="mt-8 rounded-3xl border border-forest/25 bg-forest p-6 text-cream">
+      <div className="mt-8 rounded-xl border border-forest/25 bg-forest p-6 text-cream">
         <p className="text-lg font-semibold">Your message is saved and waiting.</p>
         <p className="mt-2 text-base text-cream/85">
           Your draft is on its way to your record — confirm below and it's yours.
@@ -631,7 +743,7 @@ function ReviewFallback({ draft, error, onRetry }: { draft: string; error: strin
   }
 
   return (
-    <div className="mt-8 rounded-3xl border-2 border-forest bg-card p-6 shadow-card">
+    <div className="mt-8 rounded-xl border-2 border-forest bg-card p-6 shadow-card">
       <p className="text-lg font-semibold leading-snug text-forest">The review engine is taking a break right now.</p>
       <p className="mt-2 text-base leading-relaxed text-stone">
         Late night for the review engine — it'll be back shortly. Your message matters, and we don't want you to lose it. Here's what we can do:
@@ -661,7 +773,7 @@ function ReviewFallback({ draft, error, onRetry }: { draft: string; error: strin
                 setSaveError("");
               }
             }}
-            className="min-h-12 w-full rounded-full border border-line bg-card px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+            className="min-h-12 w-full rounded-xl border border-line bg-card px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
             required
           />
           <button type="submit" disabled={state === "saving"} className="btn-primary mt-3 w-full">
@@ -675,15 +787,6 @@ function ReviewFallback({ draft, error, onRetry }: { draft: string; error: strin
         </form>
       )}
       <p className="mt-3 text-center text-sm text-stone">No card. No spam. Your message stays yours.</p>
-
-      <a href="/pricing?checkin=50" className="mt-5 block text-center text-base font-semibold text-forest underline underline-offset-4">
-        Half price for the wait — your first 3 months at 50% off
-      </a>
-      <p className="mt-1 text-center text-sm text-stone">Real offer, real math — no countdown. Cancel anytime.</p>
-
-      <p className="mt-5 rounded-2xl bg-cream-deep px-4 py-3 text-center text-sm text-stone">
-        Honest about it: the engine is genuinely busy right now. This offer is real and it's yours.
-      </p>
 
       <button type="button" onClick={onRetry} className="btn-ghost mt-4 w-full">
         Try again

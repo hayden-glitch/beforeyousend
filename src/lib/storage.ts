@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 const base = "/home/team/shared";
-const files = { users: `${base}/bys-users.json`, reviews: `${base}/bys-reviews.json`, log: `${base}/bys-log.json`, timeline: `${base}/bys-timeline.json`, signups: `${base}/bys-signups.jsonl`, anon: `${base}/bys-anon.json`, sessions: `${base}/bys-sessions.json`, authSessions: `${base}/bys-auth-sessions.json`, confirmTokens: `${base}/bys-confirm-tokens.json`, events: `${base}/bys-events.json`, organizerFiles: `${base}/bys-organizer-files.json`, organizerTrials: `${base}/bys-organizer-trials.json`, caseSummary: `${base}/bys-case-summaries.json`, actionCenter: `${base}/bys-action-center.json`, reviewEvents: `${base}/bys-review-events.json`, sessionPlay: `${base}/bys-session-play.json`, tiktokTokens: `${base}/bys-tiktok-tokens.json`, tiktokPublishes: `${base}/bys-tiktok-publishes.json`, giftCodes: `${base}/bys-gift-codes.json`, consultations: `${base}/bys-consultations.json`, organizerUsage: `${base}/bys-organizer-usage.json`, trials: `${base}/bys-trials.json` };
+const files = { users: `${base}/bys-users.json`, reviews: `${base}/bys-reviews.json`, log: `${base}/bys-log.json`, timeline: `${base}/bys-timeline.json`, signups: `${base}/bys-signups.jsonl`, anon: `${base}/bys-anon.json`, sessions: `${base}/bys-sessions.json`, authSessions: `${base}/bys-auth-sessions.json`, confirmTokens: `${base}/bys-confirm-tokens.json`, events: `${base}/bys-events.json`, organizerFiles: `${base}/bys-organizer-files.json`, organizerTrials: `${base}/bys-organizer-trials.json`, caseSummary: `${base}/bys-case-summaries.json`, actionCenter: `${base}/bys-action-center.json`, reviewEvents: `${base}/bys-review-events.json`, sessionPlay: `${base}/bys-session-play.json`, tiktokTokens: `${base}/bys-tiktok-tokens.json`, tiktokPublishes: `${base}/bys-tiktok-publishes.json`, giftCodes: `${base}/bys-gift-codes.json`, consultations: `${base}/bys-consultations.json`, attorneyPacks: `${base}/bys-attorney-packs.json`, recordReviews: `${base}/bys-record-reviews.json`, organizerUsage: `${base}/bys-organizer-usage.json`, trials: `${base}/bys-trials.json`, fulfillmentClaims: `${base}/bys-fulfillment-claims.json` };
 const db = () => process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
 let boot: Promise<void> | null = null;
 async function init(){ const sql=db(); if(!sql)return; await Promise.all([
@@ -23,7 +23,10 @@ async function init(){ const sql=db(); if(!sql)return; await Promise.all([
  sql`CREATE TABLE IF NOT EXISTS bys_gift_codes (id TEXT PRIMARY KEY,giver_id TEXT NOT NULL,months INT NOT NULL DEFAULT 1,status TEXT NOT NULL DEFAULT 'active',created_at TIMESTAMPTZ NOT NULL DEFAULT now(),redeemed_by TEXT,redeemed_at TIMESTAMPTZ,session_id TEXT UNIQUE)`,
  sql`CREATE TABLE IF NOT EXISTS bys_organizer_usage (user_id TEXT NOT NULL, day TEXT NOT NULL, count INT NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day))`,
  sql`CREATE TABLE IF NOT EXISTS bys_consultations (id BIGSERIAL PRIMARY KEY,user_id TEXT NOT NULL,email TEXT,amount_cents INT NOT NULL DEFAULT 0,session_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
+ sql`CREATE TABLE IF NOT EXISTS bys_attorney_packs (id BIGSERIAL PRIMARY KEY,user_id TEXT NOT NULL,email TEXT,amount_cents INT NOT NULL DEFAULT 0,session_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
 sql`CREATE TABLE IF NOT EXISTS bys_trials (user_id TEXT PRIMARY KEY,started_at TIMESTAMPTZ NOT NULL DEFAULT now(),expires_at TIMESTAMPTZ NOT NULL,source TEXT)`,
+ sql`CREATE TABLE IF NOT EXISTS bys_record_reviews (id BIGSERIAL PRIMARY KEY,user_id TEXT NOT NULL,email TEXT,kind TEXT NOT NULL DEFAULT 'purchase',amount_cents INT NOT NULL DEFAULT 0,session_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
+ sql`CREATE TABLE IF NOT EXISTS bys_fulfillment_claims (session_id TEXT PRIMARY KEY,user_id TEXT NOT NULL,plan TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'processing',outcome JSONB,claimed_at TIMESTAMPTZ NOT NULL DEFAULT now(),processed_at TIMESTAMPTZ)`,
  sql`CREATE INDEX IF NOT EXISTS bys_events_name_ts ON bys_events(name,ts)`,
  sql`CREATE INDEX IF NOT EXISTS bys_events_vid_ts ON bys_events(vid,ts)`]);
   // Run AFTER the parallel table batch: the index depends on its table, and the
@@ -101,15 +104,51 @@ sql`CREATE TABLE IF NOT EXISTS bys_trials (user_id TEXT PRIMARY KEY,started_at T
   // scan to stay cheap once the table has real volume.
   try { await sql`CREATE INDEX IF NOT EXISTS bys_session_play_vid_ts ON bys_session_play(vid, ts)` } catch (err) { console.warn("[storage] bys_session_play index:", err) }
   try { await sql`CREATE INDEX IF NOT EXISTS bys_tiktok_publishes_publish_id ON bys_tiktok_publishes(publish_id)` } catch (err) { console.warn("[storage] tiktok_publishes index:", err) }
+  // Record Review Stage 2 (2026-08-13): the generated report persists on the
+  // bys_record_reviews row (the purchase/redemption row stays the entitlement
+  // anchor). report_html is the self-contained report document; report_fallback
+  // is true when the deterministic engine had to produce it (LLM down/slow).
+  // All idempotent; after the parallel CREATE TABLE batch (same race rule as
+  // the indexes above).
+  try { await sql`ALTER TABLE bys_record_reviews ADD COLUMN IF NOT EXISTS report_html TEXT` } catch (err) { console.warn("[storage] record_reviews report_html:", err) }
+  try { await sql`ALTER TABLE bys_record_reviews ADD COLUMN IF NOT EXISTS report_generated_at TIMESTAMPTZ` } catch (err) { console.warn("[storage] record_reviews report_generated_at:", err) }
+  try { await sql`ALTER TABLE bys_record_reviews ADD COLUMN IF NOT EXISTS report_fallback BOOLEAN NOT NULL DEFAULT FALSE` } catch (err) { console.warn("[storage] record_reviews report_fallback:", err) }
 }
 function ready(){return boot ||= init().catch(err => { console.warn("[storage] init failed, continuing:", err) })}
 async function fs(){ return await import("node:fs/promises") }
 async function json(path:string, fallback:any[]=[]){try{return JSON.parse(await (await fs()).readFile(path,"utf8"))}catch{return fallback}}
 async function put(path:string,v:any){const f=await fs();await f.mkdir(base,{recursive:true});await f.writeFile(path,JSON.stringify(v,null,2))}
 export async function readUsers():Promise<any[]>{await ready();const sql=db();if(sql){const r=await sql`SELECT id,email,password,created_at AS "createdAt",confirmed_at AS "confirmedAt",profile FROM bys_users`;return r as any[]}return json(files.users)}
-export async function writeUsers(users:any[]){await ready();const sql=db();if(sql){for(const u of users)await sql`INSERT INTO bys_users(id,email,password,created_at,confirmed_at,profile) VALUES(${u.id},${u.email},${u.password||null},${u.createdAt},${u.confirmedAt||null},${JSON.stringify(u.profile||{})}) ON CONFLICT(id) DO UPDATE SET password=EXCLUDED.password,confirmed_at=EXCLUDED.confirmed_at,profile=EXCLUDED.profile`;return}await put(files.users,users)}
+// SEED/SETUP-ONLY — do NOT call from runtime mutation paths.
+// Renamed from writeUsers (Track B Round 5, Codex cleanup): its UPDATE
+// predicate compares the DB row to values ALREADY PRESENT in the passed
+// object, so a read -> mutate -> write on an existing row no-ops silently —
+// it is NOT a general mutation helper. Runtime mutations must use the
+// row-scoped ATOMIC primitives below (updateUserProfile, grantTopUp,
+// addCredits, processedSessions appends, etc.), which compute from the
+// CURRENT DB row. seedWriteUsers exists for seed/setup/test-harness only;
+// it is CAS-guarded: each row is written ONLY when the DB row still equals
+// the snapshot (UPDATE guarded by the old password/confirmed_at/profile),
+// or INSERTed when the row is missing. A row changed by a concurrent
+// request is never overwritten.
+export async function seedWriteUsers(users:any[]){
+  await ready();const sql=db();
+  if(sql){
+    for(const u of users){
+      if(!u||!u.id)continue;
+      const prof=JSON.stringify(u.profile||{});
+      const upd=await sql`UPDATE bys_users SET password=${u.password||null},confirmed_at=${u.confirmedAt||null},profile=${prof}::jsonb WHERE id=${u.id} AND email=${u.email} AND password IS NOT DISTINCT FROM ${u.password||null} AND confirmed_at IS NOT DISTINCT FROM ${u.confirmedAt||null} AND profile=${prof}::jsonb`;
+      if(upd.length>0)continue;
+      // No row matched: either the row is missing (fresh insert) or it was
+      // changed concurrently (CAS fail -> skip, never overwrite).
+      await sql`INSERT INTO bys_users(id,email,password,created_at,confirmed_at,profile) VALUES(${u.id},${u.email},${u.password||null},${u.createdAt||new Date().toISOString()},${u.confirmedAt||null},${prof}::jsonb) ON CONFLICT(id) DO NOTHING`;
+    }
+    return;
+  }
+  await put(files.users,users);
+}
 // Merge a small patch into ONE user's profile (single-row UPDATE — cheap, and
-// avoids writeUsers' full-list upsert loop). Used by Sort My Pile to remember
+// avoids seedWriteUsers' full-list upsert loop). Used by Sort My Pile to remember
 // the last completed sort so the compat poll endpoint can return its results.
 export async function updateUserProfile(userId:string,patch:any){
   await ready();const sql=db();
@@ -117,6 +156,201 @@ export async function updateUserProfile(userId:string,patch:any){
   const rows=await json(files.users);
   const u=rows.find((x:any)=>x.id===userId);
   if(u){u.profile={...(u.profile||{}),...(patch||{})};await put(files.users,rows);}
+}
+// ---- Track B Round 4: row-scoped ATOMIC profile mutations ------------------
+// Codex P0 (2026-08-15): every money/entitlement write is now a single-row,
+// single-statement UPDATE computed from the CURRENT DB row — never from a
+// caller snapshot. Credit increments, stacked sortUntil/giftUntil, and
+// processedSessions appends are therefore safe under concurrency: two
+// concurrent grants both compute from the row's latest value inside their own
+// statement, and Postgres row locking serializes them so neither is lost.
+// JSON-fallback branches (test/dev only) mirror the SQL semantics in memory.
+
+// Atomic credit adjustment: credits = COALESCE(credits,0) + delta, computed in
+// SQL from the row. With onlyIfPositive the update no-ops (returns null) when
+// the row has no credits left — used by the review/analyze success claim so
+// two concurrent streams can never overdraw. Returns the new credits value.
+export async function adjustUserCredits(userId:string,delta:number,onlyIfPositive=false):Promise<number|null>{
+  await ready();const sql=db();
+  if(sql){
+    const r = onlyIfPositive
+      ? await sql`UPDATE bys_users SET profile=jsonb_set(profile,'{credits}',to_jsonb(COALESCE((profile->>'credits')::int,0)+${delta})) WHERE id=${userId} AND COALESCE((profile->>'credits')::int,0)>0 RETURNING profile->>'credits' AS credits`
+      : await sql`UPDATE bys_users SET profile=jsonb_set(profile,'{credits}',to_jsonb(COALESCE((profile->>'credits')::int,0)+${delta})) WHERE id=${userId} RETURNING profile->>'credits' AS credits`;
+    return r.length?Number(r[0].credits):null;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(!u)return null;
+  const cur=Number(u.profile?.credits||0);
+  if(onlyIfPositive&&cur<=0)return null;
+  const next=cur+delta;
+  u.profile={...(u.profile||{}),credits:next};
+  await put(files.users,rows);
+  return next;
+}
+
+// Atomic processedSessions append (single row). Used where the grant is a
+// plain session stamp (gift-giver stamp, consultation). The paid grant
+// branches below combine their field writes with the append in ONE statement
+// so a crash can never leave a grant without its stamp.
+export async function appendProcessedSession(userId:string,sessionId:string):Promise<void>{
+  await ready();const sql=db();
+  if(sql){await sql`UPDATE bys_users SET profile=jsonb_set(profile,'{processedSessions}',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text)) WHERE id=${userId}`;return}
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(u){u.profile={...(u.profile||{}),processedSessions:[...(Array.isArray(u.profile?.processedSessions)?u.profile.processedSessions:[]),sessionId]};await put(files.users,rows);}
+}
+
+// Top-Up grant: credits += n AND processedSessions append atomically in ONE
+// statement (credits and stamp can never diverge mid-crash). Returns the new
+// credits value from the DB row.
+export async function grantTopUp(userId:string,n:number,sessionId:string):Promise<number|null>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`UPDATE bys_users SET profile=jsonb_set(jsonb_set(profile,'{credits}',to_jsonb(COALESCE((profile->>'credits')::int,0)+${n})),'{processedSessions}',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text)) WHERE id=${userId} RETURNING profile->>'credits' AS credits`;
+    return r.length?Number(r[0].credits):null;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(!u)return null;
+  const credits=(Number(u.profile?.credits||0)+n);
+  u.profile={...(u.profile||{}),credits,processedSessions:[...(Array.isArray(u.profile?.processedSessions)?u.profile.processedSessions:[]),sessionId]};
+  await put(files.users,rows);
+  return credits;
+}
+
+// Sort My Pile grant: sortUntil = GREATEST(now, current sortUntil) + 30 days,
+// computed in SQL from the CURRENT row so two concurrent purchases stack
+// instead of clobbering; processedSessions appended in the same statement.
+// Returns the new sortUntil ISO timestamp.
+export async function grantSortPile(userId:string,sessionId:string):Promise<string|null>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`UPDATE bys_users SET profile=jsonb_set(jsonb_set(profile,'{sortUntil}',to_jsonb((GREATEST(now(),COALESCE((profile->>'sortUntil')::timestamptz,now()))+interval '30 days')::timestamptz)),'{processedSessions}',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text)) WHERE id=${userId} RETURNING profile->>'sortUntil' AS "sortUntil"`;
+    return r.length?String(r[0].sortUntil):null;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(!u)return null;
+  const base=Math.max(Date.now(),new Date(u.profile?.sortUntil||0).getTime());
+  const sortUntil=new Date(base+30*24*60*60*1000).toISOString();
+  u.profile={...(u.profile||{}),sortUntil,processedSessions:[...(Array.isArray(u.profile?.processedSessions)?u.profile.processedSessions:[]),sessionId]};
+  await put(files.users,rows);
+  return sortUntil;
+}
+
+// Durable entitlement grant (Attorney Prep Pack / Record Review): set the
+// stamp key and append processedSessions in ONE statement.
+export async function grantEntitlement(userId:string,sessionId:string,stamp:string):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    if(stamp==="attorneyPrep"){
+      await sql`UPDATE bys_users SET profile=jsonb_set(jsonb_set(profile,'{attorneyPrep}',to_jsonb(true)),'{processedSessions}',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text)) WHERE id=${userId}`;
+    } else if(stamp==="recordReview"){
+      await sql`UPDATE bys_users SET profile=jsonb_set(jsonb_set(profile,'{recordReview}',to_jsonb(true)),'{processedSessions}',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text)) WHERE id=${userId}`;
+    }
+    return;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(u){u.profile={...(u.profile||{}),[stamp]:true,processedSessions:[...(Array.isArray(u.profile?.processedSessions)?u.profile.processedSessions:[]),sessionId]};await put(files.users,rows);}
+}
+
+// Subscription grant: tier/tierSince/tierRenewsAt + processedSessions in ONE
+// statement, plus the Stripe customer/subscription ids when the session
+// carries them (empty strings are merged as "" — the billing-portal 404 path
+// treats "" and missing identically). Row-scoped; last-write-wins per key.
+export async function grantSubscription(userId:string,sessionId:string,f:{tier:string;tierSince:string;tierRenewsAt:string;stripeCustomerId?:string;stripeSubscriptionId?:string}):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    await sql`UPDATE bys_users SET profile=((profile||jsonb_build_object('tier',${f.tier}::text,'tierSince',${f.tierSince}::text,'tierRenewsAt',${f.tierRenewsAt}::text,'stripeCustomerId',${f.stripeCustomerId||""}::text,'stripeSubscriptionId',${f.stripeSubscriptionId||""}::text))||jsonb_build_object('processedSessions',COALESCE(profile->'processedSessions','[]'::jsonb)||to_jsonb(${sessionId}::text))) WHERE id=${userId}`;
+    return;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(u){
+    const p={...(u.profile||{}),tier:f.tier,tierSince:f.tierSince,tierRenewsAt:f.tierRenewsAt,processedSessions:[...(Array.isArray(u.profile?.processedSessions)?u.profile.processedSessions:[]),sessionId]};
+    if(f.stripeCustomerId)p.stripeCustomerId=f.stripeCustomerId;
+    if(f.stripeSubscriptionId)p.stripeSubscriptionId=f.stripeSubscriptionId;
+    u.profile=p;await put(files.users,rows);
+  }
+}
+
+// Gift redemption: giftUntil = GREATEST(now, current giftUntil, current
+// tierRenewsAt) + 30 days, computed in SQL from the CURRENT row so a gift
+// redeemed under a paid account is banked, not wasted, and two concurrent
+// redemptions stack. Returns the new giftUntil ISO timestamp.
+export async function extendGiftUntil(userId:string):Promise<string|null>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`UPDATE bys_users SET profile=jsonb_set(profile,'{giftUntil}',to_jsonb((GREATEST(now(),COALESCE((profile->>'giftUntil')::timestamptz,now()),COALESCE((profile->>'tierRenewsAt')::timestamptz,now()))+interval '30 days')::timestamptz)) WHERE id=${userId} RETURNING profile->>'giftUntil' AS "giftUntil"`;
+    return r.length?String(r[0].giftUntil):null;
+  }
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(!u)return null;
+  const base=Math.max(Date.now(),new Date(u.profile?.giftUntil||0).getTime(),new Date(u.profile?.tierRenewsAt||0).getTime());
+  const giftUntil=new Date(base+30*24*60*60*1000).toISOString();
+  u.profile={...(u.profile||{}),giftUntil};
+  await put(files.users,rows);
+  return giftUntil;
+}
+
+// Password (+ optional confirmed_at) for ONE user; row-scoped. Inserts the
+// user row when it is missing (confirm-token account creation) with the given
+// email/createdAt; otherwise updates only password/confirmed_at. Never
+// touches profile — a concurrent grant on the same row is preserved.
+export async function setUserPassword(userId:string,email:string,passwordHash:string,confirmedAt?:string,createdAt?:string,intake?:any):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    if(confirmedAt){
+      if(intake!==undefined&&intake!==null){
+        await sql`INSERT INTO bys_users(id,email,password,created_at,confirmed_at,profile) VALUES(${userId},${email},${passwordHash},${createdAt||new Date().toISOString()},${confirmedAt},${JSON.stringify({intake})}::jsonb) ON CONFLICT(id) DO UPDATE SET password=EXCLUDED.password,confirmed_at=EXCLUDED.confirmed_at,profile=bys_users.profile||EXCLUDED.profile`;
+      } else {
+        await sql`INSERT INTO bys_users(id,email,password,created_at,confirmed_at,profile) VALUES(${userId},${email},${passwordHash},${createdAt||new Date().toISOString()},${confirmedAt},'{}'::jsonb) ON CONFLICT(id) DO UPDATE SET password=EXCLUDED.password,confirmed_at=EXCLUDED.confirmed_at`;
+      }
+    } else {
+      await sql`UPDATE bys_users SET password=${passwordHash} WHERE id=${userId}`;
+    }
+    return;
+  }
+  const rows=await json(files.users);
+  let u=rows.find((x:any)=>x.id===userId);
+  if(!u){u={id:userId,email,password:passwordHash,createdAt:createdAt||new Date().toISOString(),confirmedAt:confirmedAt||null,profile:{}};rows.push(u);}
+  else {u.password=passwordHash;if(confirmedAt)u.confirmedAt=confirmedAt;}
+  await put(files.users,rows);
+}
+
+// Email-confirm account creation (handleConfirm): set confirmed_at (+ merge
+// profile.intake when the login intake questions were answered) on ONE user
+// row; inserts the row when missing (fresh account), otherwise updates only
+// confirmed_at/profile — never password, never a whole-table snapshot.
+export async function confirmUser(userId:string,email:string,confirmedAt:string,intake?:any):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    if(intake!==undefined&&intake!==null){
+      await sql`INSERT INTO bys_users(id,email,created_at,confirmed_at,profile) VALUES(${userId},${email},${new Date().toISOString()},${confirmedAt},${JSON.stringify({intake})}::jsonb) ON CONFLICT(id) DO UPDATE SET confirmed_at=EXCLUDED.confirmed_at,profile=bys_users.profile||EXCLUDED.profile`;
+    } else {
+      await sql`INSERT INTO bys_users(id,email,created_at,confirmed_at,profile) VALUES(${userId},${email},${new Date().toISOString()},${confirmedAt},'{}'::jsonb) ON CONFLICT(id) DO UPDATE SET confirmed_at=EXCLUDED.confirmed_at`;
+    }
+    return;
+  }
+  const rows=await json(files.users);
+  let u=rows.find((x:any)=>x.id===userId);
+  if(!u){u={id:userId,email,password:null,createdAt:new Date().toISOString(),confirmedAt,profile:intake?{intake}:{}};rows.push(u);}
+  else {u.confirmedAt=confirmedAt;if(intake)u.profile={...(u.profile||{}),intake};}
+  await put(files.users,rows);
+}
+
+// Cancel-downgrade: remove tierSince/tierRenewsAt from ONE user's profile
+// (literal key paths only — never user input) so the lazy userTier() expiry
+// can no longer resurrect a paid tier after an immediate cancel.
+export async function clearSubscriptionExpiry(userId:string):Promise<void>{
+  await ready();const sql=db();
+  if(sql){await sql`UPDATE bys_users SET profile=(profile - 'tierSince') - 'tierRenewsAt' WHERE id=${userId}`;return}
+  const rows=await json(files.users);
+  const u=rows.find((x:any)=>x.id===userId);
+  if(u){const p={...(u.profile||{})};delete p.tierSince;delete p.tierRenewsAt;u.profile=p;await put(files.users,rows);}
 }
 export async function readReviews(){await ready();const sql=db();if(sql)return await sql`SELECT id,user_id AS "userId",draft,blocks,review,kind,title,created_at AS "createdAt" FROM bys_reviews` as any[];return json(files.reviews)}
 // User-scoped review read (M2 audit de2c7f92): WHERE user_id in SQL — the export
@@ -162,6 +396,10 @@ export async function deleteUserData(userId:string, email:string){
     await sql`DELETE FROM bys_review_events WHERE user_id=${userId}`;
     await sql`DELETE FROM bys_gift_codes WHERE giver_id=${userId} OR redeemed_by=${userId}`;
     await sql`DELETE FROM bys_trials WHERE user_id=${userId}`;
+    await sql`DELETE FROM bys_record_reviews WHERE user_id=${userId}`;
+    await sql`DELETE FROM bys_attorney_packs WHERE user_id=${userId}`;
+    await sql`DELETE FROM bys_consultations WHERE user_id=${userId}`;
+    await sql`DELETE FROM bys_fulfillment_claims WHERE user_id=${userId}`;
     try {
       await sql`DELETE FROM bys_organizer_files WHERE user_id=${userId}`;
       await sql`DELETE FROM bys_organizer_trial_usage WHERE key='user:'||${userId}`;
@@ -189,9 +427,103 @@ export async function deleteUserData(userId:string, email:string){
     put(files.organizerUsage,(await json(files.organizerUsage)).filter((o:any)=>o.userId!==userId)),
     put(files.giftCodes,giftCodes.filter((g:any)=>g.giverId!==userId&&g.redeemedBy!==userId)),
     put(files.trials,(await json(files.trials)).filter((t:any)=>t.userId!==userId)),
+    put(files.recordReviews,(await json(files.recordReviews)).filter((r:any)=>r.userId!==userId)),
+    put(files.attorneyPacks,(await json(files.attorneyPacks)).filter((a:any)=>a.userId!==userId)),
+    put(files.consultations,(await json(files.consultations)).filter((c:any)=>c.userId!==userId)),
+    put(files.fulfillmentClaims,(await json(files.fulfillmentClaims)).filter((c:any)=>c.user_id!==userId)),
     sf.writeFile(files.signups,signupsKept.length?signupsKept.join("\n")+"\n":""),
   ]);
 }
+
+
+// ---- Fulfillment claims (Track B, R6 payment durability) ------------------
+// DB-level idempotency for Stripe checkout fulfillment. A session may arrive
+// from BOTH the browser confirm (/api/checkout/confirm) and Stripe's verified
+// webhook (checkout.session.completed); the unique session_id primary key is
+// the atomic claim so exactly one path ever grants credits/entitlements, and
+// retries of either path see status='processed' and no-op. JSON fallback is
+// file-based (test/dev only) — production uses the unique constraint.
+export async function claimFulfillment(sessionId: string, userId: string, plan: string): Promise<boolean> {
+  await ready(); const sql = db();
+  if (sql) {
+    let rows: any[];
+    try {
+      // Claim succeeds ONLY when THIS invocation created the row. RETURNING
+      // with ON CONFLICT DO NOTHING returns the inserted row (1) or nothing (0)
+      // — a pre-existing row (even for the same user, even 'processing') is NOT
+      // re-claimed here. The caller inspects the row's status explicitly and
+      // reclaims only when it is stale (Track B Round 2: processed vs
+      // processing are distinct states).
+      rows = await sql`INSERT INTO bys_fulfillment_claims(session_id,user_id,plan,status) VALUES(${sessionId},${userId},${plan},'processing') ON CONFLICT(session_id) DO NOTHING RETURNING session_id`;
+    } catch (err) {
+      console.warn("[storage] claim insert failed:", err);
+      return false;
+    }
+    return rows.length === 1;
+  }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  if (rows.some((r: any) => r.session_id === sessionId)) return false;
+  rows.push({ session_id: sessionId, user_id: userId, plan, status: "processing", claimed_at: new Date().toISOString() });
+  await put(files.fulfillmentClaims, rows);
+  return true;
+}
+export async function getFulfillmentClaim(sessionId: string): Promise<any | null> {
+  await ready(); const sql = db();
+  if (sql) {
+    const rows = await sql`SELECT session_id AS "sessionId", user_id AS "userId", plan, status, outcome, claimed_at AS "claimedAt", processed_at AS "processedAt" FROM bys_fulfillment_claims WHERE session_id=${sessionId}`;
+    return rows[0] || null;
+  }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  return rows.find((r: any) => r.session_id === sessionId) || null;
+}
+export async function markFulfillmentProcessed(sessionId: string, outcome: any): Promise<void> {
+  await ready(); const sql = db();
+  if (sql) {
+    await sql`UPDATE bys_fulfillment_claims SET status='processed', outcome=${JSON.stringify(outcome || {})}, processed_at=now() WHERE session_id=${sessionId}`;
+    return;
+  }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  const hit = rows.find((r: any) => r.session_id === sessionId);
+  if (hit) {
+    hit.status = "processed";
+    hit.outcome = outcome || {};
+    hit.processed_at = new Date().toISOString();
+    await put(files.fulfillmentClaims, rows);
+  }
+}
+// Re-take a claim that was in-flight for >5 minutes and never processed (a
+// crashed grantor would otherwise lock the session forever). Only call after
+// checking the claim belongs to the same user.
+export async function reclaimFulfillment(sessionId: string): Promise<boolean> {
+  await ready(); const sql = db();
+  if (sql) {
+    const rows = await sql`UPDATE bys_fulfillment_claims SET status='processing', claimed_at=now() WHERE session_id=${sessionId} AND status='processing' AND claimed_at < now() - interval '5 minutes' RETURNING session_id`;
+    return rows.length > 0;
+  }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  const hit = rows.find((r: any) => r.session_id === sessionId && r.status === "processing");
+  if (hit && Date.now() - new Date(hit.claimed_at).getTime() > 5 * 60 * 1000) {
+    hit.claimed_at = new Date().toISOString();
+    await put(files.fulfillmentClaims, rows);
+    return true;
+  }
+  return false;
+}
+// Drop a claim without processing (e.g. gift-code mint failed): lets a retry
+// re-claim and re-run the grant instead of being blocked by a stale claim.
+export async function releaseFulfillmentClaim(sessionId: string): Promise<void> {
+  await ready(); const sql = db();
+  if (sql) { await sql`DELETE FROM bys_fulfillment_claims WHERE session_id=${sessionId}`; return; }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  await put(files.fulfillmentClaims, rows.filter((r: any) => r.session_id !== sessionId));
+}
+export async function deleteFulfillmentClaimsByUser(userId: string): Promise<void> {
+  await ready(); const sql = db();
+  if (sql) { await sql`DELETE FROM bys_fulfillment_claims WHERE user_id=${userId}`; return; }
+  const rows: any[] = await json(files.fulfillmentClaims);
+  await put(files.fulfillmentClaims, rows.filter((r: any) => r.user_id !== userId));
+}
+
 export async function readLog(){await ready();const sql=db();if(sql)return await sql`SELECT id,user_id AS "userId",message,direction,date,topic,notes,tone,child,created_at AS "createdAt",updated_at AS "updatedAt" FROM bys_log` as any[];return json(files.log)}
 export async function writeLog(rows:any[]){await ready();const sql=db();if(sql){await sql`DELETE FROM bys_log WHERE NOT (id = ANY(${rows.map(r=>r.id)}))`;for(const r of rows)await sql`INSERT INTO bys_log(id,user_id,message,direction,date,topic,notes,tone,child,created_at,updated_at) VALUES(${r.id},${r.userId},${r.message},${r.direction},${r.date},${r.topic},${r.notes},${r.tone||null},${r.child||null},${r.createdAt},${r.updatedAt||null}) ON CONFLICT(id) DO UPDATE SET message=EXCLUDED.message,direction=EXCLUDED.direction,date=EXCLUDED.date,topic=EXCLUDED.topic,notes=EXCLUDED.notes,tone=EXCLUDED.tone,child=EXCLUDED.child,updated_at=EXCLUDED.updated_at`;return}await put(files.log,rows)}
 export async function readTimeline(){await ready();const sql=db();if(sql)return await sql`SELECT id,user_id AS "userId",date,title,category,details,created_at AS "createdAt",updated_at AS "updatedAt" FROM bys_timeline` as any[];return json(files.timeline)}
@@ -1146,6 +1478,35 @@ export async function insertConsultation(row:{userId:string,email?:string,amount
   }
   return existing;
 }
+// ---- Attorney Prep Pack (one-time 2026-08-12, Stage 1 money path) -----------
+// Durable grant row — mirrors bys_consultations exactly (lazy DDL, session_id
+// UNIQUE idempotency, JSON fallback). The confirm handler ALSO stamps
+// profile.attorneyPrep so the sync entitlement check needs no DB read; this row
+// is the canonical durable record (re-download entitlement, audit trail).
+export async function insertAttorneyPack(row:{userId:string,email?:string,amountCents?:number,sessionId:string}):Promise<any>{
+  await ready();const sql=db();
+  if(sql){
+    await sql`INSERT INTO bys_attorney_packs(user_id,email,amount_cents,session_id) VALUES(${row.userId},${row.email||null},${row.amountCents||0},${row.sessionId}) ON CONFLICT (session_id) DO NOTHING`;
+    const r=await sql`SELECT id,user_id AS "userId",email,amount_cents AS "amountCents",session_id AS "sessionId",created_at AS "createdAt" FROM bys_attorney_packs WHERE session_id=${row.sessionId}`;
+    return (r as any[])[0] || null;
+  }
+  const rows=await json(files.attorneyPacks);
+  const existing=rows.find((x:any)=>x.sessionId===row.sessionId);
+  if(!existing){
+    const c={userId:row.userId,email:row.email||null,amountCents:row.amountCents||0,sessionId:row.sessionId,createdAt:new Date().toISOString()};
+    rows.push(c);await put(files.attorneyPacks,rows);return c;
+  }
+  return existing;
+}
+export async function attorneyPacksForUser(userId:string):Promise<any[]>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`SELECT id,user_id AS "userId",email,amount_cents AS "amountCents",session_id AS "sessionId",created_at AS "createdAt" FROM bys_attorney_packs WHERE user_id=${userId} ORDER BY created_at DESC`;
+    return r as any[];
+  }
+  const rows=await json(files.attorneyPacks);
+  return rows.filter((x:any)=>x.userId===userId).sort((a:any,b:any)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+}
 // 24-hour free trial (owner 2026-08-13): ONE trial per person, ever. user_id is
 // the PK — a second INSERT for the same person is a no-op (race-safe). Expiry
 // is pure timestamp math (started_at + 24h) compared at read/grant time; no
@@ -1174,6 +1535,79 @@ export async function startTrial(userId:string,source:string):Promise<{row:any,c
   if(existing)return {row:existing,created:false};
   const t={userId,startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+86400000).toISOString(),source};
   rows.push(t);await put(files.trials,rows);return {row:t,created:true};
+}
+// ---- Record Review (one-time $29.50 + Ultimate 1/year allowance) -----------
+// Durable row for BOTH money purchases (kind='purchase') and Ultimate annual
+// allowance redemptions (kind='redemption', amount 0). A fresh Ultimate user
+// with no row in the rolling 365-day window is entitled; every confirm/redeem
+// writes a row so the 1/year window is enforced server-side (the entitlement
+// check counts rows by created_at). session_id UNIQUE keeps double-confirm
+// idempotent; for redemptions (no Stripe session) the caller supplies a unique
+// token. Mirrors bys_consultations/bys_attorney_packs.
+export async function insertRecordReview(row:{userId:string,email?:string,kind?:string,amountCents?:number,sessionId:string}):Promise<any>{
+  await ready();const sql=db();
+  if(sql){
+    await sql`INSERT INTO bys_record_reviews(user_id,email,kind,amount_cents,session_id) VALUES(${row.userId},${row.email||null},${row.kind||'purchase'},${row.amountCents||0},${row.sessionId}) ON CONFLICT (session_id) DO NOTHING`;
+    const r=await sql`SELECT id,user_id AS "userId",email,kind,amount_cents AS "amountCents",session_id AS "sessionId",created_at AS "createdAt" FROM bys_record_reviews WHERE session_id=${row.sessionId}`;
+    return (r as any[])[0] || null;
+  }
+  const rows=await json(files.recordReviews);
+  const existing=rows.find((x:any)=>x.sessionId===row.sessionId);
+  if(!existing){
+    const c={userId:row.userId,email:row.email||null,kind:row.kind||'purchase',amountCents:row.amountCents||0,sessionId:row.sessionId,createdAt:new Date().toISOString()};
+    rows.push(c);await put(files.recordReviews,rows);return c;
+  }
+  return existing;
+}
+export async function recordReviewsForUser(userId:string):Promise<any[]>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`SELECT id,user_id AS "userId",email,kind,amount_cents AS "amountCents",session_id AS "sessionId",created_at AS "createdAt" FROM bys_record_reviews WHERE user_id=${userId} ORDER BY created_at DESC`;
+    return r as any[];
+  }
+  const rows=await json(files.recordReviews);
+  return rows.filter((x:any)=>x.userId===userId).sort((a:any,b:any)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+// Record Review Stage 2 — durable report persistence. The report is stored ON
+// the bys_record_reviews row (anchor = the purchase or redemption row), keyed
+// by the row's UNIQUE session_id so both DB and JSON-fallback paths behave
+// identically. latestRecordReviewReport returns the newest report for the
+// account regardless of which row kind carries it (re-view works even after an
+// Ultimate allowance is spent); regenerating writes a fresh report (new
+// redemption row for Ultimate — the Stage 1 hook — or the purchase row for
+// buyers). deleteRecordReviewBySession rolls back a redemption whose report
+// save failed, keeping the invariant "a redemption row exists <=> its report
+// is anchored" so a failed generate never silently burns the 1/year allowance.
+export async function saveRecordReviewReport(sessionId:string, html:string, fallback:boolean):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    await sql`UPDATE bys_record_reviews SET report_html=${html}, report_generated_at=now(), report_fallback=${fallback} WHERE session_id=${sessionId}`;
+    return;
+  }
+  const rows=await json(files.recordReviews);
+  const r=rows.find((x:any)=>x.sessionId===sessionId);
+  if(r){r.reportHtml=html;r.reportGeneratedAt=new Date().toISOString();r.reportFallback=fallback;await put(files.recordReviews,rows);}
+}
+export async function latestRecordReviewReport(userId:string):Promise<any|null>{
+  await ready();const sql=db();
+  if(sql){
+    const r=await sql`SELECT session_id AS "sessionId",kind,report_html AS "reportHtml",report_generated_at AS "reportGeneratedAt",report_fallback AS "reportFallback" FROM bys_record_reviews WHERE user_id=${userId} AND report_html IS NOT NULL ORDER BY report_generated_at DESC NULLS LAST LIMIT 1`;
+    return (r as any[])[0] || null;
+  }
+  const rows=await json(files.recordReviews);
+  const withReport=rows.filter((x:any)=>x.userId===userId&&x.reportHtml);
+  withReport.sort((a:any,b:any)=>String(b.reportGeneratedAt||"").localeCompare(String(a.reportGeneratedAt||"")));
+  return withReport[0] || null;
+}
+export async function deleteRecordReviewBySession(sessionId:string):Promise<void>{
+  await ready();const sql=db();
+  if(sql){
+    await sql`DELETE FROM bys_record_reviews WHERE session_id=${sessionId} AND report_html IS NULL AND kind='redemption'`;
+    return;
+  }
+  const rows=await json(files.recordReviews);
+  const idx=rows.findIndex((x:any)=>x.sessionId===sessionId);
+  if(idx>=0&&!rows[idx].reportHtml&&rows[idx].kind==='redemption'){rows.splice(idx,1);await put(files.recordReviews,rows);}
 }
 export async function getGiftCode(code:string):Promise<any|null>{
   await ready();const sql=db();

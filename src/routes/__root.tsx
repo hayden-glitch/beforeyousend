@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import {
   HeadContent,
   Outlet,
@@ -7,13 +7,15 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestUrl } from "@tanstack/react-start/server";
 import type { ReactNode } from "react";
 import appCss from "~/styles/app.css?url";
-import SpecialOffer from "~/components/SpecialOffer";
-import TrialModal from "~/components/TrialModal";
-import CoParentCheckIn from "~/components/CoParentCheckIn";
+import { DeferredMount } from "~/components/DeferredMount";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
 import {
+  GOOGLE_ADS_ID,
+  GOOGLE_TAG_BOOTSTRAP,
+  hasSensitiveQuery,
   initAnalytics,
   initRouteTracking,
   type AnalyticsConfig,
@@ -23,9 +25,28 @@ const getAnalyticsConfig = createServerFn().handler(async () => {
   const cfg: AnalyticsConfig = {};
   const pick = (v: string | undefined) => (v && v.trim() ? v.trim() : undefined);
   cfg.tiktokPixelId = pick(process.env.TIKTOK_PIXEL_ID);
-  cfg.googleAdsId = pick(process.env.GOOGLE_ADS_ID);
+  // Codex final-fold Blocker 1 (comment 5300270649): while the request URL
+  // carries a sensitive app query (token/session_id/gift code/auth or reset
+  // secrets/raw next/…), SSR must OMIT the Google tag loader + bootstrap —
+  // the page consumes the credential and scrubs the URL client-side BEFORE
+  // measurement initializes on the clean URL (TikTok is client-only and is
+  // deferred by initAnalytics for the same pages). getRequestUrl() is the
+  // incoming page URL during SSR (AsyncLocalStorage request context); outside
+  // a request context (client RPC re-fetch) it throws → not sensitive → the
+  // tags render exactly as before. Same allowlist as the client page-view
+  // guard (hasSensitiveQuery), so SSR and client always agree on "dirty".
+  try {
+    cfg.sensitive = hasSensitiveQuery(getRequestUrl().search);
+  } catch {
+    cfg.sensitive = false;
+  }
   return cfg;
 });
+
+// The canonical Google tag bootstrap lives in src/lib/analytics.ts
+// (GOOGLE_TAG_BOOTSTRAP) — shared with injectGoogleTagIfNeeded() so the
+// sensitive-query pages can re-initialize measurement on the clean URL after
+// the route scrubs the credential.
 
 export const Route = createRootRoute({
   head: () => ({
@@ -45,18 +66,11 @@ export const Route = createRootRoute({
         content:
           "Paste the text you're about to send to your co-parent. Before You Send reviews how it may be received, flags conflict risks, and returns three calm, child-focused rewrites — free, no account needed.",
       },
-      { name: "theme-color", content: "#FAF7F1" },
+      { name: "theme-color", content: "#0D110F" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/svg+xml", href: "/favicon-bys.svg" },
-      {
-        rel: "preload",
-        href: "/fonts/fraunces-latin.woff2",
-        as: "font",
-        type: "font/woff2",
-        crossOrigin: "anonymous",
-      },
     ],
     // Co-Parent Check-In A/B group: assign bys_checkin (on|off, default 25%)
     // BEFORE first paint so no flash of the pill for off-group visitors. Sets
@@ -78,14 +92,14 @@ export const Route = createRootRoute({
         tag: "script",
         children: `(function(){try{document.cookie="bys_org_trial=on; Max-Age=31536000; Path=/; SameSite=Lax";document.documentElement.setAttribute("data-organizer-promo","on");}catch(e){}})();`,
       },
-      // Theme (app-redesign-spec §1.3): apply the saved theme BEFORE first paint
-      // so there is no flash — sets data-theme on <html> + the theme-color meta.
-      // Falls back to Forest (current brand) with no saved value / JS off.
-      // localStorage is origin-scoped, so apex ↔ www don't share the theme —
-      // acceptable for a theme; cookie-keying is not needed here.
+      // Theme (5304729186 §1): the site is ONE calm dark system — the legacy
+      // bys_theme value (forest|midnight|sand) is ignored; there is no light
+      // theme to restore, so data-theme is always set to the dark system and
+      // the theme-color meta is pinned to the page charcoal. Kept as a
+      // no-op attribute so the legacy ThemeSwitcher never FOUCs.
       {
         tag: "script",
-        children: `(function(){try{var t="forest";try{var s=localStorage.getItem("bys_theme");if(s==="forest"||s==="midnight"||s==="sand")t=s}catch(e){}document.documentElement.setAttribute("data-theme",t);var m=document.querySelector('meta[name="theme-color"]');if(m){var c={forest:"#FAF7F1",midnight:"#0e1a15",sand:"#f6f1e6"}[t];if(c)m.setAttribute("content",c)}}catch(e){}})();`,
+        children: `(function(){try{document.documentElement.setAttribute("data-theme","forest");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#0D110F")}catch(e){}})();`,
       },
     ],
   }),
@@ -136,19 +150,50 @@ function RootComponent() {
     };
   }, [cfg, router]);
   return (
-    <RootDocument>
+    <RootDocument omitPixels={!!cfg?.sensitive}>
       <Outlet />
-      <SpecialOffer />
-      <TrialModal />
-      <CoParentCheckIn />
+      {/* Conversion surfaces (SpecialOffer / TrialModal / CoParentCheckIn /
+          GuidedFunnel) mount client-side only, and all render null until
+          opened by their own state. They are lazy + deferred to the
+          visitor's FIRST interaction (or a 6 s cap) so their code and
+          effect/timer setup stay out of the anonymous landing path's
+          initial-load main thread AND out of the post-paint measurement
+          window while a visitor is only reading. */}
+      <DeferredMount trigger="interaction" capMs={6000}>
+        <Suspense fallback={null}>
+          <SpecialOffer />
+          <TrialModal />
+          <CoParentCheckIn />
+          <GuidedFunnel />
+        </Suspense>
+      </DeferredMount>
     </RootDocument>
   );
 }
+// Lazy conversion surfaces — each is its own chunk, fetched only after idle
+// (see DeferredMount above). Keeps the initial bundle small and the main
+// thread quiet during the measured load window.
+const SpecialOffer = lazy(() => import("~/components/SpecialOffer"));
+const TrialModal = lazy(() => import("~/components/TrialModal"));
+const CoParentCheckIn = lazy(() => import("~/components/CoParentCheckIn"));
+const GuidedFunnel = lazy(() => import("~/components/GuidedFunnel"));
 
-function RootDocument({ children }: { children: ReactNode }) {
+function RootDocument({ children, omitPixels }: { children: ReactNode; omitPixels?: boolean }) {
   return (
     <html lang="en">
       <head>
+        <meta name="referrer" content="strict-origin" />
+        {/* Codex final-fold Blocker 1: while a sensitive app query (token/
+            session_id/code/next/…) is the active document URL, SSR must not
+            emit the third-party Google loader/bootstrap — the route consumes
+            the credential and scrubs the URL, then flushDeferredPixels()
+            initializes measurement on the clean URL. */}
+        {!omitPixels && (
+          <script async src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`} />
+        )}
+        {!omitPixels && (
+          <script dangerouslySetInnerHTML={{ __html: GOOGLE_TAG_BOOTSTRAP }} />
+        )}
         <HeadContent />
       </head>
       <body>

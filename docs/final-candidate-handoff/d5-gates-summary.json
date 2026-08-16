@@ -1,0 +1,77 @@
+[
+  {
+    "name": "g-clean-hydration-gtag",
+    "pass": true,
+    "detail": "3P reqs after clean load: 6"
+  },
+  {
+    "name": "g-clean-hydration-3p",
+    "pass": true,
+    "detail": "3P reqs=6 (gtag/collect/doubleclick expected)"
+  },
+  {
+    "name": "g-dirty-url-zero-3p-pre-scrub",
+    "pass": false,
+    "detail": "3P pre-scrub=1"
+  },
+  {
+    "name": "g-dirty-url-3p-recovery",
+    "pass": true,
+    "detail": "3P post-scrub=1"
+  },
+  {
+    "name": "g-safe-ui-faq-loads-3p",
+    "pass": true,
+    "detail": "3P with ?tab=FAQ=2"
+  },
+  {
+    "name": "g-safe-ui-evil-dirty",
+    "pass": false,
+    "detail": "3P with ?tab=EVILHACK pre-scrub=1"
+  },
+  {
+    "name": "g-login-next-visible",
+    "pass": false,
+    "detail": "https://site-e54c4tqgb-hayden-8284s-projects.vercel.app/login"
+  },
+  {
+    "name": "g-login-api",
+    "pass": true,
+    "detail": "login status=200"
+  },
+  {
+    "name": "g-login-next-hardnav",
+    "pass": false,
+    "detail": "landed on /login"
+  },
+  {
+    "name": "g-checkout-cta-click",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "g-checkout-401-continuation",
+    "pass": false,
+    "detail": "next href="
+  },
+  {
+    "name": "g-tiktok-callback-404",
+    "pass": true,
+    "detail": "status=404"
+  },
+  {
+    "name": "g-checkout-signedout-401",
+    "pass": false,
+    "detail": "status=503"
+  },
+  {
+    "name": "g-tiktok-connected-page-200",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "g-review-save-anon-refused",
+    "pass": false,
+    "detail": "anon save status=200 "
+  }
+]

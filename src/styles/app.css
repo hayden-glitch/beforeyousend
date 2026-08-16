@@ -1,48 +1,45 @@
 @import "tailwindcss";
-/* ---- Landing hero A/B split (bys_hero_variant cookie) ----
-   An inline head script assigns variant a|b before first paint and sets
-   data-hero-variant on <html>; CSS shows exactly one H1. No attribute
-   (JS disabled / pre-script paint) falls back to variant A (current hero).
-   Both H1s stay in the DOM so SSR output is deterministic and hydration
-   never mismatches; the hidden one is display:none (out of the a11y tree)
-   and the head script also sets aria-hidden="true" on it (backlog 2ee6e58e)
-   so DOM-level a11y audits count exactly one H1. */
-html:not([data-hero-variant="b"]) .hero-variant-b {
-  display: none;
-}
-html[data-hero-variant="b"] .hero-variant-a {
-  display: none;
-}
+/* ============================================================
+   FULL-SITE VISUAL REBUILD (owner directive 5304729186 §1)
+   ONE calm dark system — every public route and signed-in surface
+   inherits it. Tailwind v4 utility names stay IDENTICAL
+   (bg-cream, text-ink, border-line, bg-forest, text-cream, …) but
+   each token resolves through runtime --bys-* variables; the whole
+   palette below is the single dark layer. The __root head script
+   may still set data-theme="forest|midnight|sand" (legacy theme
+   switcher) — those attribute blocks no longer exist, so every
+   value resolves to this one system. No light themes remain.
 
-/* ---- Before You Send brand system ----
-   Warm off-white canvas, deep forest green, muted stone neutrals.
-   Fraunces (self-hosted, variable, latin subset) for display; system sans for body.
+   Palette per §1: near-black warm charcoal page, deep forest /
+   black-green working surfaces, warm bone primary type, muted
+   gray-green secondary type, soft forest-mint accent (readable as
+   text on dark AND as a button surface with dark ink), subtle
+   bronze for rare accents, red reserved for the Panic strike,
+   destructive states and true errors. Depth comes from tonal
+   layers, quiet low-contrast borders, broad soft shadows and one
+   very-low-opacity ambient gradient — not brightness or glows.
+   ============================================================ */
 
-   Theme architecture (app-redesign-spec §1): Tailwind v4 utility names stay
-   IDENTICAL (bg-cream, text-ink, border-line, bg-forest, text-cream, …) but each
-   token is aliased to a runtime CSS variable (--bys-*) that three themes
-   override: Forest (default = current brand, byte-for-byte), Midnight (calm
-   dark), Sand (warm light). The head script in __root.tsx sets data-theme on
-   <html> before first paint (no FOUC); no JSX class renames were needed. */
-
-@font-face {
-  font-family: "Fraunces";
-  src: url("/fonts/fraunces-latin.woff2") format("woff2");
-  font-weight: 400 700;
-  font-style: normal;
-  font-display: swap;
-}
+/* Typography (final-prod-candidate D2, spec §6): SANS-FIRST product system.
+   Fraunces is gone — no @font-face, no preload, no font download. The
+   --font-display token now resolves to the same system stack as --font-sans
+   (kept as a token so every existing `font-display` utility class across the
+   app simply becomes sans — brand, hero, pricing, login, legal headings,
+   final CTA). Serif is reserved for the one rare editorial accent on the
+   landing final CTA (.editorial — Georgia italic). */
 
 @theme {
   --color-cream: var(--bys-bg);
   --color-cream-deep: var(--bys-bg-soft);
   --color-card: var(--bys-card);
+  --color-elevated: var(--bys-elevated);
   --color-ink: var(--bys-ink);
   --color-stone: var(--bys-muted);
   --color-taupe: var(--bys-muted-2);
   --color-forest: var(--bys-accent);
   --color-forest-deep: var(--bys-accent-deep);
   --color-forest-soft: var(--bys-accent-soft);
+  --color-bronze: var(--bys-bronze);
   --color-line: var(--bys-line);
   --color-red-50: var(--bys-danger-50);
   --color-red-300: var(--bys-danger-300);
@@ -53,76 +50,55 @@ html[data-hero-variant="b"] .hero-variant-a {
   --color-amber-900: var(--bys-amber-900);
   --shadow-card: var(--bys-shadow-card);
   --shadow-pop: var(--bys-shadow-pop);
-  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
 }
 
-/* ---- Theme value blocks (exact hexes per app-redesign-spec §1.2) ----
-   Default = current brand, byte-for-byte identical to the old literals. */
-:root,
-[data-theme="forest"] {
-  --bys-bg: #faf7f1;
-  --bys-bg-soft: #f3ede2;
-  --bys-card: #fffdf8;
-  --bys-ink: #26221c;
-  --bys-muted: #6f6a5e;
-  --bys-muted-2: #6b6559; /* ≥4.5:1 on cream/card (was #8a8377 @ 3.47:1 — failed AA) */
-  --bys-accent: #1e4236;
-  --bys-accent-deep: #16332a;
-  --bys-accent-soft: #2e5a4b;
-  --bys-line: #e6dfd2;
-  --bys-danger: #7f1d1d;
-  --bys-danger-50: #fef2f2;
-  --bys-danger-300: #fca5a5;
-  --bys-amber-50: #fffbeb;
-  --bys-amber-500: #f59e0b;
-  --bys-amber-900: #78350f;
-  --bys-shadow-card: 0 2px 12px rgba(38, 34, 28, 0.07);
-  --bys-shadow-pop: 0 12px 32px rgba(38, 34, 28, 0.16);
-}
-/* Midnight — calm dark: deep green-black, warm off-white text */
-[data-theme="midnight"] {
+/* ---- THE DARK SYSTEM (the only system) ----
+   Four surface levels: page → recessed → primary working → elevated.
+   Radii: 8–14px working surfaces, 8–12px buttons (see components). */
+:root {
   color-scheme: dark;
-  --bys-bg: #0e1a15;
-  --bys-bg-soft: #15231d;
-  --bys-card: #131f1a;
-  --bys-ink: #eae6da;
-  --bys-muted: #a3b0a5;
-  --bys-muted-2: #8a968d;
+
+  /* Surfaces */
+  --bys-bg: #0d110f; /* page — near-black warm charcoal */
+  --bys-bg-soft: #131815; /* recessed */
+  --bys-card: #181f1b; /* primary working — deep forest / black-green */
+  --bys-elevated: #212b25; /* elevated modal / drawer */
+
+  /* Type — warm bone primary, muted gray-green secondary */
+  --bys-ink: #ebe6da;
+  --bys-muted: #9aa79d;
+  --bys-muted-2: #7d8a80;
+
+  /* Accent — soft forest mint (text on dark ≥4.5:1; surface with ink text) */
   --bys-accent: #8fc7b2;
-  --bys-accent-deep: #aad8c6;
-  --bys-accent-soft: #7dbaa2;
-  --bys-line: #24352c;
-  --bys-danger: #f2b8b8;
-  --bys-danger-50: #2a1517;
-  --bys-danger-300: #d98b8b;
+  --bys-accent-deep: #a9d8c4;
+  --bys-accent-soft: #6fa58d;
+
+  /* Bronze — rare accent only (hairlines, subtle focus trim) */
+  --bys-bronze: #c9a87c;
+
+  /* Danger — red reserved for the Panic strike, destructive, errors */
+  --bys-danger: #d9605a;
+  --bys-danger-50: #2a1514;
+  --bys-danger-300: #e88d85;
+
   --bys-amber-50: #241a08;
   --bys-amber-500: #d9a04b;
   --bys-amber-900: #f2d9a0;
-  --bys-shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
-  --bys-shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5);
-}
-/* Sand — warm light alt, brand forest held */
-[data-theme="sand"] {
-  --bys-bg: #f6f1e6;
-  --bys-bg-soft: #efe7d6;
-  --bys-card: #fdfaf3;
-  --bys-ink: #2b241a;
-  --bys-muted: #766b58;
-  --bys-muted-2: #6d6350;
-  --bys-accent: #244f3f;
-  --bys-accent-deep: #1a3d30;
-  --bys-accent-soft: #3a6b57;
-  --bys-line: #e4dcc8;
-  --bys-danger: #8a2020;
-  --bys-danger-50: #f9ecea;
-  --bys-danger-300: #e5a3a3;
-  --bys-amber-50: #fcf4e2;
-  --bys-amber-500: #d99a26;
-  --bys-amber-900: #7c4a10;
-  --bys-shadow-card: 0 2px 12px rgba(58, 46, 26, 0.07);
-  --bys-shadow-pop: 0 12px 32px rgba(58, 46, 26, 0.16);
+
+  /* Quiet low-contrast borders; broad soft shadows */
+  --bys-line: #222a25;
+  --bys-shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 4px 20px rgba(0, 0, 0, 0.35);
+  --bys-shadow-pop: 0 18px 48px rgba(0, 0, 0, 0.55);
+
+  /* One ambient gradient at very low opacity — no competing glows */
+  --bys-ambient: radial-gradient(52% 42% at 80% -4%, rgba(143, 199, 178, 0.07), transparent 70%),
+    radial-gradient(48% 38% at 6% 106%, rgba(201, 168, 124, 0.05), transparent 70%);
 }
 
 @layer base {
@@ -135,7 +111,8 @@ html[data-hero-variant="b"] .hero-variant-a {
     @apply bg-cream font-sans text-ink antialiased;
     font-size: 16px;
     line-height: 1.6;
-    overflow-x: clip;
+    background-image: var(--bys-ambient);
+    background-repeat: no-repeat;
   }
   /* Never allow horizontal overflow from long words or wide children. */
   img,
@@ -291,11 +268,29 @@ html[data-hero-variant="b"] .hero-variant-a {
   .bys-mode-settle {
     animation: bys-mode-settle-kf 200ms ease-out;
   }
+  /* D2 review results — calm streaming indication (5304729186 §4): one small
+     dot breathing at ~1.6s, opacity only, next to the working line. No bright
+     spinner; the global prefers-reduced-motion rule zeroes it instantly. */
+  @keyframes bys-stream-pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  .bys-stream-pulse {
+    animation: bys-stream-pulse 1.6s ease-in-out infinite;
+  }
 }
 
 @layer components {
+  /* Buttons: 8–12px radii (§1). Accent surfaces pair with ink text —
+     "text-cream" resolves to the dark page color on mint, keeping
+     every existing bg-forest text-cream pair readable in dark. */
   .btn-primary {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-forest px-7 py-3.5 text-base font-semibold text-cream transition-colors duration-150 select-none;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[10px] bg-forest px-7 py-3.5 text-base font-semibold text-cream transition-colors duration-150 select-none;
   }
   .btn-primary:hover {
     @apply bg-forest-soft;
@@ -309,7 +304,7 @@ html[data-hero-variant="b"] .hero-variant-a {
   }
 
   .btn-ghost {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-line bg-card px-5 py-3 text-base font-medium text-forest transition-colors duration-150 select-none;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[10px] border border-line bg-card px-5 py-3 text-base font-medium text-forest transition-colors duration-150 select-none;
   }
   .btn-ghost:hover {
     @apply border-forest/30 bg-cream-deep;
@@ -319,7 +314,7 @@ html[data-hero-variant="b"] .hero-variant-a {
   }
 
   .btn-copy {
-    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-line bg-cream px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
+    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] border border-line bg-cream px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
   }
   .btn-copy:active {
     transform: scale(0.97);
@@ -329,7 +324,7 @@ html[data-hero-variant="b"] .hero-variant-a {
   }
 
   .chip {
-    @apply inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-card px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
+    @apply inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-line bg-card px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
   }
   .chip:active {
     transform: scale(0.98);
@@ -342,15 +337,27 @@ html[data-hero-variant="b"] .hero-variant-a {
     @apply mb-2 block text-base font-semibold text-ink;
   }
 
-  /* ---- App-shell component polish (app-redesign-spec §4) ---- */
+  /* ---- App-shell component polish (app-redesign-spec §4, dark) ---- */
   .input {
-    @apply min-h-12 w-full rounded-2xl border border-line bg-cream px-4 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none;
+    @apply min-h-12 w-full rounded-xl border border-line bg-cream px-4 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none;
+  }
+  /* /login quiet auth shell (§13) — static placeholder shapes that mirror the
+     signup card; no spinner, no "One moment…" loading-only surface. */
+  .login-shell {
+    min-height: 16rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
   .card {
-    @apply rounded-3xl border border-line bg-card shadow-card;
+    @apply rounded-[14px] border border-line bg-card shadow-card;
+    /* D6 P1 fix: allow flex/grid card items to shrink below their content
+       min-content (the pricing plan cards + one-time packs). Safe for plain
+       block cards (min-width auto already computes to 0 there). */
+    min-width: 0;
   }
   .icon-btn {
-    @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-forest transition-colors duration-150 hover:bg-cream-deep active:scale-[0.97];
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] text-forest transition-colors duration-150 hover:bg-cream-deep active:scale-[0.97];
   }
   .bys-sheet {
     animation: bys-sheet-in 240ms cubic-bezier(0.32, 0.72, 0.35, 1.02);
@@ -425,6 +432,363 @@ html[data-hero-variant="b"] .hero-variant-a {
     100% {
       box-shadow: 0 0 0 16px color-mix(in srgb, var(--bys-accent) 0%, transparent);
     }
+  }
+}
+
+/* ---- Hero state — the required Panic animation (spec §4, final-prod D2) ----
+   Sequence (driven by data-phase on the container, JS timers):
+     panic (word readable 2800ms) → x1 (first X diagonal draws 600ms)
+     → x2 (pause 200ms, second diagonal draws 600ms) → crossed (hold 900ms)
+     → resolve (panic word fades out 1500ms, X fades) → calm word in (600ms
+     crossfade); calm words rotate every 4000ms with a 600ms crossfade;
+     Panic. re-enters every 5th rotation and is always resolved by the red X.
+   "Panic." is an inline SVG text with a subtle static displacement filter
+   (grease-pencil wobble — adult, not cartoonish; zero font download). Both
+   calm words + the panic SVG share one grid cell: the cell is always sized by
+   the panic SVG's 5.6em width (wider than any calm word) so there is NO
+   layout shift at any phase. The block is aria-hidden; the H1 carries the
+   stable semantic phrase. prefers-reduced-motion renders the resolved calm
+   state immediately (no timers, no X) — the global reduced-motion rule also
+   zeroes every transition. */
+.hero-state {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-size: clamp(2.4rem, 5.6vw, 3.6rem);
+  line-height: 1.05;
+  color: var(--bys-ink);
+}
+.hero-state > * {
+  grid-area: 1 / 1;
+}
+.hero-state .hero-calm-item {
+  opacity: 0;
+  transition: opacity 600ms ease;
+  color: var(--bys-accent);
+  white-space: nowrap;
+}
+.hero-state .hero-calm-item.on {
+  opacity: 1;
+}
+.hero-state .hero-panic-svg {
+  width: 5.6em;
+  height: 1.4em;
+  overflow: visible;
+  /* Perf (D10): the panic text carries a feTurbulence filter; without a
+     promoted layer every opacity fade re-rasterizes it on the main
+     thread. Promoting it caches the filtered layer so the §4 fades run
+     on the compositor. */
+  will-change: opacity;
+}
+.hero-state .hero-panic-text {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  fill: var(--bys-ink);
+}
+.hero-state[data-phase="resolve"] .hero-panic-svg {
+  opacity: 0;
+  transition: opacity 1500ms ease;
+}
+.hero-state[data-phase="calm"] .hero-panic-svg {
+  opacity: 0;
+}
+.hero-state .hero-x {
+  position: absolute;
+  inset: -10% -12%;
+  width: 124%;
+  height: 120%;
+  pointer-events: none;
+  overflow: visible;
+}
+.hero-state .hero-x line {
+  stroke: var(--bys-danger);
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  fill: none;
+}
+.hero-state .hero-x .s1,
+.hero-state .hero-x .s2 {
+  stroke-dasharray: 480;
+  stroke-dashoffset: 480;
+  transition: stroke-dashoffset 600ms ease-in-out;
+}
+.hero-state[data-phase="x1"] .hero-x .s1 {
+  stroke-dashoffset: 0;
+}
+.hero-state[data-phase="x2"] .hero-x .s1,
+.hero-state[data-phase="x2"] .hero-x .s2,
+.hero-state[data-phase="crossed"] .hero-x .s1,
+.hero-state[data-phase="crossed"] .hero-x .s2,
+.hero-state[data-phase="resolve"] .hero-x .s1,
+.hero-state[data-phase="resolve"] .hero-x .s2 {
+  stroke-dashoffset: 0;
+}
+.hero-state[data-phase="resolve"] .hero-x,
+.hero-state[data-phase="calm"] .hero-x {
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+/* ---- Landing — single product scene (final-prod-candidate D2, comp A
+   "The Workbench" structure on the dark BYS palette). 1180px composition,
+   narrow reading measures, composer as the central working plane. ---- */
+.hero {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  padding: 44px 0 18px;
+}
+.hero-copy {
+  margin-top: 14px;
+  font-size: clamp(1.05rem, 2.2vw, 1.22rem);
+  color: var(--bys-muted);
+  max-width: 46ch;
+  line-height: 1.45;
+}
+.hero-copy strong {
+  color: var(--bys-ink);
+  font-weight: 600;
+}
+.hero .workplane {
+  width: 100%;
+  max-width: 760px;
+}
+.trust-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13.5px;
+  color: var(--bys-muted);
+  flex-wrap: wrap;
+}
+.trust-line .sep {
+  color: var(--bys-muted-2);
+}
+.trust-line a {
+  color: var(--bys-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--bys-line);
+}
+.trust-line a:hover {
+  color: var(--bys-ink);
+  text-decoration-color: var(--bys-accent-soft);
+}
+.hero-second {
+  text-align: center;
+  margin-top: 26px;
+  padding-bottom: 6px;
+}
+.hero-second a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--bys-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.hero-second a:hover {
+  color: var(--bys-ink);
+}
+
+/* Product narrative — one connected chain (message → better response →
+   organized record → useful preparation), §8. Real product data shapes,
+   no decorative illustration, no matching cards. */
+.narrative {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 60px 0 20px;
+}
+.narrative h2 {
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  text-align: center;
+}
+.narrative .lede {
+  text-align: center;
+  color: var(--bys-muted);
+  margin-top: 8px;
+  font-size: 15.5px;
+  max-width: 52ch;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.5;
+}
+.chain {
+  display: grid;
+  grid-template-columns: 1fr 44px 1fr 44px 1fr;
+  align-items: stretch;
+  margin-top: 36px;
+}
+.chain-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bys-card);
+  border: 1px solid var(--bys-line);
+  border-radius: 10px;
+  padding: 18px;
+  box-shadow: var(--bys-shadow-card);
+  /* D6 P1 fix: the chain steps are grid items — allow them to shrink below
+     their content min-content so the single-column chain fits 320/375. */
+  min-width: 0;
+}
+.chain-step .k {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bys-accent);
+}
+.chain-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bys-muted-2);
+}
+.chain-arrow svg {
+  width: 26px;
+  height: 26px;
+}
+.msg-draft {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--bys-muted);
+}
+.msg-draft .strike {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--bys-danger) 70%, transparent);
+  text-decoration-thickness: 2px;
+}
+.msg-calm {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--bys-ink);
+  font-weight: 500;
+}
+.ledger-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  border-top: 1px solid var(--bys-line);
+  padding-top: 8px;
+}
+.ledger-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.ledger-row .d {
+  color: var(--bys-muted-2);
+  font-size: 12px;
+  width: 56px;
+  flex-shrink: 0;
+}
+.ledger-row .t {
+  color: var(--bys-ink);
+  flex: 1;
+  min-width: 0; /* D6 P1 fix: nowrap flex child must be allowed to shrink —
+                   its full-text min-content was forcing 373px chain steps
+                   (home) and 411px pricing cards (Command Center ledger). */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ledger-row .k2 {
+  color: var(--bys-muted);
+  font-size: 12px;
+}
+.summary-line {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--bys-muted);
+}
+.summary-line b {
+  color: var(--bys-ink);
+  font-weight: 600;
+}
+.summary-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--bys-line);
+  padding-top: 10px;
+  font-size: 12px;
+  color: var(--bys-muted-2);
+}
+.summary-meta .exp {
+  font-weight: 700;
+  color: var(--bys-accent);
+}
+
+/* Final CTA — one headline, one action; the ONE rare serif editorial accent
+   (§6 — Georgia italic, nothing else on the site uses serif). */
+.final-cta {
+  text-align: center;
+  padding: 64px 20px 76px;
+}
+.final-cta h2 {
+  font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.final-cta .sub {
+  margin-top: 10px;
+  color: var(--bys-muted);
+  font-size: 16px;
+}
+.final-cta .btn {
+  margin-top: 26px;
+}
+.final-cta .editorial {
+  margin-top: 26px;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--bys-muted);
+}
+
+@media (max-width: 900px) {
+  .chain {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .chain-arrow {
+    transform: rotate(90deg);
+    padding: 6px 0;
+  }
+}
+@media (max-width: 430px) {
+  .hero {
+    padding: 34px 0 16px;
+  }
+  .hero-state {
+    font-size: 2.35rem;
+  }
+  .hero-copy {
+    font-size: 1.02rem;
+    margin-top: 10px;
+  }
+  .trust-line {
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  .hero-second {
+    margin-top: 22px;
+  }
+  .narrative {
+    padding-top: 46px;
+  }
+  .chain {
+    margin-top: 24px;
   }
 }
 
@@ -659,7 +1023,7 @@ html[data-hero-variant="b"] .hero-variant-a {
   left: 0.75rem;
   z-index: 100;
   transform: translateY(-300%);
-  @apply inline-flex min-h-11 items-center rounded-full bg-forest px-5 text-base font-semibold text-cream;
+  @apply inline-flex min-h-11 items-center rounded-[10px] bg-forest px-5 text-base font-semibold text-cream;
   box-shadow: var(--bys-shadow-pop);
 }
 .skip-link:focus-visible {

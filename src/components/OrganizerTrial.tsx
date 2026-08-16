@@ -197,7 +197,7 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
   const folderChips = TAXONOMY.filter((f) => f.slug !== "other");
 
   return (
-    <section className="mt-5 rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
+    <section className="card mt-5 p-6 sm:p-8">
       <div className="flex items-center gap-2">
         <IconOrganizer className="h-5 w-5 text-forest-soft" />
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">The Organizer · Try it free</p>
@@ -226,7 +226,7 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
             <p className="text-base font-semibold text-forest">First one filed. The pile shrinks one paper at a time.</p>
           )}
           {cards.map((card, i) => (
-            <div key={i} aria-live="polite" className={`rounded-3xl border border-forest/20 bg-cream-deep/60 p-6 ${i === pulseIdx ? "bys-trial-just-added" : ""}`}>
+            <div key={i} aria-live="polite" className={`rounded-[14px] border border-forest/20 bg-cream-deep/60 p-5 ${i === pulseIdx ? "bys-trial-just-added" : ""}`}>
               <h3 className="font-display text-2xl font-semibold leading-snug text-forest">
                 We'd file this under {folderLabel(card.folder)} › {subfolderLabel(card.folder, card.category)}
               </h3>
@@ -237,10 +237,10 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
                     onChange={(e) => patchCard(i, { localTitle: e.target.value })}
                     maxLength={200}
                     aria-label="Name for this item"
-                    className="min-h-11 w-full max-w-sm rounded-full border border-line bg-cream px-4 py-2 text-base text-ink focus:border-forest-soft focus:outline-none"
+                    className="min-h-11 w-full max-w-sm rounded-xl border border-line bg-cream px-4 py-2 text-base text-ink focus:border-forest-soft focus:outline-none"
                   />
-                  <button onClick={() => patchCard(i, { editing: false, kept: true })} className="btn-primary min-h-10 px-4 text-base">Save name</button>
-                  <button onClick={() => patchCard(i, { editing: false, localTitle: card.title })} className="btn-ghost min-h-10 px-4 text-base text-stone">Cancel</button>
+                  <button onClick={() => patchCard(i, { editing: false, kept: true })} className="btn-primary min-h-11 px-4 text-base">Save name</button>
+                  <button onClick={() => patchCard(i, { editing: false, localTitle: card.title })} className="btn-ghost min-h-11 px-4 text-base text-stone">Cancel</button>
                 </div>
               ) : !card.kept ? (
                 <p className="mt-2 text-base leading-relaxed text-ink">
@@ -300,7 +300,7 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
             />
           ) : (
             <div className="mt-5">
-              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-cream-deep px-4 py-2 text-base font-semibold text-forest transition hover:border-forest/40">
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border border-line bg-cream-deep px-4 py-2 text-base font-semibold text-forest transition hover:border-forest/40">
                 {fileName ? <><IconCheck className="h-4 w-4" />{(fileName.length > 40 ? fileName.slice(0, 37) + "…" : fileName)}</> : <>Upload a screenshot or bill →</>}
                 <input
                   type="file"
@@ -352,13 +352,13 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
       )}
 
       {phase === "blocked" && (
-        <div aria-live="polite" className="mt-6 rounded-3xl border border-line bg-cream-deep/60 p-6">
+        <div aria-live="polite" className="mt-6 rounded-[14px] border border-line bg-cream-deep/60 p-5">
           <p className="text-base leading-relaxed text-ink">{err}</p>
         </div>
       )}
 
       {showUpsell && !upsellDeclined ? (
-        <div className="mt-6 rounded-3xl border border-forest/25 bg-forest p-6 text-cream">
+        <div className="mt-6 rounded-[14px] border border-forest/25 bg-forest p-6 text-cream">
           <p className="text-sm font-semibold uppercase tracking-[.16em] text-cream/70">Five down — the pile shrinks one paper at a time.</p>
           <h3 className="mt-3 font-display text-2xl font-semibold leading-snug">The rest of your case, in one calm place.</h3>
           <p className="mt-3 text-base leading-relaxed text-cream/85">Command Center is coming together — and the Document Organizer you just tried is already live and working. Messages, screenshots, bills, school and medical papers — filed and findable in seconds. No filing nights.</p>

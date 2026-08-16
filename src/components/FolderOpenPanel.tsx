@@ -1,8 +1,8 @@
-// FolderOpenPanel — the opened child's folder body (owner batch 2, Design 1).
-// NOT a modal, NOT a bottom sheet: an in-flow surface rendered directly under
-// the folder scene, with two "papers" lying in the folder — Ratings (Exchange
-// Tone) and To-Do. Mobile stacks them; sm+ shows them side by side. Both
-// papers stay fully interactive while the fixed open-folder bar pins above.
+// FolderOpenPanel — the opened child's space body (owner batch 2, Design 1).
+// Rebuilt per 5304729186 §7: NOT a "paper" surface — an in-flow working panel
+// rendered directly under the child's row, with two professional sections:
+// Ratings (Exchange Tone) and To-Do. Mobile stacks them; sm+ shows them side
+// by side. Both stay fully interactive while open.
 //
 // Honesty rails: the rating is the dad's OWN self-report ("your record and
 // your own rating — a snapshot, not a prediction or legal assessment"); the
@@ -14,7 +14,7 @@ import type { ChildInfo } from "./ChildFolder";
 
 export type ProfilePatch = (profile: unknown) => void;
 
-/** One shared POST-to-/api/auth/profile helper for both papers. The server
+/** One shared POST-to-/api/auth/profile helper for both panels. The server
  *  merges into profile JSONB (weekRatings / todos) and returns the full
  *  profile; we hand it to home so its user state stays the source of truth. */
 export async function patchProfile(
@@ -54,8 +54,8 @@ export default function FolderOpenPanel({
   onGoAction: () => void;
 }) {
   return (
-    <div className="child-folder-open-body">
-      <div className="folder-paper">
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className="card p-5">
         <FolderRatings
           child={child}
           tier={tier}
@@ -64,7 +64,7 @@ export default function FolderOpenPanel({
           onGoLog={onGoLog}
         />
       </div>
-      <div className="folder-paper">
+      <div className="card p-5">
         <FolderTodos
           child={child}
           tier={tier}

@@ -219,7 +219,7 @@ export default function SortOneThingFree() {
               </div>
             ) : (
               <div className="mt-5">
-                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-cream-deep px-4 py-2 text-base font-semibold text-forest transition hover:border-forest/40">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border border-line bg-cream-deep px-4 py-2 text-base font-semibold text-forest transition hover:border-forest/40">
                   Choose a paper
                   <input
                     ref={fileRef}

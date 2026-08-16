@@ -9,7 +9,7 @@ const SAMPLE_CHIPS = ["Unresolved", "Upcoming", "Missing", "Needs documentation"
 export default function ActionCenterLocked({ tier }: { tier: string }) {
   const planName = tier === "steady" ? "Steady" : "Free";
   return (
-    <section className="mt-5 rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
+    <section className="card mt-5 p-6 sm:p-8">
       <div className="flex items-center gap-2">
         <IconAction className="h-5 w-5 text-forest-soft" />
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Action Center</p>
@@ -25,7 +25,7 @@ export default function ActionCenterLocked({ tier }: { tier: string }) {
         ))}
       </div>
 
-      <div className="mt-6 rounded-3xl border border-forest/20 bg-cream-deep/60 p-6">
+      <div className="mt-6 rounded-[14px] border border-forest/20 bg-cream-deep/60 p-6">
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Part of Command Center</p>
         <p className="mt-2 text-base leading-relaxed text-ink">
           The Action Center is part of Command Center — {tier === "steady" ? "everything in Steady, plus" : "everything, including"} the Document Organizer, Case Summary, Communication Log, and Event Timeline.

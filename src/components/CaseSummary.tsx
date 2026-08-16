@@ -3,8 +3,12 @@
 // saved reviews). Part of Command Center (command/ultimate tiers; the server
 // 402-gates it like the Document Organizer). No "AI" wording in user copy, no
 // legal advice, no outcome promises: the text is generated from his own data,
-// persists per user, and only regenerates when he taps the button (one tiny ask
-// → instant reward → casual regenerate). Honest empty states throughout.
+// persists per user, and only regenerates when he taps the button.
+//
+// Rebuilt per 5304729186 §9: one professional generated document INSIDE the
+// app — document title, updated date, concise sections, evidence/reference
+// links, regenerate control. One elevated document surface on the dark
+// workspace. No folder/folio illustration. Honest empty states throughout.
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { track } from "~/lib/analytics";
@@ -15,15 +19,6 @@ import {
   type CaseSummaryRow,
 } from "~/lib/caseSummary";
 import { IconBook, IconLog, IconOrganizer, IconTimeline } from "./icons";
-
-function Stat({ n, label }: { n: number; label: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-cream-deep/60 px-4 py-3">
-      <p className="font-display text-2xl font-semibold leading-none text-forest">{n}</p>
-      <p className="mt-1.5 text-sm text-stone">{label}</p>
-    </div>
-  );
-}
 
 // Renders the generated text (LLM or fallback, both emit "### HEADER" + bullets
 // + paragraphs) with the app's calm typography. Bullets group into one <ul>.
@@ -127,6 +122,11 @@ export default function CaseSummary({
   }
 
   const total = counts ? counts.log + counts.timeline + counts.docs + counts.reviews : 0;
+  const refs: { icon: ReactNode; label: string; onClick?: () => void }[] = [
+    { icon: <IconLog className="h-4 w-4" />, label: "Log", onClick: () => onGoTo?.("log") },
+    { icon: <IconTimeline className="h-4 w-4" />, label: "Timeline", onClick: () => onGoTo?.("timeline") },
+    { icon: <IconOrganizer className="h-4 w-4" />, label: "The Organizer", onClick: () => onGoTo?.("tools") },
+  ];
 
   return (
     <section className="mt-5">
@@ -139,81 +139,80 @@ export default function CaseSummary({
         One calm page built from what you've saved. Nothing more.
       </p>
 
-      {counts && (
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="list" aria-label="What your summary draws from">
-          <Stat n={counts.log} label="Log entries" />
-          <Stat n={counts.timeline} label="Timeline events" />
-          <Stat n={counts.docs} label="Documents" />
-          <Stat n={counts.reviews} label="Saved reviews" />
-        </div>
-      )}
-
       {loading ? (
-        <div className="mt-6 rounded-3xl border border-line bg-card p-6 text-base text-stone">
-          Reading your saved records…
-        </div>
+        <div className="card mt-6 p-6 text-base text-stone">Reading your saved records…</div>
       ) : err && !summary ? (
-        <div className="mt-6 rounded-3xl border border-line bg-card p-6">
+        <div className="card mt-6 p-6">
           <p className="text-base leading-relaxed text-stone">{err}</p>
-          <button onClick={load} className="btn-ghost mt-4 text-forest">
+          <button onClick={load} className="btn-ghost mt-4 min-h-11 text-forest">
             Try again
           </button>
         </div>
       ) : summary ? (
-        <div className="mt-6 rounded-3xl border border-line bg-card p-6 shadow-card sm:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Your Case Summary</p>
+        <div className="card mt-6 overflow-hidden">
+          {/* Document header: title + updated date */}
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 py-4 sm:px-7">
+            <h3 className="font-display text-xl font-semibold text-forest">Case Summary</h3>
             <span className="text-sm text-stone">
-              Generated {new Date(summary.generatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+              Updated{" "}
+              {new Date(summary.generatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
             </span>
           </div>
-          <div className="mt-4">
+          <div className="px-5 py-5 sm:px-7">
             <SummaryText text={summary.text} />
+            {fallback && (
+              <p className="mt-5 rounded-[14px] bg-cream-deep px-4 py-3 text-sm leading-relaxed text-stone">
+                Built from your saved record in quick mode — the summary engine was briefly busy. Regenerate anytime for the full version.
+              </p>
+            )}
+            {busy && (
+              <p className="mt-5 flex items-center gap-2 rounded-[14px] bg-cream-deep px-4 py-3 text-sm leading-relaxed text-stone" role="status">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-forest-soft border-t-transparent" aria-hidden="true" />
+                Working on it…
+              </p>
+            )}
+            <button onClick={create} disabled={busy} className="btn-ghost mt-6 min-h-11 w-full text-forest sm:w-auto">
+              {busy ? "Working on it…" : "Regenerate"}
+            </button>
           </div>
-          {fallback && (
-            <p className="mt-5 rounded-2xl bg-cream-deep px-4 py-3 text-sm leading-relaxed text-stone">
-              Built from your saved record in quick mode — the summary engine was briefly busy. Regenerate anytime for the full version.
-            </p>
+          {/* Document footer: evidence references */}
+          {counts && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-cream-deep/40 px-5 py-3 sm:px-7">
+              <span className="text-sm text-stone">
+                Drawn from {counts.log} log entries · {counts.timeline} timeline events · {counts.docs} documents · {counts.reviews} saved reviews
+              </span>
+              <span className="flex flex-wrap items-center gap-1.5">
+                {refs.map((r) =>
+                  r.onClick ? (
+                    <button key={r.label} onClick={r.onClick} className="chip min-h-9 px-2.5 py-1 text-sm">
+                      {r.icon}
+                      {r.label} →
+                    </button>
+                  ) : null
+                )}
+              </span>
+            </div>
           )}
-          {busy && (
-            <p className="mt-5 flex items-center gap-2 rounded-2xl bg-cream-deep px-4 py-3 text-sm leading-relaxed text-stone" role="status">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-forest-soft border-t-transparent" aria-hidden="true" />
-              Working on it…
-            </p>
-          )}
-          <button onClick={create} disabled={busy} className="btn-ghost mt-6 min-h-11 w-full text-forest sm:w-auto">
-            {busy ? "Working on it…" : "Regenerate summary"}
-          </button>
         </div>
       ) : total === 0 ? (
-        <div className="mt-6 rounded-3xl border border-line bg-card p-6 shadow-card">
+        <div className="card mt-6 p-6">
           <p className="text-lg font-semibold leading-snug text-forest">Your Case Summary starts with your saved records.</p>
           <p className="mt-2 text-base leading-relaxed text-stone">
             Add a log entry, timeline event, or document — this page turns what you save into a calm, factual overview.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            {onGoTo && (
-              <button onClick={() => onGoTo("log")} className="chip">
-                <IconLog className="h-5 w-5" />
-                Log →
-              </button>
-            )}
-            {onGoTo && (
-              <button onClick={() => onGoTo("timeline")} className="chip">
-                <IconTimeline className="h-5 w-5" />
-                Timeline →
-              </button>
-            )}
-            {onGoTo && (
-              <button onClick={() => onGoTo("tools")} className="chip">
-                <IconOrganizer className="h-5 w-5" />
-                The Organizer →
-              </button>
+            {refs.map((r) =>
+              r.onClick ? (
+                <button key={r.label} onClick={r.onClick} className="chip min-h-11">
+                  {r.icon}
+                  {r.label} →
+                </button>
+              ) : null
             )}
           </div>
         </div>
       ) : (
-        <div className="mt-6 rounded-3xl border border-forest/20 bg-cream-deep/60 p-6">
+        <div className="mt-6 rounded-[14px] border border-forest/20 bg-cream-deep/60 p-6">
           <p className="text-lg font-semibold leading-snug text-forest">Your record is ready for a summary.</p>
           <p className="mt-1 text-base leading-relaxed text-stone">
             One tap turns what you've saved into a calm overview.
@@ -231,7 +230,7 @@ export default function CaseSummary({
       )}
 
       {err && summary && (
-        <p role="alert" className="mt-4 rounded-2xl bg-cream-deep px-4 py-3 text-base text-stone">
+        <p role="alert" className="mt-4 rounded-[14px] bg-cream-deep px-4 py-3 text-base text-stone">
           {err}
         </p>
       )}

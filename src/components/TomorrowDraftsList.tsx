@@ -21,7 +21,7 @@ export default function TomorrowDraftsList({ onLoad }: { onLoad: (text: string) 
       <p className="mt-1 text-base text-stone">On this device — they're yours.</p>
       <div className="mt-3 space-y-3">
         {drafts.map((d) => (
-          <div key={d.id} className="rounded-3xl border border-line bg-cream-deep/50 p-4">
+          <div key={d.id} className="rounded-xl border border-line bg-cream-deep/50 px-4 py-3">
             <p className="line-clamp-2 text-base text-ink">{d.text}</p>
             <div className="mt-2 flex items-center justify-between gap-3">
               <span className="text-sm text-stone">

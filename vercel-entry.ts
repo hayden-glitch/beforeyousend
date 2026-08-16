@@ -59,8 +59,15 @@ async function proxyMetrics(
     const path = qIdx === -1 ? rawUrl : rawUrl.slice(0, qIdx);
     const search = qIdx === -1 ? "" : rawUrl.slice(qIdx);
     // "/metrics" and "/metrics/" both map to the fps root (which serves
-    // gtag.js); everything else maps 1:1 ("/metrics/g/collect" → "/g/collect").
-    const upstreamPath = path === "/metrics" ? "/" : path.slice("/metrics".length);
+    // gtag.js); "/metrics/..." maps 1:1 ("/metrics/g/collect" → "/g/collect").
+    // fps root-relative beacons (/a — GTM container load telemetry, fired by
+    // the fps-hosted gtag.js as an Image request to /a?v=3&t=l&pid=…; live QA
+    // 2026-08-13 showed a 404 before this fix) pass through UNCHANGED — 1:1
+    // to the fps host, which answers 200.
+    let upstreamPath: string;
+    if (path === "/metrics") upstreamPath = "/";
+    else if (path.startsWith("/metrics/")) upstreamPath = path.slice("/metrics".length);
+    else upstreamPath = path;
     const target = `${FPS_ORIGIN}${upstreamPath}${search}`;
 
     const headers = new Headers();
@@ -155,10 +162,28 @@ export default async function vercelHandler(
   res: ServerResponse,
 ): Promise<void> {
   try {
-    // First-party tag gateway: intercept /metrics/* BEFORE any SSR/API route
-    // matching. (No app route uses /metrics — reserved for the gateway.)
-    const proxyPath = (req.url ?? "/").split("?")[0];
-    if (proxyPath === "/metrics" || proxyPath.startsWith("/metrics/")) {
+    // Legacy GTM beacon path: the first-party container was deleted (Round-3),
+    // so nothing fetches /a anymore. A real visitor (or a stale cached beacon)
+    // landing here previously got a blank 200 from the fps proxy — redirect to
+    // the landing page instead. 307: temporary + method-preserving (the path
+    // may be re-enabled with the gateway). Query string is preserved so ad
+    // attribution (gclid/wbraid/gbraid) survives a landing on /a?... .
+    const rawUrl = req.url ?? "/";
+    const proxyPath = rawUrl.split("?")[0];
+    if (proxyPath === "/a" || proxyPath.startsWith("/a/")) {
+      const search = rawUrl.includes("?") ? rawUrl.slice(rawUrl.indexOf("?")) : "";
+      res.statusCode = 307;
+      res.setHeader("location", `/${search}`);
+      res.setHeader("cache-control", "no-store");
+      res.end();
+      return;
+    }
+    // First-party tag gateway: /metrics/* still proxies to fps.goog (inert —
+    // nothing fetches it today; kept as the re-enable point). No app route
+    // uses /metrics, and /api/metrics/* (owner dashboard) does not collide.
+    const isGateway =
+      proxyPath === "/metrics" || proxyPath.startsWith("/metrics/");
+    if (isGateway) {
       await proxyMetrics(req, res);
       return;
     }
