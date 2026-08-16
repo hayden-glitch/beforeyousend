@@ -1,4 +1,65 @@
-# Final Production Candidate — Handoff Evidence (D9 FINAL)
+# Final Production Candidate — Handoff Evidence — v2 (CURRENT)
+
+> **STATUS: v2 (D10) is the CURRENT red-team candidate.** Everything below the `SUPERSEDED` marker is v1 (D9) history kept for reference only — do not treat v1 SHAs / previews / scores as current.
+
+## v2 candidate identity
+- **Deployed engineering SHA:** `11579916e106f5843785081c75d67df6e9b80284` — commit "perf(D10): defer hero cycle start to idle; promote filtered SVG layer". This is the exact code the red-team gate runs against.
+- **Branch HEAD after this docs commit:** stated in the lead's handoff post (exact full SHA of this docs commit in the commit log; reported separately).
+- **Post-SHA commits:** HEAD before this docs commit was `158a728` (docs-only: pricing-v2 screenshots + capture log). **`git diff 1157991 HEAD -- src/` is empty** — zero app-code diff since the deployed SHA. This docs commit keeps that invariant:
+  ```
+  $ git diff 1157991 HEAD -- src/
+  (no output — empty)
+  ```
+- **Zero app-code diff after the deployed SHA is a hard requirement** (GPT flagged dirty-tree/gitDirty — the docs commit must not look like app code).
+
+## Preview (v2)
+- **URL:** https://site-d3ceiinzt-hayden-8284s-projects.vercel.app
+- **Deployment:** `dpl_9yTLZcLPgmXQ64aSuuzyeSbQdvjU`
+- **Metadata:** target=null / **READY** / `githubCommitSha=11579916e106f5843785081c75d67df6e9b80284` (EXACT) / **gitDirty ABSENT**.
+- ⚠️ **The OLD alias `site-a3q2ryg7r-hayden-8284s-projects.vercel.app` still serves the REJECTED dirty-tree build (sha `4c231c5`) — do NOT use it.** All v2 evidence below was measured on the new preview only.
+
+## Performance — Lighthouse v2 (LH 13.4.1, HTTPS preview, 5 mobile runs + desktop)
+
+**Mobile (5 runs):**
+| run | Perf | FCP (s) | LCP (s) | CLS | TBT (ms) | JS xfer (KB) |
+|---|---|---|---|---|---|---|
+| m1 | 86 | 1.89 | 2.38 | 0 | 433 | 327 |
+| m2 | 90 | 1.70 | 1.70 | 0 | 384 | 327 |
+| m3 | 92 | 1.70 | 2.30 | 0 | 277 | 327 |
+| m4 | 91 | 1.79 | 2.28 | 0 | 292 | 327 |
+| m5 | 88 | 1.67 | 2.17 | 0 | 428 | 327 |
+
+- **Median:** Perf **90** · FCP **1.70s** · LCP **2.28s** · CLS **0** · TBT **384ms** · JS transferred **327KB**.
+- **Gate:** Median Perf ≥90 met (3/5 runs ≥90); CLS 0 in all 5 runs.
+
+**Desktop:** Perf **100** · FCP/LCP **0.48s** · CLS **0** · TBT **51ms** · JS transferred **384KB**.
+
+## Documented TBT exception (OWNER DECISION)
+- **Owner decision (issue #1 comment, 2026-08-16T18:15:30Z):** do NOT defer Google/TikTok loaders past LCP. Measurement architecture and dirty-URL/privacy guards preserved **unchanged**.
+- Remaining TBT (~384ms median) is **dominated by required third-party measurement scripts** — gtag ~429ms scripting, TikTok pixel ~179KB / 433ms — **not core interaction code**. Cutting it would require vendor splitting or deferring owner-required pixels, both rejected by the owner decision above.
+
+## Regressions on the v2 preview (ALL PASS)
+- **Build / tsc / SSR green** at `1157991` (`bun run build`, `bunx tsc --noEmit`, `npm run check:ssr`).
+- **TikTok callback 404 PASS** (expected 404, confirmed).
+- **Dirty-URL: 0 third-party `session_id` leaks PASS.**
+- **Overflow clean** at 320 and 390 on `/` and `/pricing` (scrollWidth === clientWidth).
+- **Login `?next=` gate re-verified on the new preview — ALL PASS.** Evidence: `/home/team/shared/gate-evidence/` (`gate-final-out.json`, `gate-probe-out.json`, `gate-final.log`, `gate-login2.log`, `gate-final-A.png`).
+  - **Capture-once PASS** — `?next=/pricing` lands on /pricing exactly once (docNavs: `/login?next=/pricing` → `/login` → `/pricing`); `/dashboard` stub → `/home`; no re-login.
+  - **URL scrub + omitPixels PASS** — dirty SSR omits the Google loader (`googleTagPresent=false` on dirty URLs), flush happens post-scrub, final URLs clean.
+  - **Dirty-URL leak PASS** — 1 clean loader request, **0 leaks** (`leaks: []`).
+- **Note for red-team:** `/dashboard` is a **stub that redirects to `/home`** — use `/pricing` or `/home` as `?next=` targets.
+
+## Pricing screenshots v2
+`docs/d3-evidence/pricing-v2-{320,390,1440}.png` + `pricing-v2-capture-log.jsonl` (full-page captures, committed in `158a728`).
+
+## Production / ads / charges — untouched
+- Live production remains **`708d8d8` / `dpl_GwLb6eFnxCT9s67H5qxb2Jq4DM5x`** on all 4 domains (beforeyousend.org, www.beforeyousend.org, before-you-send.vercel.app, bys-app.vercel.app).
+- No `--prod` deploy, no ads touched, no real charges.
+
+---
+---
+
+# SUPERSEDED — v1 (D9) handoff history below (kept for reference only — NOT current)
 
 Branch: `feat/final-prod-candidate`
 Full SHA: **see commit log — D9 CLS fix commit (HEAD of `feat/final-prod-candidate`)** — base `4c231c5` (D8) + D9 CLS fix + this README.
