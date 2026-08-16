@@ -351,6 +351,10 @@
   }
   .card {
     @apply rounded-[14px] border border-line bg-card shadow-card;
+    /* D6 P1 fix: allow flex/grid card items to shrink below their content
+       min-content (the pricing plan cards + one-time packs). Safe for plain
+       block cards (min-width auto already computes to 0 there). */
+    min-width: 0;
   }
   .icon-btn {
     @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] text-forest transition-colors duration-150 hover:bg-cream-deep active:scale-[0.97];
@@ -628,6 +632,9 @@
   border-radius: 10px;
   padding: 18px;
   box-shadow: var(--bys-shadow-card);
+  /* D6 P1 fix: the chain steps are grid items — allow them to shrink below
+     their content min-content so the single-column chain fits 320/375. */
+  min-width: 0;
 }
 .chain-step .k {
   font-size: 11px;
@@ -683,6 +690,9 @@
 .ledger-row .t {
   color: var(--bys-ink);
   flex: 1;
+  min-width: 0; /* D6 P1 fix: nowrap flex child must be allowed to shrink —
+                   its full-text min-content was forcing 373px chain steps
+                   (home) and 411px pricing cards (Command Center ledger). */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
