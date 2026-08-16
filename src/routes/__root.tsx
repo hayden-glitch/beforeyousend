@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import {
   HeadContent,
   Outlet,
@@ -10,10 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestUrl } from "@tanstack/react-start/server";
 import type { ReactNode } from "react";
 import appCss from "~/styles/app.css?url";
-import SpecialOffer from "~/components/SpecialOffer";
-import TrialModal from "~/components/TrialModal";
-import CoParentCheckIn from "~/components/CoParentCheckIn";
-import GuidedFunnel from "~/components/GuidedFunnel";
+import { DeferredMount } from "~/components/DeferredMount";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
 import {
   GOOGLE_ADS_ID,
@@ -155,13 +152,31 @@ function RootComponent() {
   return (
     <RootDocument omitPixels={!!cfg?.sensitive}>
       <Outlet />
-      <SpecialOffer />
-      <TrialModal />
-      <CoParentCheckIn />
-      <GuidedFunnel />
+      {/* Conversion surfaces (SpecialOffer / TrialModal / CoParentCheckIn /
+          GuidedFunnel) mount client-side only, and all render null until
+          opened by their own state. They are lazy + deferred to the
+          visitor's FIRST interaction (or a 6 s cap) so their code and
+          effect/timer setup stay out of the anonymous landing path's
+          initial-load main thread AND out of the post-paint measurement
+          window while a visitor is only reading. */}
+      <DeferredMount trigger="interaction" capMs={6000}>
+        <Suspense fallback={null}>
+          <SpecialOffer />
+          <TrialModal />
+          <CoParentCheckIn />
+          <GuidedFunnel />
+        </Suspense>
+      </DeferredMount>
     </RootDocument>
   );
 }
+// Lazy conversion surfaces — each is its own chunk, fetched only after idle
+// (see DeferredMount above). Keeps the initial bundle small and the main
+// thread quiet during the measured load window.
+const SpecialOffer = lazy(() => import("~/components/SpecialOffer"));
+const TrialModal = lazy(() => import("~/components/TrialModal"));
+const CoParentCheckIn = lazy(() => import("~/components/CoParentCheckIn"));
+const GuidedFunnel = lazy(() => import("~/components/GuidedFunnel"));
 
 function RootDocument({ children, omitPixels }: { children: ReactNode; omitPixels?: boolean }) {
   return (

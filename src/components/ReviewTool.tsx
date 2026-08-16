@@ -5,10 +5,24 @@ import { track, trackFunnelOnce } from "~/lib/analytics";
 import { readCaptureVariant } from "~/lib/captureVariant";
 import { markValueDelivered } from "~/lib/offer";
 import { useReviewTyping } from "~/lib/useReviewTyping";
-import ReviewResults, { type ResultBlock } from "~/components/ReviewResults";
 import ModeSwitch, { type ToolMode } from "~/components/ModeSwitch";
-import AttachControl, { AttachChips } from "~/components/AttachControl";
+import type { ResultBlock } from "~/components/ReviewResults";
 import { scrollBehavior } from "~/lib/motion";
+import { DeferredMount } from "~/components/DeferredMount";
+import { IconAttach } from "./icons";
+// Performance (spec §23 + D7): ReviewResults is the post-review results panel
+// — it renders only AFTER a review/analysis has run, so it is split into its
+// own chunk and loaded lazily the first time results appear. The anonymous
+// landing path never imports it at startup.
+const ReviewResults = lazy(() => import("~/components/ReviewResults"));
+// Performance (D7): AttachControl (paperclip sheet + Steady enticement sheet,
+// ~40 KB) is Steady+-only UI. On the anonymous landing it is deferred to
+// idle (see the footer row below); only attach-capable users load it on
+// first paint. The free-tier ghost chip footprint is preserved meanwhile.
+const AttachControl = lazy(() => import("~/components/AttachControl"));
+const AttachChips = lazy(() =>
+  import("~/components/AttachControl").then((m) => ({ default: m.AttachChips }))
+);
 
 // Performance (spec §23): TomorrowDraftsList is a device-local drafts widget
 // that only matters to a SIGNED-IN visitor (anonymous dads have no drafts).
@@ -33,6 +47,20 @@ type Props = {
 };
 
 type Status = "idle" | "streaming" | "done" | "error";
+// Static twin of the free-tier attach chip (identical footprint, inert) shown
+// while the real AttachControl chunk loads after idle. The live chip takes
+// over within a couple of seconds — the ratified enticement UX is unchanged.
+function AttachGhostChip() {
+  return (
+    <span
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold text-stone select-none"
+      aria-hidden="true"
+    >
+      <IconAttach className="h-5 w-5 shrink-0 text-forest-soft" />
+      <span>Steady</span>
+    </span>
+  );
+}
 interface ModeState {
   draft: string;
   blocks: ResultBlock[];
@@ -422,13 +450,15 @@ export default function ReviewTool({ reviewRef }: Props) {
           />
           {/* Attach chips (Steady+): between the textarea and the footer row. */}
           {attachments.length > 0 && (
-            <div className="px-3 sm:px-4">
-              <AttachChips
-                mode={tool}
-                attachments={attachments}
-                onRemove={(name) => setAttachments((prev) => prev.filter((a) => a.name !== name))}
-              />
-            </div>
+            <Suspense fallback={null}>
+              <div className="px-3 sm:px-4">
+                <AttachChips
+                  mode={tool}
+                  attachments={attachments}
+                  onRemove={(name) => setAttachments((prev) => prev.filter((a) => a.name !== name))}
+                />
+              </div>
+            </Suspense>
           )}
           {/* Quiet rows above the footer: review = the example chip; analyze =
               the prompt chips (auto-hide once typed >120 chars). */}
@@ -453,14 +483,31 @@ export default function ReviewTool({ reviewRef }: Props) {
               primary action on the right; stacks on mobile. */}
           <div className="mt-2 flex flex-col gap-3 border-t border-line px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
             <div className="flex items-center justify-between gap-3 sm:justify-start">
-              <AttachControl
-                mode={tool}
-                canAttach={canAttach}
-                signedOut={!authed}
-                attachments={attachments}
-                onChange={setAttachments}
-                disabled={st.status === "streaming"}
-              />
+              {canAttach ? (
+                <Suspense fallback={<span className="icon-btn min-h-11" aria-hidden="true" />}>
+                  <AttachControl
+                    mode={tool}
+                    canAttach={canAttach}
+                    signedOut={!authed}
+                    attachments={attachments}
+                    onChange={setAttachments}
+                    disabled={st.status === "streaming"}
+                  />
+                </Suspense>
+              ) : (
+                <DeferredMount capMs={2500}>
+                  <Suspense fallback={<AttachGhostChip />}>
+                    <AttachControl
+                      mode={tool}
+                      canAttach={canAttach}
+                      signedOut={!authed}
+                      attachments={attachments}
+                      onChange={setAttachments}
+                      disabled={st.status === "streaming"}
+                    />
+                  </Suspense>
+                </DeferredMount>
+              )}
               <span className="text-sm text-taupe tabular-nums">{st.draft.trim().length || 0}/5000</span>
             </div>
             <button
@@ -493,17 +540,19 @@ export default function ReviewTool({ reviewRef }: Props) {
               )
             )}
             {st.status !== "error" && (
-              <ReviewResults
-                blocks={st.blocks}
-                mode={mode}
-                draft={st.draft}
-                streaming={st.status === "streaming"}
-                example={exampleResults}
-                captureAsk={!authed}
-                hideCapture={authed}
-                tool={tool}
-                onUseOwnMessage={useOwnMessage}
-              />
+              <Suspense fallback={<p className="mt-6 text-center text-sm text-taupe">Preparing your review…</p>}>
+                <ReviewResults
+                  blocks={st.blocks}
+                  mode={mode}
+                  draft={st.draft}
+                  streaming={st.status === "streaming"}
+                  example={exampleResults}
+                  captureAsk={!authed}
+                  hideCapture={authed}
+                  tool={tool}
+                  onUseOwnMessage={useOwnMessage}
+                />
+              </Suspense>
             )}
           </div>
         )}
