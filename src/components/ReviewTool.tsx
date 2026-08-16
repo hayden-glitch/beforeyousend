@@ -48,8 +48,12 @@ type Props = {
 
 type Status = "idle" | "streaming" | "done" | "error";
 // Static twin of the free-tier attach chip (identical footprint, inert) shown
-// while the real AttachControl chunk loads after idle. The live chip takes
-// over within a couple of seconds — the ratified enticement UX is unchanged.
+// while the real AttachControl chunk loads after idle. D9 CLS fix: it now also
+// renders during the DeferredMount wait (placeholder), so the footer-left row
+// is 44px tall from first paint — the swap at the 2.5s cap causes zero reflow
+// (previously the row was 20px tall with only the counter, then grew 24px when
+// the chip mounted → CLS 0.083 on mobile). The live chip takes over within a
+// couple of seconds — the ratified enticement UX is unchanged.
 function AttachGhostChip() {
   return (
     <span
@@ -495,7 +499,7 @@ export default function ReviewTool({ reviewRef }: Props) {
                   />
                 </Suspense>
               ) : (
-                <DeferredMount capMs={2500}>
+                <DeferredMount capMs={2500} placeholder={<AttachGhostChip />}>
                   <Suspense fallback={<AttachGhostChip />}>
                     <AttachControl
                       mode={tool}

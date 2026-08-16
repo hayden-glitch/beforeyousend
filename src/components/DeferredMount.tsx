@@ -19,10 +19,15 @@ export function DeferredMount({
   children,
   capMs = 2000,
   trigger = "idle",
+  placeholder = null,
 }: {
   children: ReactNode;
   capMs?: number;
   trigger?: DeferredTrigger;
+  // Rendered during the wait instead of null (D9 CLS fix): callers whose
+  // deferred subtree sits in normal flow must supply a placeholder matching
+  // the mounted footprint so the swap causes zero layout shift.
+  placeholder?: ReactNode;
 }) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -60,5 +65,5 @@ export function DeferredMount({
       }
     };
   }, [capMs, trigger]);
-  return ready ? <>{children}</> : null;
+  return ready ? <>{children}</> : <>{placeholder}</>;
 }

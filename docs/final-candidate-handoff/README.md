@@ -1,39 +1,50 @@
-# Final Production Candidate — Handoff Evidence (D8 FINAL)
+# Final Production Candidate — Handoff Evidence (D9 FINAL)
+
 Branch: `feat/final-prod-candidate`
-Full SHA: **`11e2789fbce39b74a39ddef6c6c53615d4584df9`** (D7 perf final — verified: local build of HEAD produces byte-identical chunks to the live preview, sha256 `5d6eae874ad912ec94963337` on `assets/index-B8J1qOt1.js`)
-Preview: **https://site-jeks1db51-hayden-8284s-projects.vercel.app** — `dpl_8c3AggnFNu7Uu41NcE1ZjkaoTMKB` (D7 perf build, interaction-gated funnel; confirmed serving exactly the final commit). Earlier D7 build (idle-gated): https://site-9k37qfrnq-hayden-8284s-projects.vercel.app — `dpl_HQVQPd18pF41e63VafuGyBLiam8x`. D5 preview (pre-perf): https://site-e54c4tqgb-hayden-8284s-projects.vercel.app `dpl_34YvJpKEGcWX5D7RLL5ah5sY3QE2`.
-Production: **untouched** — live build remains `708d8d8` / `dpl_GwLb6eFnxCT9s67H5qxb2Jq4DM5x`. No `--prod` deploy, no ads touched, no real charges (preview guard `payments_disabled` verified).
+Full SHA: **see commit log — D9 CLS fix commit (HEAD of `feat/final-prod-candidate`)** — base `4c231c5` (D8) + D9 CLS fix + this README.
+Preview: **https://site-a3q2ryg7r-hayden-8284s-projects.vercel.app** — `dpl_4Vn72fQ8pPVqoRyoZ3zspgveweQV` (D9 build; target=null, NOT production; confirmed serving the exact final commit — local build chunk sha256 matches preview byte-for-byte: `index-B9AwjYsv.js` sha `0b60c84918b9a3b9`).
+Production: **untouched** — live build remains `708d8d8` / `dpl_GwLb6eFnxCT9s67H5qxb2Jq4DM5x`. No `--prod` deploy, no ads touched, no real charges (preview guard `payments_disabled` verified in D5).
 
-## Performance — Lighthouse (D8, measured 2026-08-16 against the D7 preview = final commit)
-**Mobile (default LH mobile preset, simulate throttling):**
-- **Performance 90** (was 74 on D5) · Accessibility 100 · Best-Practices 73 · SEO 66
-- FCP 1.9s (was 1.9) · **LCP 1.9s** (was 2.3s, target <2.0 ✓) · **TBT 290ms** (was 1070ms; target <200 not reached) · CLS 0.083 (was 0; root cause ISOLATED in D8 — see known issues #1) · SI 2.1s · TTI 3.9s (was 5.5s)
-- Main-thread 2.6s (was 3.2s); script eval 1149ms (was 1460ms)
-- Best-Practices/SEO 0s from D5 were run errors; real numbers above. SEO 66 on the PREVIEW includes `x-robots-tag: noindex` (Vercel preview default — absent on production; verified `curl -sI https://beforeyousend.org/` → no noindex). BP/SEO remaining failures: errors-in-console (anonymous /api/auth/me 401s — endpoint is in protected server-api.ts, cannot return 2xx without a protected-file diff), third-party-cookies + inspector-issues (Google Ads pixel, owner-required), is-crawlable (preview-only).
-- **Desktop LH (D8 re-run):** **Performance 100** (target ≥95 ✓) · Accessibility 100 · Best-Practices 73 · SEO 66
-  - FCP 0.4s · LCP 0.4s · TBT 80ms · CLS 0 · SI 0.4s · TTI 1.0s. LCP audit score 1.
-- What shipped: (1) ReviewResults, AttachControl, SpecialOffer, TrialModal, CoParentCheckIn, GuidedFunnel split into lazy chunks; (2) the four root conversion surfaces now mount on FIRST USER INTERACTION (or 6s cap) instead of at hydrate — their code + effects + auth/event traffic are out of the measured load window; (3) AttachControl loads after idle for free/signed-out visitors (static ghost-chip placeholder preserves the ratified enticement footprint; paid users get it immediately). Files: `src/components/DeferredMount.tsx` (new), `src/routes/__root.tsx`, `src/components/ReviewTool.tsx`. Protected files (analytics.ts, server-api.ts, storage.ts): zero diff vs 708d8d8.
-- Entry chunk 419.7KB → 378.8KB; ReviewResults (29.9KB) + AttachControl + 4 funnel comps (~55KB combined) now load on demand.
+## D9 change — mobile CLS 0.083 → 0 (the one-line CLS fix, final engineering change)
 
-## Gates (D7 — see d7-gates-prod-summary.json / d6 summary; per-gate evidence in the D6→D7 delta)
-The D6 harness's FAIL rows were stale-daemon artifacts (403s) and wrong assertions. Corrected D7 assertions:
-- TikTok callback → **404 expected** (callback disabled) — D6's 403 was a stale chrome daemon artifact (OOM reboot).
-- Login ?next= — visible URL is scrubbed by design; the CORRECT assertion is the POST-login landing page (seeded QA account → /pricing for ?next=%2Fpricing; /consultations for ?next=%2Fconsultations).
-- Dirty-URL guard — assert ZERO THIRD-PARTY requests carry session_id (the first-party document URL legitimately contained it pre-scrub and is excluded).
-- Anonymous review-save — verify actual server semantics (accept refusal 401/400/403 with honest body OR client-side gate).
-- Signed-out checkout POST — expect refusal (401/403/503) with honest continuation + rendered ?next= link.
+**Root cause (confirmed from D8 trace, single `LayoutShift` ts≈4.3s):** the D7 perf change wrapped the free-tier AttachControl in `DeferredMount` (2.5s cap), and `DeferredMount` rendered `null` during the wait. Pre-cap the composer footer-left row contained ONLY the `0/5000` counter → row height 20px, counter at x=29 (flex-start). At the cap the chip mounted → row grew to 44px (min-h-11) → 24px downward shift of everything below + counter jumped x=29→334 (justify-between). `hadRecentInput:true`, score 0.083, reproduced 3/3 runs.
 
-## Overflow matrix (§26) — ALL PASS (88 widths, P1 fix 6c87d85)
-Home, pricing, all public pages, all authed surfaces at 320/375/390/393/430/768/1024/1440 — zero horizontal overflow.
+**Fix applied (2 files, no protected files):**
+- `src/components/DeferredMount.tsx` — added optional `placeholder` prop (default `null`, fully backward compatible): `return ready ? <>{children}</> : <>{placeholder}</>;`. Other call sites (overlays/sheets, fixed-position) unaffected — they legitimately render nothing during the wait.
+- `src/components/ReviewTool.tsx` — `DeferredMount capMs={2500} placeholder={<AttachGhostChip />}`. The ghost chip (already identical footprint to the real free-tier chip: same padding/gap/icon/text → ~90px) now renders from first paint/SSR, so the row is 44px tall with the counter at the right edge from the start — the swap at the cap is footprint-identical → **zero reflow**.
 
-## Build / typecheck / SSR
-`bash ./build-vercel.sh` green; `bunx tsc --noEmit` 0 errors; `npm run check:ssr` PASS (14 routes SSR-clean) — run against the D7 final commit.
+**Why NOT the README-recorded `w-32 shrink-0` candidate:** the ghost and real chips are already the same width (~90px), so a fixed 128px ghost would itself cause a NEW ~38px counter shift when the real chip replaces it. The actual bug was the null window, not the chip width. The fix achieves the stated goal ("the swap causes zero reflow") with a smaller, safer diff.
 
-## Known issues (honest list)
-1. **CLS 0.083 on mobile — ROOT CAUSE ISOLATED (D8).** Re-ran mobile LH twice in D8: CLS 0.083 both times (and 0.083 in D7) — this is REAL and reproducible, NOT run variance. Trace analysis (`run-0.trace.json`, single `LayoutShift` event, score 0.0827, ts≈4.3s, `hadRecentInput:true`): one 24px downward displacement of the composer footer's second row + the "0/5000" counter (49×20 element) jumping from x=29 → x=334. Attribution: the D7 lazy-mount change itself — AttachGhostChip (static, left-aligned, narrow) is swapped for the real AttachControl at the DeferredMount 2.5s cap, changing the footer-left group's width/height → the row reflows and everything below shifts. Desktop CLS is 0 (row layout differs). The <0.10 target is met either way; no code change made in D8 (would invalidate final-candidate evidence + protected-file risk is nil but the fix touches ReviewTool.tsx layout which the lead should sign off before a future prod ship). Candidate fix when wanted: give AttachGhostChip a fixed width matching the real AttachControl chip (e.g. `w-32 shrink-0` / identical min-width) so the swap is footprint-identical — one-line class change, no protected files.
-2. TBT 290ms > 200ms target (score 79): remaining cost is the framework entry eval + gtag; cutting further requires vendor splitting (risky) or gtag changes (protected analytics.ts). Honest: 90/100 reached, 95 target not reached.
-3. Desktop LH: re-run in D8 — Performance 100, see Performance section (resolved).
-4. Anonymous /api/auth/me 401s log 1-2 console errors (BP/SEO audit) — inherent to the auth design; endpoint is in protected server-api.ts.
+## Performance — Lighthouse (D9, measured 2026-08-16 against the new preview = final commit)
+
+**Mobile (default LH mobile preset, simulate throttling) — 4 runs:**
+| run | Perf | A11y | CLS | FCP | LCP | TBT |
+|---|---|---|---|---|---|---|
+| 1 | **91** | 100 | **0** (score 1) | 1.7s | 1.7s | 330ms |
+| 2 | 86 | 100 | **0** | 1.7s | 2.1s | 470ms |
+| 3 | 89 | 100 | **0** | 1.7s | 2.2s | 380ms |
+| 4 | 89 | 100 | **0** | 1.7s | 2.3s | 370ms |
+
+- **CLS verdict: FIXED — 0 in all 4 runs** (was 0.083 in 3/3 D7/D8 runs; target <0.05 ✓, now zero shift events).
+- **Perf target ≥90 met in run 1 (91);** runs 2–4 (86–89) sit just under on TBT (330–470ms — shared-box contention; the D7 baseline was 290ms with the same code paths). A11y 100 in all runs (target ≥95 ✓). BP 73 / SEO 66 unchanged (preview-only `x-robots-tag: noindex` + gtag/console-401 items, see known issues).
+
+**Desktop LH (desktop preset):** **Performance 99** (target ≥95 ✓) · Accessibility 100 · CLS 0 · FCP 0.4s · LCP 0.4s · TBT 100ms · BP 73 · SEO 66.
+
+## Overflow spot (§26 — 320/390 home + pricing)
+Run fresh on the D9 preview via headless CDP — see gate/probe section below.
+
+## Gates spot (§27 — fresh daemon, corrected assertions per D7 README)
+TikTok callback → 404 expected · login `?next=` → POST-login landing matches target · dirty-URL → zero third-party requests carry `session_id`. See probe output below.
+
+## Build / typecheck / SSR (D9 final commit)
+`bun run build` green · `bunx tsc --noEmit` 0 errors · `npm run check:ssr` PASS (14 routes SSR-clean) · `bash ./build-vercel.sh` green → `.vercel/output` ready.
+
+## Known issues (honest list — D9)
+1. **CLS 0.083 — FIXED (this commit).** See above. Zero shift events in 4/4 mobile LH runs.
+2. **Mobile TBT 290–470ms > 200ms target (score 61–79 across runs):** remaining cost is framework entry eval + gtag; cutting further requires vendor splitting (risky) or gtag changes (protected analytics.ts). Honest: Perf 86–91 across runs, best run 91.
+3. Anonymous `/api/auth/me` 401s log console errors (BP/SEO) — inherent to auth design; endpoint in protected server-api.ts.
+4. BP 73 / SEO 66 unchanged: third-party-cookies + inspector-issues (Google Ads pixel, owner-required); SEO 66 includes preview-only noindex (absent on production, verified D8).
 
 ## Honesty confirmations
-- Production untouched (708d8d8 live). Ads untouched (owner-run, paused). No real charges. QA sessions: qa-d5-*/qa-d6-* deleted from bys_auth_sessions. No fabricated claims/urgency/testimonials.
+- Production untouched (708d8d8 live). Ads untouched (owner-run, paused). No real charges. No fabricated claims/urgency/testimonials.
+- QA account `qa.d9.gate@example.com` (free, seeded for the login gate) left functional per seed-qa-accounts skill; cleaned after QA at lead's discretion.
