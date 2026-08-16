@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en" data-comp="b">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Direction B — "Midnight Command" (dark studio, Ultimate anchor)</title>
+<!--
+  FINAL PRODUCTION-CANDIDATE COMP — Direction A "The Workbench"
+  Static high-fidelity comp only. Three surfaces: #home, #pricing, #results.
+  Viewport responsive via media queries (desktop 1440 / mobile 390).
+  Hero phase override for capture: #home&phase=panic | strike | calm
+  (capture harness only — the natural timeline plays without it).
+  NOT app code. Do not ship.
+-->
+<link rel="stylesheet" href="comps-shared.css"><style>
+/* ===== Direction B overrides — "Midnight Command": dark, private, serious ===== */
+:root{--bg:#0E1A15;--bg-soft:#15231D;--card:#121E19;--ink:#EAE6DA;--muted:#A3B0A5;--muted2:#8A968D;
+--accent:#8FC7B2;--accent-deep:#AAD8C6;--accent-soft:#7DBAA2;--line:#24352C;--line-strong:#2F443A;
+--danger:#E2634F;--danger-soft:#2A1517;--amber:#E2A24B;--amber-bg:#2A1F0D;--bronze:#B98A5E;--steel:#7E93A3;
+--shadow-1:0 1px 0 rgba(0,0,0,.25);--shadow-2:0 10px 30px rgba(0,0,0,.45);--shadow-3:0 22px 60px rgba(0,0,0,.55)}
+body{color-scheme:dark}
+.site-head{background:color-mix(in srgb,var(--bg) 82%,transparent);border-bottom-color:#1E2C25}
+.head-nav a.active::after{background:var(--accent)}
+.workplane{background:var(--card);box-shadow:var(--shadow-2)}
+.seg{background:#0B1410;border-color:var(--line)}
+.seg button.on{background:#1C2B24;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.4)}
+.hero-state{color:var(--ink)}
+.hero-calm{color:var(--accent)}
+.btn-primary{background:var(--accent);color:#0E1A15}
+.btn-primary:hover{background:var(--accent-deep);color:#0E1A15}
+.plan.recommended{border-color:color-mix(in srgb,var(--accent) 60%,transparent)}
+.rec-badge{background:var(--accent);color:#0E1A15}
+.score-card .sc-bar{background:#0B1410}
+.rewrite.recommended{border-color:color-mix(in srgb,var(--bronze) 55%,var(--line));box-shadow:var(--shadow-2)}
+.rewrite.recommended .r-tag{background:var(--bronze);color:#14100B}
+.next-step{background:var(--accent);color:#0E1A15}
+.next-step .btn{background:#0E1A15;color:var(--accent-deep)}
+.next-step .btn:hover{background:#0C1612}
+.site-foot{border-top-color:#1E2C25}
+.compare td.anchor{background:rgba(143,199,178,.07)}
+.free-ref b{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<!-- ================= SURFACE 1: HOME ================= -->
+<section class="bys-page active" id="home">
+  <header class="site-head">
+    <div class="head-inner">
+      <a class="brand" href="#home" aria-label="Before You Send home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        Before&nbsp;You&nbsp;Send
+      </a>
+      <nav class="head-nav" aria-label="Main">
+        <a href="#home" class="active">Home</a>
+        <a href="#pricing">Pricing</a>
+      </nav>
+      <a class="btn-signin" href="#results">Sign in</a>
+    </div>
+  </header>
+
+  <main class="home-wrap">
+    <section class="hero" aria-label="Before You Send">
+      <p class="hero-state" id="heroState" aria-hidden="true">
+        <span class="hero-word" id="heroPanic">Panic.</span>
+        <svg class="hero-x" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true">
+          <line class="s1" x1="6" y1="8" x2="114" y2="36"/>
+          <line class="s2" x1="114" y1="8" x2="6" y2="36"/>
+        </svg>
+        <span class="hero-calm" id="heroCalm"><span>Calm.</span></span>
+      </p>
+      <p class="hero-copy">See how your message may land <strong>before you send it.</strong></p>
+
+      <!-- THE WORKING COMPOSER — central working plane of the product -->
+      <div class="workplane" role="region" aria-label="Message review composer">
+        <div class="mode-row">
+          <span class="seg" role="group" aria-label="Tool mode">
+            <button type="button" class="on">Review message</button>
+            <button type="button">Analyze a situation</button>
+          </span>
+        </div>
+        <div class="draft-box">
+          <textarea id="draft" aria-label="Your message" placeholder="Paste the message you're about to send — or write it here."></textarea>
+        </div>
+        <div class="composer-foot">
+          <button class="attach-btn" type="button" aria-label="Attach a photo or document (Steady and up)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21.4 11.05 12.25 20.2a5 5 0 0 1-7.07-7.07l9.19-9.19a3.33 3.33 0 0 1 4.71 4.71l-9.2 9.19a1.67 1.67 0 0 1-2.35-2.35l8.49-8.49"/></svg>
+            Add a photo or document
+          </button>
+          <div class="composer-actions">
+            <button class="btn btn-primary" type="button">Review my message</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="trust-line">
+        <span>First review free</span><span class="sep">·</span>
+        <span>No account</span><span class="sep">·</span>
+        <span>Private</span><span class="sep">·</span>
+        <a href="#pricing">How privacy works</a>
+      </p>
+
+      <p class="hero-second"><a href="#pricing">See plans</a></p>
+    </section>
+
+    <!-- Product narrative: message → better response → organized record → useful preparation -->
+    <section class="narrative" aria-label="What happens after you review">
+      <h2>One message, then a record that works for you.</h2>
+      <p class="lede">Review the draft. Send the calmer version. Keep it on the record. Be ready when it matters.</p>
+      <div class="chain">
+        <div class="chain-step">
+          <span class="k">Review</span>
+          <p class="msg-draft"><span class="strike">You keep ruining the schedule. The kids deserve better than this.</span></p>
+          <p class="msg-calm">"I'd like to settle a schedule that works for both of us. Can we talk it through this week?"</p>
+        </div>
+        <div class="chain-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="chain-step">
+          <span class="k">Record</span>
+          <div class="ledger-row"><span class="d">Aug 12</span><span class="t">Draft review — calm version sent</span><span class="k2">Review</span></div>
+          <div class="ledger-row"><span class="d">Aug 10</span><span class="t">Pick-up change</span><span class="k2">Log</span></div>
+          <div class="ledger-row"><span class="d">Aug 04</span><span class="t">Parenting plan</span><span class="k2">Document</span></div>
+        </div>
+        <div class="chain-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="chain-step">
+          <span class="k">Prepare</span>
+          <p class="summary-line"><b>Case summary</b> — key events this quarter, in order, each backed by the message or document.</p>
+          <div class="summary-meta"><span>Timeline · Log · Documents</span><span class="exp">Export</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta">
+      <h2>Your next message can be the calm one.</h2>
+      <p class="sub">See how it lands before you send it — free.</p>
+      <a class="btn btn-primary" href="#home">Review a message</a>
+      <p class="editorial">The record you keep quietly is the one that speaks later.</p>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <div class="foot-inner">
+      <a href="#pricing">Pricing</a><a href="#">About</a><a href="#">Consultations</a><a href="#">Privacy</a><a href="#">Terms</a><a href="#">FAQ</a><a href="#">Contact</a>
+      <span class="legal">Not a law firm · No legal advice · © 2026 Before You Send</span>
+    </div>
+  </footer>
+</section>
+
+<!-- ================= SURFACE 2: PRICING ================= -->
+<section class="bys-page" id="pricing">
+  <header class="site-head">
+    <div class="head-inner">
+      <a class="brand" href="#home" aria-label="Before You Send home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        Before&nbsp;You&nbsp;Send
+      </a>
+      <nav class="head-nav" aria-label="Main">
+        <a href="#home">Home</a>
+        <a href="#pricing" class="active">Pricing</a>
+      </nav>
+      <a class="btn-signin" href="#results">Sign in</a>
+    </div>
+  </header>
+
+  <main class="pricing-wrap">
+    <section class="pricing-head">
+      <h1>Choose how much of the system you need.</h1>
+      <p class="sub">Every plan starts with a free review. The difference is how much of the record — and how much help — you want.</p>
+      <span class="bill-toggle" role="group" aria-label="Billing interval">
+        <button type="button" class="on">Monthly</button>
+        <button type="button">Annual</button>
+        <span class="save">2 months free</span>
+      </span>
+    </section>
+
+    <section class="plans" aria-label="Plans">
+      <article class="plan">
+        <div class="p-name">Steady</div>
+        <div class="p-job">Ongoing communication reviews, every time you need one.</div>
+        <div class="p-price"><span class="amt">$4.99</span><span class="per">/mo</span></div>
+        <div class="p-annual">or $49.90 a year · 30 reviews a month</div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>30 message reviews a month</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>Unlimited saved history</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>Unlimited Log &amp; Timeline</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>Real-person email support</li>
+        </ul>
+        <div class="p-cta"><button class="btn btn-ghost" type="button">Start Steady</button></div>
+      </article>
+
+      <article class="plan">
+        <div class="p-name">Command Center</div>
+        <div class="p-job">Reviews, plus your whole record — organized and ready.</div>
+        <div class="p-price"><span class="amt">$12.49</span><span class="per">/mo</span></div>
+        <div class="p-annual">or $124.90 a year · unlimited reviews</div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>Unlimited message reviews</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>Document Organizer with smart tagging</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>Case Summary built from your record</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>Action Center + Export pack</li>
+        </ul>
+        <div class="p-cta"><button class="btn btn-ghost" type="button">Start Command Center</button></div>
+      </article>
+
+      <article class="plan recommended">
+        <span class="rec-badge">Recommended</span>
+        <div class="p-name">Ultimate Co-Parent</div>
+        <div class="p-job">Everything, with a consultation and packs included.</div>
+        <div class="p-price"><span class="amt">$24.99</span><span class="per">/mo</span></div>
+        <div class="p-annual">or $249.90 a year · everything included</div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>Everything in Command Center</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>1 free consultation a year</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>All one-time packs included</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>Priority support + kickstart setup</li>
+        </ul>
+        <div class="p-cta"><button class="btn btn-primary" type="button">Start Ultimate</button></div>
+      </article>
+    </section>
+
+    <p class="free-ref">Just starting? <b>Free</b> — first review always free, no account, 5 reviews a month. <a href="#">See what's free</a></p>
+
+    <section class="onetime">
+      <h2>One-time packs</h2>
+      <p class="sub">Buy once, no subscription. Useful when a plan is more than you need right now.</p>
+      <div class="onetime-list">
+        <div class="onetime-item"><div class="o-top"><span class="o-name">One Conversation</span><span class="o-price">$39.50</span></div><p class="o-desc">45 minutes focused on your situation.</p></div>
+        <div class="onetime-item"><div class="o-top"><span class="o-name">Review Top-Up</span><span class="o-price">$9.50</span></div><p class="o-desc">10 review credits. No expiry, stackable.</p></div>
+        <div class="onetime-item"><div class="o-top"><span class="o-name">Gift a Month</span><span class="o-price">$4.99</span></div><p class="o-desc">One month of Steady, as a code you can share.</p></div>
+        <div class="onetime-item"><div class="o-top"><span class="o-name">Sort My Pile</span><span class="o-price">$19.50</span></div><p class="o-desc">Up to 50 documents filed for you, with 30 days of Organizer.</p></div>
+        <div class="onetime-item"><div class="o-top"><span class="o-name">Attorney Prep Pack</span><span class="o-price">$24.50</span></div><p class="o-desc">Cover sheet, chronology, evidence index — from your record.</p></div>
+        <div class="onetime-item"><div class="o-top"><span class="o-name">Record Review</span><span class="o-price">$29.50</span></div><p class="o-desc">A calm read of your whole record. Not legal advice.</p></div>
+      </div>
+    </section>
+
+    <section class="compare">
+      <h2>Compare everything</h2>
+      <p class="sub">The full list, in one place.</p>
+      <table>
+        <thead><tr><th></th><th>Free</th><th>Steady</th><th class="anchor">Command Center</th><th>Ultimate</th></tr></thead>
+        <tbody>
+          <tr><td class="row-label">Reviews</td><td>5/mo</td><td>30/mo</td><td class="anchor yes">Unlimited</td><td class="yes">Unlimited</td></tr>
+          <tr><td class="row-label">Saved history</td><td>Last 10</td><td class="yes">Unlimited</td><td class="anchor yes">Unlimited</td><td class="yes">Unlimited</td></tr>
+          <tr><td class="row-label">Communication Log</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td><td class="anchor yes">Unlimited</td><td class="yes">Unlimited</td></tr>
+          <tr><td class="row-label">Event Timeline</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td><td class="anchor yes">Unlimited</td><td class="yes">Unlimited</td></tr>
+          <tr><td class="row-label">Document Organizer</td><td class="no">—</td><td class="no">—</td><td class="anchor yes">Included</td><td class="yes">Included</td></tr>
+          <tr><td class="row-label">Case Summary</td><td class="no">—</td><td class="no">—</td><td class="anchor yes">Included</td><td class="yes">Included</td></tr>
+          <tr><td class="row-label">Action Center + Export</td><td class="no">—</td><td class="no">—</td><td class="anchor yes">Included</td><td class="yes">Included</td></tr>
+          <tr><td class="row-label">Attorney Prep Pack</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">Included</td></tr>
+          <tr><td class="row-label">Consultations</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">1/year</td></tr>
+          <tr><td class="row-label">Support</td><td class="no">—</td><td>Email</td><td class="anchor">Email</td><td class="yes">Priority</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="pricing-faq">
+      <h2>Questions</h2>
+      <div class="faq-item"><p class="q">Can I cancel anytime?</p><p class="a">Yes. Cancel from your account in one step — you keep access until the end of the period you paid for.</p></div>
+      <div class="faq-item"><p class="q">What happens to my free review?</p><p class="a">The first review is always free, no account needed. With an account you get 5 free reviews a month, every month.</p></div>
+      <div class="faq-item"><p class="q">Is this legal advice?</p><p class="a">No. Before You Send is communication guidance and record-keeping — not a law firm, and never a substitute for your attorney.</p></div>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <div class="foot-inner">
+      <a href="#home">Home</a><a href="#">About</a><a href="#">Consultations</a><a href="#">Privacy</a><a href="#">Terms</a><a href="#">FAQ</a><a href="#">Contact</a>
+      <span class="legal">Not a law firm · No legal advice · © 2026 Before You Send</span>
+    </div>
+  </footer>
+
+  <!-- Mobile sticky CTA — NEUTRAL until a meaningful selection (never hardwired to Ultimate) -->
+  <div class="mobile-cta">
+    <button class="btn btn-primary" type="button">Choose a plan</button>
+  </div>
+</section>
+
+<!-- ================= SURFACE 3: RESULTS ================= -->
+<section class="bys-page" id="results">
+  <header class="site-head">
+    <div class="head-inner">
+      <a class="brand" href="#home" aria-label="Before You Send home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        Before&nbsp;You&nbsp;Send
+      </a>
+      <nav class="head-nav" aria-label="Main">
+        <a href="#home">Home</a>
+        <a href="#pricing">Pricing</a>
+      </nav>
+      <a class="btn-signin" href="#results">Sign in</a>
+    </div>
+  </header>
+
+  <main class="results-wrap">
+    <div class="results-top">
+      <a class="back" href="#home"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Review another</a>
+      <span class="draft-chip"><span class="swatch" aria-hidden="true"></span>Draft review · Aug 12</span>
+    </div>
+
+    <div class="results-head">
+      <h1>Here's how this one lands.</h1>
+      <p class="sub">An honest read of the tone and conflict signals — not a prediction, and not legal advice.</p>
+    </div>
+
+    <div class="score-card" role="img" aria-label="Message impact 46 out of 100, labeled Heated">
+      <span class="sc-label">Impact</span>
+      <span class="sc-val">46</span>
+      <span class="sc-chip">Heated</span>
+      <span class="sc-bar"><i></i></span>
+      <span class="sc-note">of 100 · tone signals only</span>
+    </div>
+
+    <section class="answer">
+      <div class="a-k"><span class="n">1</span>How might this land?</div>
+      <h3>As an accusation with a threat attached.</h3>
+      <p class="a-body">"Stop being unreasonable" opens with blame, and the attorney line raises the stakes. She'll likely defend rather than discuss — and if this ever gets read later, it reads as escalation, not a request.</p>
+    </section>
+
+    <section class="answer">
+      <div class="a-k"><span class="n">2</span>What specifically could escalate?</div>
+      <ul>
+        <li><span class="dot" aria-hidden="true"></span><span><b>Blame framing</b> — "stop being unreasonable" invites a fight about who's unreasonable, not about the schedule.</span></li>
+        <li><span class="dot" aria-hidden="true"></span><span><b>The attorney threat</b> — raising court makes compromise harder and signals you're done negotiating.</span></li>
+        <li><span class="dot" aria-hidden="true"></span><span><b>"Everyone knows it"</b> — a public-accusation tone that's hard to walk back in writing.</span></li>
+      </ul>
+    </section>
+
+    <section class="answer">
+      <div class="a-k"><span class="n">3</span>What should I send instead?</div>
+      <p class="a-body" style="margin-bottom:6px">Same facts, calmer frame — keeps your point, drops the fight.</p>
+
+      <div class="rewrites">
+        <div class="rewrite recommended">
+          <div class="r-top">
+            <span class="r-tone">Gentle · recommended</span>
+            <span class="r-tag">Recommended</span>
+          </div>
+          <p class="r-text">"I'd like to settle a schedule that works for both of us. Can we talk it through this week?"</p>
+          <div class="r-foot">
+            <button class="r-use" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+              Use this one
+            </button>
+            <button class="r-copy" type="button">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="rewrite alt">
+          <div class="r-top"><span class="r-tone">Direct</span></div>
+          <p class="r-text">"I want to agree on a schedule that works for both of us. Can we find time this week?"</p>
+          <div class="r-foot"><button class="r-copy" type="button">Copy</button></div>
+        </div>
+
+        <div class="rewrite alt">
+          <div class="r-top"><span class="r-tone">Firm but neutral</span></div>
+          <p class="r-text">"I'd like us to agree on a workable schedule. If we can't, I'll need to ask for help — but I'd rather sort it out directly."</p>
+          <div class="r-foot"><button class="r-copy" type="button">Copy</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ONE dominant next step — the next useful action -->
+    <section class="next-step">
+      <div class="ns-copy">
+        <b>Keep the calm version on your record.</b>
+        <span>It takes a free account — no card. Your reviews and record stay together in one place.</span>
+      </div>
+      <button class="btn" type="button">Save &amp; review another</button>
+    </section>
+    <p class="save-line">Prefer to just copy it and go? <a href="#home">Review another message</a></p>
+
+    <p class="results-foot">Not legal advice · <a href="#">How privacy works</a></p>
+  </main>
+
+  <footer class="site-foot">
+    <div class="foot-inner">
+      <a href="#home">Home</a><a href="#pricing">Pricing</a><a href="#">About</a><a href="#">Consultations</a><a href="#">Privacy</a><a href="#">Terms</a><a href="#">FAQ</a><a href="#">Contact</a>
+      <span class="legal">Not a law firm · No legal advice · © 2026 Before You Send</span>
+    </div>
+  </footer>
+</section>
+
+<script>
+/* ===== Comp harness: surface switching + hero animation (exact owner timing) ===== */
+(function(){
+  var CALM_WORDS=["Calm.","Think.","Breathe.","Pause.","Respond.","Steady.","Clear."];
+  var T={holdPanic:2800,strike1:600,gap:200,strike2:600,holdCrossed:900,resolve:1500,calmHold:4000,calmFade:600};
+  var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var params={};
+  (location.hash.slice(1)||"").split("&").forEach(function(p){var i=p.indexOf("=");if(i>-1)params[p.slice(0,i)]=p.slice(i+1);else params[p]=true;});
+  document.querySelectorAll(".bys-page").forEach(function(s){s.classList.remove("active");});
+  var target=params.surface;if(!target){for(var k in params){if(document.getElementById(k)){target=k;break;}}}if(!target)target="home";
+  var page=document.getElementById(target);
+  if(page)page.classList.add("active");
+  if(target==="results")document.body.classList.add("page-results");
+
+  var hero=document.getElementById("heroState");
+  var panic=document.getElementById("heroPanic");
+  var calm=document.getElementById("heroCalm");
+  var x=hero&&hero.querySelector(".hero-x");
+  var s1=x&&x.querySelector(".s1"), s2=x&&x.querySelector(".s2");
+  function setPhase(ph){
+    if(!hero)return;
+    panic.style.transition="none";calm.style.transition="none";if(x){x.style.transition="none";s1.style.transition="none";s2.style.transition="none";}
+    if(ph==="panic"){panic.style.opacity=1;calm.style.opacity=0;if(x){s1.style.strokeDashoffset=140;s2.style.strokeDashoffset=140;}}
+    if(ph==="strike"){panic.style.opacity=1;calm.style.opacity=0;if(x){s1.style.strokeDashoffset=0;s2.style.strokeDashoffset=0;}}
+    if(ph==="calm"){panic.style.opacity=0;calm.style.opacity=1;if(x){s1.style.strokeDashoffset=0;s2.style.strokeDashoffset=0;}}
+  }
+  if(!hero)return;
+  x.style.transition="none";
+  s1.style.transition="stroke-dashoffset "+T.strike1+"ms ease-in-out";
+  s2.style.transition="stroke-dashoffset "+T.strike2+"ms ease-in-out";
+  panic.style.transition="opacity "+T.resolve+"ms ease";
+  calm.style.transition="opacity "+T.resolve+"ms ease";
+  if(params.phase){setPhase(params.phase);return;}   // capture override — never in production
+  if(reduce){setPhase("calm");return;}
+  setPhase("panic");
+  var seq=[];
+  seq.push(setTimeout(function(){s1.style.strokeDashoffset=0;},T.holdPanic));
+  seq.push(setTimeout(function(){s2.style.strokeDashoffset=0;},T.holdPanic+T.strike1+T.gap));
+  seq.push(setTimeout(function(){panic.style.opacity=0;x.style.transition="opacity 300ms ease";x.style.opacity=0;},T.holdPanic+T.strike1+T.gap+T.strike2+T.holdCrossed));
+  seq.push(setTimeout(function(){
+    calm.style.opacity=1;calm.querySelector("span").textContent=CALM_WORDS[0];
+    var i=1;
+    setInterval(function(){
+      var w=calm.querySelector("span");
+      w.style.transition="opacity "+T.calmFade+"ms ease";
+      w.style.opacity=0;
+      setTimeout(function(){w.textContent=CALM_WORDS[i%CALM_WORDS.length];w.style.opacity=1;},T.calmFade);
+      i++;
+    },T.calmHold);
+  },T.holdPanic+T.strike1+T.gap+T.strike2+T.holdCrossed+T.resolve));
+})();
+</script>
+</body>
+</html>
