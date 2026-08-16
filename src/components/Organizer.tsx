@@ -952,7 +952,7 @@ export default function Organizer({
               {result.tags && result.tags.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {result.tags.slice(0, 5).map((t) => (
-                    <span key={t} className="rounded-full border border-forest/25 bg-card px-3 py-1 text-sm font-medium text-forest">{t}</span>
+                    <span key={t} className="rounded-md border border-forest/25 bg-card px-3 py-1 text-sm font-medium text-forest">{t}</span>
                   ))}
                 </div>
               )}
@@ -1027,7 +1027,7 @@ export default function Organizer({
             {openFile.tags && openFile.tags.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {openFile.tags.map((t) => (
-                  <span key={t} className="rounded-full border border-line bg-cream-deep px-2.5 py-0.5 text-xs font-medium text-stone break-words">{t}</span>
+                  <span key={t} className="rounded-md border border-line bg-cream-deep px-2.5 py-0.5 text-xs font-medium text-stone break-words">{t}</span>
                 ))}
               </div>
             ) : null}

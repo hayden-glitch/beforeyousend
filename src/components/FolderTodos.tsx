@@ -137,7 +137,7 @@ export function FolderTodos({
           }}
           maxLength={TEXT_CAP}
           placeholder={`One thing to do for ${child.name}…`}
-          className="min-h-12 w-full flex-1 rounded-full border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+          className="min-h-12 w-full flex-1 rounded-xl border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
         />
         <button type="submit" disabled={!draft.trim() || busy || atCap} className="btn-primary shrink-0 px-5">
           Add

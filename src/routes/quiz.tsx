@@ -506,7 +506,7 @@ function Quiz() {
                   }
                 }}
                 placeholder="you@email.com"
-                className="min-h-12 w-full rounded-full border border-cream/30 bg-forest-soft/40 px-5 py-3 text-base text-cream placeholder:text-cream/50 focus:border-cream focus:outline-none"
+                className="min-h-12 w-full rounded-xl border border-cream/30 bg-forest-soft/40 px-5 py-3 text-base text-cream placeholder:text-cream/50 focus:border-cream focus:outline-none"
               />
               <button type="submit" disabled={capState === "saving"} className="btn-primary shrink-0 bg-cream text-forest hover:bg-cream-deep">
                 {capState === "saving" ? "One sec…" : "Get my free account"}

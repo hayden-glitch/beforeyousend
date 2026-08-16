@@ -133,7 +133,7 @@ export default function ThemeSwitcher({ variant }: { variant: "popover" | "inlin
   }
 
   return (
-    <div className="inline-flex max-w-full flex-wrap rounded-full border border-line bg-card p-1" role="group" aria-label="Color theme">
+    <div className="inline-flex max-w-full flex-wrap rounded-[10px] border border-line bg-card p-1" role="group" aria-label="Color theme">
       {THEMES.map(({ id, label, Icon }) => {
         const active = theme === id;
         return (
@@ -142,7 +142,7 @@ export default function ThemeSwitcher({ variant }: { variant: "popover" | "inlin
             type="button"
             aria-pressed={active}
             onClick={() => select(id)}
-            className={`inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors duration-150 ${
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-3.5 text-sm font-medium transition-colors duration-150 ${
               active ? "bg-forest text-cream" : "text-forest hover:bg-cream-deep"
             }`}
           >

@@ -309,7 +309,7 @@ export default function CoParentCheckIn() {
         <div
           className={`fixed z-[35] left-1/2 w-[92vw] max-w-md -translate-x-1/2 ${pathname === "/home" ? "bottom-[max(calc(84px+env(safe-area-inset-bottom)),5.5rem)]" : "bottom-[max(12px,env(safe-area-inset-bottom))]"}`}
         >
-          <div className="flex items-center gap-3 rounded-full border border-forest/30 bg-forest py-3 pl-5 pr-3 shadow-lg">
+          <div className="flex items-center gap-3 rounded-2xl border border-forest/30 bg-forest py-3 pl-5 pr-3 shadow-lg">
             <button
               type="button"
               onClick={open}

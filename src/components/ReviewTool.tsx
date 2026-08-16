@@ -568,7 +568,7 @@ function QuotaCTA({ draft }: { draft: string }) {
               setError("");
             }
           }}
-          className="min-h-12 w-full rounded-full border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+          className="min-h-12 w-full rounded-xl border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
           required
         />
         <button type="submit" disabled={state === "saving"} className="btn-primary shrink-0">
@@ -671,7 +671,7 @@ function ReviewFallback({ draft, error, onRetry }: { draft: string; error: strin
                 setSaveError("");
               }
             }}
-            className="min-h-12 w-full rounded-full border border-line bg-card px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+            className="min-h-12 w-full rounded-xl border border-line bg-card px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
             required
           />
           <button type="submit" disabled={state === "saving"} className="btn-primary mt-3 w-full">

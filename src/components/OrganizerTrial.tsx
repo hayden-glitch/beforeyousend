@@ -237,7 +237,7 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
                     onChange={(e) => patchCard(i, { localTitle: e.target.value })}
                     maxLength={200}
                     aria-label="Name for this item"
-                    className="min-h-11 w-full max-w-sm rounded-full border border-line bg-cream px-4 py-2 text-base text-ink focus:border-forest-soft focus:outline-none"
+                    className="min-h-11 w-full max-w-sm rounded-xl border border-line bg-cream px-4 py-2 text-base text-ink focus:border-forest-soft focus:outline-none"
                   />
                   <button onClick={() => patchCard(i, { editing: false, kept: true })} className="btn-primary min-h-11 px-4 text-base">Save name</button>
                   <button onClick={() => patchCard(i, { editing: false, localTitle: card.title })} className="btn-ghost min-h-11 px-4 text-base text-stone">Cancel</button>
@@ -300,7 +300,7 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
             />
           ) : (
             <div className="mt-5">
-              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-cream-deep px-4 py-2 text-base font-semibold text-forest transition hover:border-forest/40">
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border border-line bg-cream-deep px-4 py-2 text-base font-semibold text-forest transition hover:border-forest/40">
                 {fileName ? <><IconCheck className="h-4 w-4" />{(fileName.length > 40 ? fileName.slice(0, 37) + "…" : fileName)}</> : <>Upload a screenshot or bill →</>}
                 <input
                   type="file"

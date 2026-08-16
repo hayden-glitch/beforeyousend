@@ -216,7 +216,7 @@ function AttachSheet({
                 onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
                 maxLength={MAX_NOTE}
                 placeholder="e.g. the school's email about Friday's pickup"
-                className="mt-2 w-full rounded-full border border-line bg-card px-4 py-2.5 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+                className="mt-2 w-full rounded-xl border border-line bg-card px-4 py-2.5 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
               />
             </li>
           ))}

@@ -328,7 +328,7 @@ export default function SortMyPile({
                     onChange={(e) => setDesc(p.localId, e.target.value)}
                     maxLength={MAX_DESC}
                     placeholder="One line about what it is (helps us file it)"
-                    className="mt-2 min-h-11 w-full rounded-full border border-line bg-cream px-4 py-2 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+                    className="mt-2 min-h-11 w-full rounded-xl border border-line bg-cream px-4 py-2 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
                   />
                 </div>
               ))}
@@ -342,7 +342,7 @@ export default function SortMyPile({
                     value={pileLabel}
                     onChange={(e) => setPileLabel(e.target.value.slice(0, 40))}
                     placeholder="school · court · bills"
-                    className="min-h-12 w-full rounded-full border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+                    className="min-h-12 w-full rounded-xl border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
                   />
                 </label>
               </div>
