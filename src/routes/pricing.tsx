@@ -7,6 +7,7 @@ import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
 import { consultationMoney } from "~/lib/prices";
 import { scrollBehavior } from "~/lib/motion";
 import { seoHead } from "~/lib/seo";
+import { setTrialOpenPending } from "~/lib/trial";
 export const Route = createFileRoute("/pricing")({
   head: () => ({
     ...seoHead({
@@ -400,6 +401,12 @@ function Pricing() {
   // grant). No invented urgency anywhere.
   function openTrial() {
     if (typeof window === "undefined") return;
+    // Buffer the request (P1 fix 2026-08-16): the TrialModal chunk is
+    // deferred (mounts on first interaction / 6s cap) — a fast tap can
+    // dispatch before its listener exists. The session flag survives the
+    // race; TrialModal clears it when it handles the event and honors it
+    // on mount if the event was missed.
+    setTrialOpenPending();
     window.dispatchEvent(new CustomEvent("bys:open-trial"));
   }
   return (

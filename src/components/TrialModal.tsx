@@ -12,7 +12,7 @@ import {
   payBrand,
   loginIntakeActive,
   type PayBrand,
-} from "~/lib/trial";
+} from "~/lib/trial", clearTrialOpenPending, trialOpenPending }
 import { IconClose } from "~/components/icons";
 
 // 24-hour free trial modal (owner direction 2026-08-13; GPT cleanup
@@ -64,8 +64,30 @@ function authStatus(): Promise<{ eligible: boolean; signedIn: boolean }> {
       const eligible = !signedIn || (j.quota?.tier === "free" && !j.trial?.used);
       return { eligible, signedIn };
     })
-    .catch(() => ({ eligible: false, signedIn: false }));
+    // P1 fix (2026-08-16): a failed one-shot fetch must NOT poison the
+    // singleton for the rest of the page session — clear it so the next
+    // authStatus() call retries (explicit-open path uses authStatusFresh).
+    .catch(() => {
+      mePromise = null;
+      return { eligible: false, signedIn: false };
+    });
   return mePromise;
+}
+// One-shot fresh eligibility read for the explicit open path — NEVER cached.
+// /api/auth/me can take 400-1000ms on a cold serverless start; the mount-time
+// read may still be null (or stale-false after a hiccup) when a visitor taps
+// the pricing trial CTA, and the old guard silently swallowed those taps
+// (live QA P1: click → 0 dialogs at 390px). The explicit request deserves a
+// fresh read; the real eligibility rules are unchanged (server re-checks on
+// /api/trial/start anyway).
+function authStatusFresh(): Promise<{ eligible: boolean; signedIn: boolean }> {
+  return fetch("/api/auth/me", { credentials: "include" })
+    .then((r) => (r.ok ? r.json() : { user: null }))
+    .then((j) => {
+      const signedIn = !!j.user;
+      return { eligible: !signedIn || (j.quota?.tier === "free" && !j.trial?.used), signedIn };
+    })
+    .catch(() => ({ eligible: false, signedIn: false }));
 }
 
 // ---- Payment marks (clean inline SVG/text, no external assets) ----
@@ -268,16 +290,59 @@ export default function TrialModal() {
   // active-trial users, and never while another dialog holds the lock).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onOpenRequest = () => {
-      if (show || modalOpen() || trialDismissed() || auth === null || !auth.eligible) return;
+    let cancelled = false;
+    const tryOpen = (a: { eligible: boolean; signedIn: boolean } | null) => {
+      if (cancelled || show || trialDismissed() || a === null || !a.eligible) return;
+      // One modal at a time: if another dialog is genuinely up, defer. If the
+      // lock is merely stale (no dialog in the DOM — e.g. a modal unmounted
+      // without releasing), the explicit user action wins.
+      if (modalOpen()) {
+        if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+        releaseModal();
+      }
       setShow(true);
       claimModal();
       markTrialShown();
       track("trial_modal_shown", { path: pathname, source: "pricing_inline" });
     };
+    const onOpenRequest = () => {
+      clearTrialOpenPending();
+      if (auth !== null && auth.eligible) {
+        tryOpen(auth);
+      } else {
+        // Mount-time auth is missing or stale-negative (slow one-shot fetch /
+        // failed cold start). Read eligibility NOW — honest, real rules.
+        authStatusFresh().then((a) => {
+          if (cancelled) return;
+          setAuth(a);
+          tryOpen(a);
+        });
+      }
+    };
     window.addEventListener("bys:open-trial", onOpenRequest);
-    return () => window.removeEventListener("bys:open-trial", onOpenRequest);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("bys:open-trial", onOpenRequest);
+    };
   }, [show, auth, pathname]);
+  // P1 fix (2026-08-16): honor a trial-open request that arrived before this
+  // lazily-deferred chunk finished mounting (DeferredMount caps at 6s — a fast
+  // mobile tap on the pricing CTA races the chunk fetch and the CustomEvent is
+  // lost). pricing.tsx sets the session flag before dispatching; if the event
+  // missed the listener above, the flag is still set — open here with the same
+  // guards (and only on /pricing, the only surface that sets it).
+  useEffect(() => {
+    if (auth === null || !trialOpenPending()) return;
+    clearTrialOpenPending();
+    if (show || trialDismissed() || !auth.eligible) return;
+    if (pathname !== TRIAL_FAST) return;
+    if (modalOpen() && document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+    if (modalOpen()) releaseModal();
+    setShow(true);
+    claimModal();
+    markTrialShown();
+    track("trial_modal_shown", { path: pathname, source: "pricing_inline" });
+  }, [auth, show, pathname]);
 
   // Release the shared lock when the modal closes for ANY reason.
   useEffect(() => {

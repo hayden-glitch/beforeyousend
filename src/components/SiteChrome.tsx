@@ -83,18 +83,18 @@ export function SiteHeader({ active = "other" }: { active?: SiteTab | string }) 
   const signedIn = !!auth?.user;
   const tier = auth?.quota?.tier || auth?.user?.profile?.tier || "free";
   // Lightweight header (spec §5 / comp A): hairline bar, 58px tall, brand
-  // ALWAYS visible — the wordmark shows at 320/375/390/393/430 (never hidden
-  // below a breakpoint). Public nav stays tiny: brand · Pricing · Sign in.
+  // ALWAYS visible — the B·Y·S logo shows at 320/375/390/393/430 (wordmark
+  // text removed 2026-08-16 per owner — the logo is the brand; it stays
+  // tappable Home on every page). Public nav stays tiny: logo · Pricing · Sign in.
   return (
     <header className="sticky top-0 z-20 border-b border-line/60 bg-cream/85 backdrop-blur">
       <div className="mx-auto flex h-[58px] max-w-[1180px] items-center justify-between gap-2 px-4 sm:px-6">
         <a
           href="/"
           aria-label="Before You Send home"
-          className="-m-1 flex min-h-11 shrink-0 items-center gap-2 rounded-lg p-1 text-[15.5px] font-semibold tracking-tight text-ink transition-colors duration-150 hover:text-forest max-[370px]:gap-1.5 max-[370px]:text-[14.5px]"
+          className="-m-1 flex min-h-11 shrink-0 items-center gap-2 rounded-lg p-1 transition-colors duration-150 hover:text-forest max-[370px]:gap-1.5"
         >
           <img src="/logo-bys.svg" alt="" aria-hidden="true" className="h-7 w-7 max-[370px]:h-6 max-[370px]:w-6" />
-          <span className="whitespace-nowrap">Before You Send</span>
         </a>
         <div className="flex min-w-0 items-center gap-1 sm:gap-2">
           <nav aria-label="Main" className="flex items-center">
