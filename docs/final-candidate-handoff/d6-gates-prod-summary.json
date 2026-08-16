@@ -1,0 +1,107 @@
+[
+  {
+    "name": "g-clean-hydration-gtag",
+    "pass": true,
+    "detail": "3P reqs after clean load: 60"
+  },
+  {
+    "name": "g-clean-hydration-3p",
+    "pass": true,
+    "detail": "3P reqs=60 (gtag/collect/doubleclick expected)"
+  },
+  {
+    "name": "g-dirty-url-zero-3p-pre-scrub",
+    "pass": false,
+    "detail": "3P pre-scrub=5"
+  },
+  {
+    "name": "g-dirty-url-3p-recovery",
+    "pass": true,
+    "detail": "3P post-scrub=5"
+  },
+  {
+    "name": "g-dirty-url-session-id-nowhere",
+    "pass": false,
+    "detail": "session_id occurrences in requests=1"
+  },
+  {
+    "name": "g-safe-ui-faq-loads-3p",
+    "pass": true,
+    "detail": "3P with ?tab=FAQ=15"
+  },
+  {
+    "name": "g-safe-ui-evil-dirty",
+    "pass": false,
+    "detail": "3P with ?tab=EVILHACK pre-scrub=5"
+  },
+  {
+    "name": "g-login-next-visible",
+    "pass": false,
+    "detail": "https://beforeyousend.org/login"
+  },
+  {
+    "name": "g-login-api",
+    "pass": true,
+    "detail": "login status=200"
+  },
+  {
+    "name": "g-login-next-hardnav",
+    "pass": false,
+    "detail": "landed on /login"
+  },
+  {
+    "name": "g-checkout-cta-click",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "g-checkout-401-continuation",
+    "pass": false,
+    "detail": "next href="
+  },
+  {
+    "name": "g-tiktok-callback-404",
+    "pass": false,
+    "detail": "status=403"
+  },
+  {
+    "name": "g-checkout-signedout-401",
+    "pass": false,
+    "detail": "status=403"
+  },
+  {
+    "name": "g-checkout-opens-stripe",
+    "pass": false,
+    "detail": "qa login failed"
+  },
+  {
+    "name": "g-checkout-stripe-page-loads",
+    "pass": false,
+    "detail": "qa login failed"
+  },
+  {
+    "name": "g-tiktok-connected-page-200",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "g-review-save-anon-refused",
+    "pass": false,
+    "detail": "anon save status=200 "
+  },
+  {
+    "name": "g-account-delete-log-hygiene-source",
+    "pass": true,
+    "detail": "src/lib/server-api.ts = 708d8d8 (git diff empty); delete logging redacts PII per code"
+  },
+  {
+    "name": "g-track-b-row-scoped-source",
+    "pass": true,
+    "detail": "src/lib/storage.ts = 708d8d8 (git diff empty); no runtime whole-table user writer"
+  },
+  {
+    "name": "g-dup-purchase-protection-source",
+    "pass": true,
+    "detail": "src/lib/server-api.ts = 708d8d8 (git diff empty); idempotency-key guards present"
+  }
+]
