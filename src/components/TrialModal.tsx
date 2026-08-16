@@ -12,7 +12,10 @@ import {
   payBrand,
   loginIntakeActive,
   type PayBrand,
-} from "~/lib/trial", clearTrialOpenPending, trialOpenPending }
+  trialOpenPending,
+  setTrialOpenPending,
+  clearTrialOpenPending,
+} from "~/lib/trial";
 import { IconClose } from "~/components/icons";
 
 // 24-hour free trial modal (owner direction 2026-08-13; GPT cleanup
