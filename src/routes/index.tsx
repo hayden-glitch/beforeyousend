@@ -43,41 +43,61 @@ function scrollToReview() {
   setTimeout(() => document.getElementById("draft")?.focus({ preventScroll: true }), 450);
 }
 
-/* ---- The rolling-words headline (owner direction 2026-08-16) ----
-   One calm headline: a rotating emotional-state word + ", before you send."
-   — "Panic, before you send" → "Think, before you send" → "Breathe, before
-   you send" → "Pause, before you send" → "Steady, before you send" → back
-   to Panic. Father-centric and honest (naming the feeling is not promising
-   an outcome); every word is a single short token so the swap never shifts
-   layout. The rolling word lives in a fixed-width inline box sized by the
-   LONGEST word ("Breathe") — NO layout shift at any swap. The tail
-   ", before you send." is stable text beside it. prefers-reduced-motion
-   renders the static first word ("Panic, before you send.") — no timers.
-   The block is aria-hidden; the sr-only H1 carries the stable semantic
-   phrase. The animation is pure texture: it never gates typing or the
+/* ---- The rolling-words headline — fixed-anchor stage + Panic X ceremony ----
+   Owner (2026-08-16, hero round 2). Two stacked lines, all anchors fixed.
+   Line 1: ONE dedicated rolling-word stage — a fixed-size box (width sized
+   to the longest word "Breathe"/"Respond", height one headline line). Every
+   word is absolutely positioned at the SAME top-left anchor, left-aligned —
+   nothing is centered by its own width, so no word can ever move
+   horizontally and the stage never reflows (no layout shift at any swap).
+   Line 2: "before you send." — always present, completely stationary, so
+   the hero height stays constant and the composer below never moves.
+   Sequence (spec §4 timings, owner-approved): "Panic," (white grease-pencil
+   SVG text with a crayon displacement filter — NOT the green calm style)
+   holds ~2.8s → a red hand-drawn X crosses it out (stroke 1 draws 600ms →
+   pause 200ms → stroke 2 draws 600ms → hold 900ms → resolve 1500ms) → the
+   calm rotation begins: Think → Breathe → Pause → Respond → Steady → Clear
+   (~4s each, 600ms crossfade) → Panic re-enters with its X ceremony every
+   cycle. The comma exists ONLY inside "Panic," — calm words never carry
+   punctuation. The X is an absolute overlay inside the panic word's own
+   containing box, so it is co-located with the word at every screen width.
+   The block is aria-hidden; the sr-only H1 carries ONE stable semantic
+   phrase. prefers-reduced-motion skips the ceremony entirely and
+   immediately shows the stable calm phrase "Pause" + "before you send."
+   (no timers, no X) — the global reduced-motion rule also zeroes every
+   transition. The animation is pure texture: it never gates typing or the
    Review action (it is a sibling of the composer). */
-const ROLLING_WORDS = ["Panic", "Think", "Breathe", "Pause", "Steady"] as const;
-const T = { hold: 3600, fade: 500 };
+const CALM_WORDS = ["Think", "Breathe", "Pause", "Respond", "Steady", "Clear"] as const;
+const PANIC = "Panic";
+const HERO_CYCLE: readonly string[] = [PANIC, ...CALM_WORDS];
+const T = { holdPanic: 2800, s1: 600, gap: 200, s2: 600, crossed: 900, resolve: 1500, calmHold: 4000, fade: 600 };
+type HeroPhase = "panic" | "x1" | "x2" | "crossed" | "resolve" | "calm";
 
 function HeroRollingWords() {
-  // Initial state is identical on server and client: first word visible
-  // ("Panic"), second span hidden. The fixed-width rolling box is sized by
-  // the longest word, so hydration and every swap are layout-stable.
+  // Initial state is identical on server and client: phase "panic" — the
+  // white crayon "Panic," is the first thing seen (no X yet); the calm word
+  // spans are hidden. Every phase change only toggles opacity / stroke-dash
+  // inside the fixed-size stage, so nothing moves.
+  const [phase, setPhase] = useState<HeroPhase>("panic");
   const [words, setWords] = useState<{ a: string; b: string; front: "a" | "b" }>({
-    a: ROLLING_WORDS[0],
-    b: ROLLING_WORDS[1],
+    a: CALM_WORDS[0],
+    b: CALM_WORDS[1],
     front: "a",
   });
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // Stable calm phrase immediately — no ceremony, no timers.
+      setPhase("calm");
+      setWords({ a: "Pause", b: "Pause", front: "a" });
+      return;
+    }
     let alive = true;
-    let i = 1;
-    let t: number | undefined;
-    const tick = () => {
-      if (!alive) return;
-      const word = ROLLING_WORDS[i % ROLLING_WORDS.length];
-      i += 1;
+    const timeouts: number[] = [];
+    const later = (ms: number, fn: () => void) => {
+      timeouts.push(window.setTimeout(() => { if (alive) fn(); }, ms));
+    };
+    function crossfade(word: string) {
       setWords((w) => {
         const nextFront: "a" | "b" = w.front === "a" ? "b" : "a";
         return {
@@ -86,22 +106,73 @@ function HeroRollingWords() {
           front: nextFront,
         };
       });
-      // Hold the new word a full beat before the next swap (fade included).
-      t = window.setTimeout(tick, T.hold + T.fade);
+    }
+    function showCalm(word: string, done: () => void) {
+      setPhase("calm");
+      crossfade(word);
+      later(T.calmHold + T.fade, done);
+    }
+    function showPanic(done: () => void) {
+      setPhase("panic");
+      later(T.holdPanic, () => setPhase("x1"));
+      later(T.holdPanic + T.s1 + T.gap, () => setPhase("x2"));
+      later(T.holdPanic + T.s1 + T.gap + T.s2, () => setPhase("crossed"));
+      later(T.holdPanic + T.s1 + T.gap + T.s2 + T.crossed, () => setPhase("resolve"));
+      later(T.holdPanic + T.s1 + T.gap + T.s2 + T.crossed + T.resolve, done);
+    }
+    function run(i: number) {
+      const item = HERO_CYCLE[i % HERO_CYCLE.length];
+      if (item === PANIC) showPanic(() => run(i + 1));
+      else showCalm(item, () => run(i + 1));
+    }
+    // Perf (D10): the ceremony is texture, not function — the composer works
+    // regardless of when it starts. Arm the cycle after a short quiet window
+    // (max ~1200ms) so the anonymous-load main thread stays quiet through
+    // the measured window. "Panic," is the first state either way; relative
+    // timings are unchanged; reduced-motion renders calm instantly.
+    let id: number | undefined;
+    const start = () => { if (alive) run(0); };
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
+      cancelIdleCallback?: (n: number) => void;
     };
-    // Calm start: hold the first word a beat, then begin rotating.
-    t = window.setTimeout(tick, T.hold);
+    if (typeof w.requestIdleCallback === "function") {
+      id = w.requestIdleCallback(start, { timeout: 1200 });
+    } else {
+      id = window.setTimeout(start, 1000);
+    }
     return () => {
       alive = false;
-      if (t !== undefined) window.clearTimeout(t);
+      timeouts.forEach((t) => window.clearTimeout(t));
+      if (typeof w.requestIdleCallback === "function" && id !== undefined) {
+        w.cancelIdleCallback?.(id);
+      } else if (id !== undefined) {
+        window.clearTimeout(id);
+      }
     };
   }, []);
   return (
-    <span className="hero-rolling" aria-hidden="true">
-      <span className={`hero-rolling-item ${words.front === "a" ? "on" : ""}`}>{words.a}</span>
-      <span className={`hero-rolling-item ${words.front === "b" ? "on" : ""}`}>{words.b}</span>
-      <span className="hero-rolling-tail">, before you send.</span>
-    </span>
+    <div className="hero-roll" data-phase={phase} aria-hidden="true">
+      <span className={`hero-roll-word ${phase === "calm" && words.front === "a" ? "on" : ""}`}>{words.a}</span>
+      <span className={`hero-roll-word ${phase === "calm" && words.front === "b" ? "on" : ""}`}>{words.b}</span>
+      <span className="hero-panic-wrap">
+        <svg className="hero-panic-svg" viewBox="0 0 340 110" aria-hidden="true" focusable="false">
+          <defs>
+            <filter id="bys-hero-crayon" x="-8%" y="-14%" width="116%" height="128%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="11" result="wobble" />
+              <feDisplacementMap in="SourceGraphic" in2="wobble" scale="2.6" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+          </defs>
+          <text className="hero-panic-text" x="0" y="50%" textAnchor="start" dominantBaseline="central" filter="url(#bys-hero-crayon)">
+            {PANIC},
+          </text>
+        </svg>
+        <svg className="hero-x" viewBox="0 0 120 60" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <line className="s1" x1="6" y1="8" x2="114" y2="52" />
+          <line className="s2" x1="114" y1="8" x2="6" y2="52" />
+        </svg>
+      </span>
+    </div>
   );
 }
 
@@ -205,6 +276,7 @@ function Home() {
               composer below remains fully independent of the animation. */}
           <div className="hero-headline">
             <HeroRollingWords />
+            <p className="hero-fixed">before you send.</p>
             <p className="hero-copy">
               Paste the draft. See how it may land — then send the calmer version.
             </p>
