@@ -14,7 +14,6 @@
 // rule zeroes it).
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import ThemeSwitcher from "./ThemeSwitcher";
 import { track } from "~/lib/analytics";
 import { downloadRecord } from "~/lib/exportRecord";
 
@@ -343,11 +342,6 @@ export default function UserMenu({
               <span className="min-w-0 flex-1 truncate">Privacy</span>
               <span aria-hidden="true" className="shrink-0 text-stone">›</span>
             </a>
-            {/* Theme row — the existing popover variant renders above the menu */}
-            <div className="flex min-h-11 items-center justify-between gap-2 rounded-2xl px-4">
-              <span className="text-base font-semibold text-forest">Theme</span>
-              <ThemeSwitcher variant="popover" />
-            </div>
             {menuNotice && (
               <p role="status" className="px-4 py-2 text-sm leading-relaxed text-stone">
                 {menuNotice}

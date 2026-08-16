@@ -18,18 +18,21 @@ import {
 import { IconClose } from "~/components/icons";
 
 // 24-hour free trial modal (owner direction 2026-08-13; GPT cleanup
-// 2026-08-16). Short, kind, direct: a dad dwelling on a high-intent page
-// (10s) gets one quiet offer of a REAL free 24 hours — the full paid
-// experience, no card, no catch, one per person ever. On /pricing the SAME
-// offer is an explicit inline action (never an automatic modal over the
-// comparison — see pricing.tsx openTrial / the bys:open-trial listener
-// below). Never on /quiz /confirm /onboarding /owner /verification /redeem;
-// never for paid users, active-trial users, prior-trial users, or anyone who
-// dismissed (30-day cookie). Mutually exclusive with the Special Offer
-// (shared window lock — one modal at a time). Device-aware pay row: the
-// visitor's OWN phone's tap-to-pay mark (Apple Pay on iOS, Google Pay on
-// Android) is a little more prominent, the main cards small beside it —
-// desktop gets a plain card row. No urgency words anywhere; the trial is real.
+// 2026-08-16; UI cleanup 2026-08-16). Short, kind, direct: a dad dwelling on
+// a high-intent page (10s) gets one quiet offer of a REAL free 24 hours — the
+// full paid experience, one per person ever. On /pricing the SAME offer is an
+// explicit inline action (never an automatic modal over the comparison — see
+// pricing.tsx openTrial / the bys:open-trial listener below). Never on /quiz
+// /confirm /onboarding /owner /verification /redeem; never for paid users,
+// active-trial users, prior-trial users, or anyone who dismissed (30-day
+// cookie). Mutually exclusive with the Special Offer (shared window lock —
+// one modal at a time). Device-aware pay row: the visitor's OWN phone's
+// tap-to-pay mark (Apple Pay on iOS, Google Pay on Android) is a little more
+// prominent, the main cards small beside it — desktop gets a plain card row.
+// No urgency words anywhere; the trial is real. UI cleanup (2026-08-16):
+// Apple Pay uses Apple's WHITE colorway on this dark sheet (readable), the
+// card marks are quiet uniform white chips, and copy makes NO "no card"
+// claim — the card is added only when a paid plan is chosen.
 
 const TRIAL_FAST = "/pricing";
 const TRIAL_SLOW = ["/", "/faq", "/about", "/consultations", "/login", "/contact", "/trust"];
@@ -93,10 +96,16 @@ function authStatusFresh(): Promise<{ eligible: boolean; signedIn: boolean }> {
 }
 
 // ---- Payment marks (clean inline SVG/text, no external assets) ----
+// Apple Pay (owner UI cleanup 2026-08-16): on dark surfaces Apple's approved
+// treatment is the WHITE colorway — white chip, black Apple mark + "Pay"
+// text (the black chip was unreadable on the dark sheet). The Apple logo is
+// Apple's own glyph, used unmodified. The four card marks sit beside it as
+// quiet, uniform trust signals: same white chip, same height, muted brand
+// coloring — never a rainbow strip, never the centerpiece.
 function AppleMark({ prominent }: { prominent?: boolean }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-[#1d1d1f] text-cream ${
+      className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-white text-black ${
         prominent ? "h-8 px-3" : "h-6 px-2"
       }`}
       aria-label="Apple Pay"
@@ -111,7 +120,7 @@ function AppleMark({ prominent }: { prominent?: boolean }) {
 function GoogleMark({ prominent }: { prominent?: boolean }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-line bg-card ${
+      className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-white text-black ${
         prominent ? "h-8 px-3" : "h-6 px-2"
       }`}
       aria-label="Google Pay"
@@ -128,40 +137,44 @@ function GoogleMark({ prominent }: { prominent?: boolean }) {
 }
 function VisaMark() {
   return (
-    <span aria-label="Visa" className="inline-flex h-6 shrink-0 items-center rounded-sm bg-white px-1.5 text-[10px] font-extrabold italic tracking-tighter text-[#1A1F71] ring-1 ring-line">
+    <span aria-label="Visa" className="inline-flex h-6 shrink-0 items-center rounded-sm bg-white px-1.5 text-[10px] font-extrabold italic tracking-tighter text-[#1A1F71] ring-1 ring-line/60">
       VISA
     </span>
   );
 }
 function MastercardMark() {
   return (
-    <span aria-label="Mastercard" className="relative inline-flex h-6 w-9 shrink-0 items-center justify-center">
-      <span className="absolute left-0 h-4 w-4 rounded-full bg-[#EB001B]" aria-hidden="true" />
-      <span className="absolute right-0 h-4 w-4 rounded-full bg-[#F79E1B]" aria-hidden="true" />
-      <span className="absolute left-[14px] h-4 w-4 rounded-full bg-[#FF5F00]/60" aria-hidden="true" />
+    <span aria-label="Mastercard" className="relative inline-flex h-6 w-9 shrink-0 items-center justify-center rounded-sm bg-white ring-1 ring-line/60">
+      <span className="absolute left-[7px] h-3.5 w-3.5 rounded-full bg-[#EB001B]/85" aria-hidden="true" />
+      <span className="absolute right-[7px] h-3.5 w-3.5 rounded-full bg-[#F79E1B]/85" aria-hidden="true" />
+      <span className="absolute left-[11px] h-3.5 w-3.5 rounded-full bg-[#FF5F00]/50" aria-hidden="true" />
       <span className="sr-only">Mastercard</span>
     </span>
   );
 }
 function AmexMark() {
   return (
-    <span aria-label="American Express" className="inline-flex h-6 shrink-0 items-center justify-center rounded-sm bg-[#2E77BC] px-1.5 text-[9px] font-bold tracking-tight text-white">
+    <span aria-label="American Express" className="inline-flex h-6 shrink-0 items-center justify-center rounded-sm bg-white px-1.5 text-[9px] font-bold tracking-tight text-[#2E77BC] ring-1 ring-line/60">
       AMEX
     </span>
   );
 }
 function DiscoverMark() {
   return (
-    <span aria-label="Discover" className="inline-flex h-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#F48120] px-2 text-[8px] font-bold tracking-tighter text-white">
+    <span aria-label="Discover" className="inline-flex h-6 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-white px-1.5 text-[9px] font-bold tracking-tight text-[#F48120] ring-1 ring-line/60">
       DISCOVER
     </span>
   );
 }
 
 function PayRow({ brand }: { brand: PayBrand }) {
+  // flex-wrap: at 320px the sheet's inner box can't hold the Apple Pay mark
+  // + all four cards on one line — let the row fold onto two tidy lines
+  // instead of clipping (owner UI cleanup 2026-08-16).
+  const row = "flex flex-wrap items-center gap-x-2 gap-y-2";
   if (brand === "apple") {
     return (
-      <div className="flex items-center gap-2">
+      <div className={row}>
         <AppleMark prominent />
         <VisaMark />
         <MastercardMark />
@@ -172,7 +185,7 @@ function PayRow({ brand }: { brand: PayBrand }) {
   }
   if (brand === "google") {
     return (
-      <div className="flex items-center gap-2">
+      <div className={row}>
         <GoogleMark prominent />
         <VisaMark />
         <MastercardMark />
@@ -182,7 +195,7 @@ function PayRow({ brand }: { brand: PayBrand }) {
     );
   }
   return (
-    <div className="flex items-center gap-2">
+    <div className={row}>
       <VisaMark />
       <MastercardMark />
       <AmexMark />
@@ -467,7 +480,7 @@ export default function TrialModal() {
           A free 24 hours of Before You Send.
         </h2>
         <p className="mt-2 text-base leading-relaxed text-stone">
-          The full experience, free for one day. No card, no catch.
+          The full experience, free for one day.
         </p>
         <div className="mt-4 rounded-xl border border-line bg-cream-deep/60 px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-forest-soft">
@@ -481,7 +494,7 @@ export default function TrialModal() {
           <div className="mt-3 border-t border-line/70 pt-3">
             <PayRow brand={brand} />
             <p className="mt-2 text-xs text-taupe">
-              No card now. It stays free after — you just keep the trial version of your plan.
+              Your card is added only when you choose a paid plan — never before.
             </p>
           </div>
         </div>

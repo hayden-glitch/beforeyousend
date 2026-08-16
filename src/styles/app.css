@@ -356,6 +356,65 @@
        block cards (min-width auto already computes to 0 there). */
     min-width: 0;
   }
+  /* ---- Pricing plan glow (owner UI cleanup 2026-08-16) ----
+     A soft living blue backdrop behind each paid plan card. One diffuse
+     radial blob (gradient falloff — NO filter:blur, no per-frame repaint)
+     drifting VERY slowly with compositor-friendly transform/opacity only.
+     The dark card stays the foreground; the glow reads as slow reflected
+     light around the card edges. Cool tones progress lighter across plans:
+     Steady → deep blue-teal, Command Center → clearer blue, Ultimate →
+     slightly brighter icy blue. Depth, not spectacle: no neon outline, no
+     pulsing, no flashing, no repeating loop. prefers-reduced-motion gets a
+     tasteful static field (the global reduced-motion rule would also zero
+     this, but an explicit static state is deterministic). */
+  .plan-card {
+    position: relative;
+  }
+  .plan-card::before {
+    content: "";
+    position: absolute;
+    top: -18%;
+    right: -8%;
+    bottom: -14%;
+    left: -8%;
+    z-index: -1;
+    border-radius: 2.4rem;
+    background: radial-gradient(
+      56% 58% at 50% 46%,
+      var(--plan-glow, rgba(74, 118, 168, 0.34)),
+      transparent 74%
+    );
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+    animation: plan-glow-drift 22s ease-in-out infinite alternate;
+    will-change: transform, opacity;
+    pointer-events: none;
+  }
+  .plan-card-steady::before {
+    --plan-glow: rgba(52, 98, 110, 0.38); /* muted deep blue-teal */
+  }
+  .plan-card-command::before {
+    --plan-glow: rgba(74, 126, 178, 0.44); /* clearer blue — the recommended anchor */
+  }
+  .plan-card-ultimate::before {
+    --plan-glow: rgba(122, 166, 206, 0.48); /* brighter, icy */
+  }
+  @keyframes plan-glow-drift {
+    from {
+      transform: translate3d(-2%, -1.5%, 0) scale(1);
+      opacity: 0.46;
+    }
+    to {
+      transform: translate3d(2%, 1.8%, 0) scale(1.08);
+      opacity: 0.62;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .plan-card::before {
+      animation: none;
+      opacity: 0.5;
+    }
+  }
   .icon-btn {
     @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] text-forest transition-colors duration-150 hover:bg-cream-deep active:scale-[0.97];
   }
