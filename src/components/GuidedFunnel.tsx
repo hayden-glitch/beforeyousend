@@ -97,8 +97,10 @@ export default function GuidedFunnel() {
   // Poll handle for the modal-lock deferral (FIX 1): cleared on unmount.
   const deferTimerRef = useRef<number | null>(null);
 
-  // Trigger: ReviewTool dispatches "bys:guided-funnel" ~1.4s after a review
-  // (or the free example) completes. Eligibility: signed-out, not seen this
+  // Trigger: ReviewTool/ReviewResults dispatch "bys:guided-funnel" AFTER the
+  // payoff was consumed — a rewrite copy (~1.2s after the copy completes) or
+  // a calm 12s fallback dwell (GPT cleanup 2026-08-16: never ~1.4s after
+  // completion). Eligibility: signed-out, not seen this
   // tab — UNLESS a mid-flow state was saved (reload / back-navigation), in
   // which case the funnel resumes from the persisted step even when the seen
   // flag survived (R6-3: the resume path was unreachable because the seen

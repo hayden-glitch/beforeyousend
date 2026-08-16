@@ -238,5 +238,5 @@ function Login(){
         <div className="mt-6 border-t border-line pt-5 text-center text-base text-stone">{mode==="signup"?<>Already have an account? <button type="button" onClick={()=>switchMode("signin")} className="inline-block py-[10px] font-semibold text-forest underline">Sign in</button></>:<>New here? <button type="button" onClick={()=>switchMode("signup")} className="inline-block py-[10px] font-semibold text-forest underline">Create your free account</button></>}</div>
       </div>
     )}
-  </div><p className="mt-8 text-center text-sm leading-relaxed text-taupe">No invented testimonials. No outcome promises. Not legal advice. Cancel anytime.</p></main>;
+  </div><p className="mt-8 text-center text-sm leading-relaxed text-taupe">No card required. Your drafts stay private. Not legal advice.</p></main>;
 }

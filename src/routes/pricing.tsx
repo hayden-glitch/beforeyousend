@@ -33,7 +33,10 @@ const PLAN_META: Record<PlanKey, { name: string; job: string; perks: string[]; m
   steady: {
     name: "Steady",
     job: "Ongoing communication reviews, every time you need one.",
-    perks: ["30 message reviews a month", "Unlimited saved history", "Unlimited Log & Timeline", "Real-person email support"],
+    // GPT cleanup (2026-08-16): Free keeps unlimited Log & Timeline — the
+    // Steady card sells only what Steady actually ADDS: 30 reviews, full saved
+    // history, attachments (Steady+ gate), and real-person support.
+    perks: ["30 message reviews a month", "Unlimited saved history", "Photos & documents on reviews", "Real-person email support"],
   },
   command: {
     name: "Command Center",
@@ -54,7 +57,7 @@ const TIER_NAMES: Record<string, string> = { steady: "Steady", command: "Command
 const ONETIME: [string, string, string, boolean][] = [
   ["One Conversation", consultationMoney, "45 minutes focused on your situation.", false],
   ["Review Top-Up", "$9.50", "10 review credits; no expiry, stackable.", true],
-  ["Gift a Month", "$4.99", "One month of Steady for another dad, delivered as a code you can share.", true],
+  ["Gift a Month", "$4.99", "One month of Steady for another co-parent, delivered as a code you can share.", true],
   ["Sort My Pile", "$19.50", "Up to 50 documents filed into your Organizer for you — with 30 days of the live Organizer included.", true],
   ["Attorney Prep Pack", "$24.50", "Your record, prepared for your attorney — cover sheet, chronology, evidence index, and more. Generated from your record.", true],
   ["Record Review", "$29.50", "A thorough read of your whole record — patterns, evidence strengths, and what to document next. Not legal advice.", true],
@@ -390,6 +393,15 @@ function Pricing() {
     return <button onClick={() => checkout("consultation")} className="btn-ghost mt-4 w-full">Buy One Conversation</button>;
   }
 
+  // GPT cleanup (2026-08-16): the 24-hour trial is an EXPLICIT inline action on
+  // pricing — never an automatic modal over the comparison. TrialModal listens
+  // for this event and opens only if the visitor is still eligible (real
+  // one-per-person, no-card, expiry-to-Free rules unchanged — it owns the
+  // grant). No invented urgency anywhere.
+  function openTrial() {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("bys:open-trial"));
+  }
   return (
     <div className="min-h-dvh">
       <SiteHeader active="pricing" />
@@ -401,6 +413,18 @@ function Pricing() {
         <p className="mt-3 max-w-xl text-lg leading-relaxed text-stone">
           Start with a free review — no account needed. Upgrade when the record matters.
         </p>
+        {/* GPT cleanup (2026-08-16): the same `Free 24 hours · no card` offer as
+            an explicit secondary action — visible, quiet, never auto-popping.
+            Hidden for paid tiers (they already have everything it unlocks). */}
+        {myTier === "free" && (
+          <button
+            type="button"
+            onClick={openTrial}
+            className="mt-4 inline-flex min-h-11 items-center rounded-full border border-forest/30 px-5 text-sm font-semibold text-forest transition-colors duration-150 hover:border-forest/60 hover:bg-forest/5"
+          >
+            Free 24 hours · no card
+          </button>
+        )}
 
         {/* Quiet monthly/annual toggle — text buttons, no filled pill (§12). */}
         <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2">

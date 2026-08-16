@@ -2200,7 +2200,7 @@ async function handleGiftRedeem(req) {
   if (new Date(g.createdAt).getTime() < Date.now() - 90 * 24 * 60 * 60 * 1000)
     return json3({ error: "That code has expired." }, 410);
   if (g.giverId === u.id)
-    return json3({ error: "This is your own gift code — share it with another dad." }, 400);
+    return json3({ error: "This is your own gift code — share it with another co-parent." }, 400);
   const claimed = await redeemGiftCode(code, u.id);
   if (!claimed)
     return json3({ error: "That code has already been used." }, 409);

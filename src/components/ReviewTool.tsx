@@ -78,6 +78,35 @@ function initialTool(): ToolMode {
   if (typeof window === "undefined") return "review";
   return new URLSearchParams(window.location.search).get("mode") === "analyze" ? "analyze" : "review";
 }
+// GPT cleanup (2026-08-16): guided-funnel fallback trigger. The funnel must
+// NOT auto-open ~1.4s after a review — the payoff has to be READ first. A
+// rewrite copy (ReviewResults dispatches ~1.2s after a successful copy) is
+// the primary trigger; this is the calm fallback for readers: 12s dwell
+// after completion, deferred in 3s steps (up to ~18s) while the user is
+// actively scrolling or has an active text selection — never interrupting
+// reading, selecting, or copying. GuidedFunnel (mounted in __root) still
+// owns eligibility (signed-out, once per page load) and the modal lock.
+let lastScrollAt = 0;
+if (typeof window !== "undefined") {
+  window.addEventListener("scroll", () => { lastScrollAt = Date.now(); }, { passive: true });
+}
+function scheduleGuidedFunnelFallback() {
+  if (typeof window === "undefined") return;
+  window.setTimeout(() => {
+    const tryFire = (roundsLeft: number) => {
+      if (roundsLeft <= 0) return; // stay quiet rather than interrupt
+      const scrolling = Date.now() - lastScrollAt < 2500;
+      const selecting =
+        typeof document !== "undefined" && !!document.getSelection()?.toString();
+      if (scrolling || selecting) {
+        window.setTimeout(() => tryFire(roundsLeft - 1), 3000);
+        return;
+      }
+      window.dispatchEvent(new CustomEvent("bys:guided-funnel"));
+    };
+    tryFire(6);
+  }, 12000);
+}
 
 export default function ReviewTool({ reviewRef }: Props) {
   // Two-mode AI Co-Parent (owner 2026-08-11): per-mode state, so switching
@@ -195,13 +224,15 @@ export default function ReviewTool({ reviewRef }: Props) {
           ...(exampleRunRef.current ? { example: true } : {}),
         });
         // Round-6 guided funnel (R6-2): post-value entry point after the
-        // first review or the free example lands. Delayed ~1.4s so the payoff
-        // is seen first; GuidedFunnel (mounted in __root) decides eligibility
+        // first review or the free example lands. GPT cleanup (2026-08-16):
+        // NEVER auto-opens 1.4s after completion — the payoff must be read
+        // first. Triggered by a rewrite copy (ReviewResults dispatches ~1.2s
+        // after a successful copy) or by this calm 12s fallback dwell
+        // (scheduleGuidedFunnelFallback — defers while the user scrolls or
+        // selects). GuidedFunnel (mounted in __root) decides eligibility
         // (signed-out, once per page load) and fires the funnel events.
         // Never carries draft text.
-        window.setTimeout(() => {
-          window.dispatchEvent(new CustomEvent("bys:guided-funnel"));
-        }, 1400);
+        scheduleGuidedFunnelFallback();
       }
       // Co-Parent Check-In: second-chance trigger — pill may re-appear once.
       window.dispatchEvent(new CustomEvent("bys:checkin-value"));

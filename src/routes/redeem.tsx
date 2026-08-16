@@ -12,7 +12,7 @@ export const Route = createFileRoute("/redeem")({
   head: () => ({
     ...seoHead({
       title: "Redeem a gift month — Before You Send",
-      description: "A month of Steady, gifted by another dad. Sign in, enter the code, done.",
+      description: "A month of Steady, gifted by another co-parent. Sign in, enter the code, done.",
       path: "/redeem",
     }),
   }),

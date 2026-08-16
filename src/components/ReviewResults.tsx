@@ -165,6 +165,14 @@ function useCopy() {
       setCopiedId(id);
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setCopiedId(null), 2000);
+      // GPT cleanup (2026-08-16): copying a rewrite is the signal that the
+      // payoff was consumed — the guided next step may follow shortly after
+      // (GuidedFunnel applies its own eligibility + modal-lock deferral; the
+      // copy itself has already completed, so nothing interrupts it). One
+      // post-value ask at a time — never a competing popup.
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("bys:guided-funnel"));
+      }, 1200);
     } catch {
       /* clipboard unavailable — ignore */
     }
