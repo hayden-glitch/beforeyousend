@@ -126,7 +126,7 @@ function Redeem() {
         Before You Send<span className="text-forest-soft">.</span>
       </a>
 
-      <div className="mt-10 rounded-[2rem] border border-line bg-card p-7">
+      <div className="card mt-10 p-7">
         {!meLoaded ? (
           <p className="text-base text-stone">One moment…</p>
         ) : done ? (
@@ -184,7 +184,7 @@ function Redeem() {
             <h1 className="font-display text-3xl font-semibold tracking-tight text-forest">You&apos;ve been gifted a month</h1>
             <p className="mt-3 text-base text-stone">This code gives one month of Steady to a dad.</p>
             {activeCode && (
-              <p className="mt-4 rounded-2xl border border-line bg-cream-deep px-4 py-3 text-center font-mono text-lg font-semibold tracking-wider text-forest">{activeCode}</p>
+              <p className="mt-4 rounded-xl border border-line bg-cream-deep px-4 py-3 text-center font-mono text-lg font-semibold tracking-wider text-forest">{activeCode}</p>
             )}
             <a href={nextHref} className="btn-primary mt-6 block min-h-12 w-full text-center">Create a free account</a>
             <a href={nextHref} className="mt-3 block min-h-11 text-center text-base font-semibold text-forest underline underline-offset-4">Sign in</a>

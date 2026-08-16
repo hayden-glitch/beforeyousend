@@ -274,7 +274,7 @@ export default function GuidedFunnel() {
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="absolute inset-x-0 bottom-0 flex max-h-[92dvh] min-h-[62dvh] flex-col rounded-t-[2rem] border-t-2 border-forest bg-card shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:left-1/2 sm:min-h-0 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:rounded-[2rem] sm:border-2"
+        className="absolute inset-x-0 bottom-0 flex max-h-[92dvh] min-h-[62dvh] flex-col rounded-t-[14px] border-t border-line bg-card shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:left-1/2 sm:min-h-0 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:rounded-[14px] sm:border"
       >
         <div className="bys-grabber sm:hidden" aria-hidden="true" />
         <div className="flex items-center justify-between gap-3 px-6 pt-5 sm:pt-6">
@@ -300,15 +300,14 @@ export default function GuidedFunnel() {
             <>
               <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">One more thing</p>
               <h2 className="mt-2 font-display text-2xl font-semibold leading-tight text-forest">What do you need most right now?</h2>
-              <p className="mt-2 text-base leading-relaxed text-stone">So we can point you the right way. No pressure.</p>
-              <div className="mt-5 flex flex-col gap-2.5">
+                            <div className="mt-5 flex flex-col gap-2.5">
                 {NEED_OPTIONS.map((o) => (
                   <button
                     key={o.value}
                     type="button"
                     onClick={() => pick(o.value)}
                     aria-pressed={need === o.value}
-                    className={`flex min-h-[4.25rem] w-full items-center gap-3 rounded-2xl border px-4 text-left transition-colors hover:border-forest/30 hover:bg-cream-deep active:scale-[0.98] ${need === o.value ? "border-forest bg-forest/10" : "border-line bg-cream"}`}
+                    className={`flex min-h-[4.25rem] w-full items-center gap-3 rounded-xl border px-4 text-left transition-colors hover:border-forest/30 hover:bg-cream-deep active:scale-[0.98] ${need === o.value ? "border-forest bg-forest/10" : "border-line bg-cream"}`}
                   >
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-stone/40 bg-card">
                       {need === o.value && <IconCheck className="h-4 w-4 text-forest" />}
@@ -325,7 +324,7 @@ export default function GuidedFunnel() {
 
           {step === 1 && (
             <>
-              <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Your privacy</p>
+              <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Private by design</p>
               <h2 className="mt-2 font-display text-2xl font-semibold leading-tight text-forest">What you write stays between us.</h2>
               <ul className="mt-5 space-y-3">
                 {[
@@ -350,7 +349,7 @@ export default function GuidedFunnel() {
                 <button
                   type="button"
                   onClick={seePlan}
-                  className="mt-5 block w-full rounded-3xl border-2 border-forest bg-card p-5 text-left transition-colors hover:bg-cream-deep active:scale-[0.99]"
+                  className="card mt-5 block w-full border-forest/40 p-5 text-left transition-colors hover:bg-cream-deep active:scale-[0.99]"
                 >
                   <span className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Recommended for you</span>
                   <span className="mt-1 block font-display text-xl font-semibold text-forest">{plan.name}</span>
@@ -361,8 +360,8 @@ export default function GuidedFunnel() {
                   <span className="mt-2 block text-base font-semibold text-forest">See {plan.name} →</span>
                 </button>
               ) : (
-                <p className="mt-5 rounded-2xl bg-cream-deep px-4 py-3 text-base leading-relaxed text-stone">
-                  Any of the plans would help. Steady keeps your replies calm; Command Center organizes your record.
+                <p className="mt-5 rounded-xl bg-cream-deep px-4 py-3 text-base leading-relaxed text-stone">
+                  Steady keeps replies calm; Command Center organizes the record.
                 </p>
               )}
               <a href="/pricing" onClick={() => { clearState(); }} className="mt-4 block min-h-11 text-center text-base font-semibold text-forest underline">

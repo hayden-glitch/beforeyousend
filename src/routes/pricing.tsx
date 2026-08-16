@@ -308,18 +308,27 @@ function Pricing() {
   return (
     <div className="min-h-dvh">
       <SiteHeader active="pricing" />
-      <main className="mx-auto max-w-5xl px-5 pb-32 pt-12">
-        <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Simple, honest pricing</p>
-        <h1 className="mt-3 max-w-3xl font-display text-[clamp(2.25rem,6vw,3rem)] font-semibold leading-[1.06] text-forest">
-          Your calm, your record, your peace — for less than a dinner out.
+      <main className="mx-auto max-w-6xl px-5 pb-32 pt-12">
+        <h1 className="font-display text-[clamp(2rem,5.5vw,2.75rem)] font-semibold leading-[1.08] tracking-tight text-ink">
+          Simple, honest pricing.
         </h1>
-        <p className="mt-5 max-w-2xl text-lg text-stone">
-          Every plan starts with a free review that always stays free. Upgrade when the record starts to matter more.
+        <p className="mt-3 max-w-xl text-lg leading-relaxed text-stone">
+          Start with a free review — no account needed. Upgrade when the record matters.
         </p>
-        <nav role="tablist" aria-label="Pricing sections" className="sticky top-16 z-10 mt-8 flex flex-wrap gap-1 border-y border-line bg-cream py-2">
+
+        <nav role="tablist" aria-label="Pricing sections" className="mt-8 flex flex-wrap gap-1 border-b border-line">
           {(["Memberships", "One-time", "Compare", "FAQ"] as Tab[]).map((x) => (
-            <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`min-h-11 whitespace-nowrap rounded-full px-3 py-2 font-semibold ${tab === x ? "bg-forest text-cream" : "text-forest"}`}>
+            <button
+              key={x}
+              role="tab"
+              aria-selected={tab === x}
+              onClick={() => setTab(x)}
+              className={`relative min-h-11 whitespace-nowrap px-3.5 py-2 text-base font-semibold transition-colors duration-150 ${
+                tab === x ? "text-ink" : "text-stone hover:text-ink"
+              }`}
+            >
               {x}
+              {tab === x && <span aria-hidden="true" className="absolute inset-x-2 bottom-0 h-0.5 bg-forest" />}
             </button>
           ))}
         </nav>
@@ -327,67 +336,57 @@ function Pricing() {
         {tab === "Memberships" && (
           <>
             <div className="mt-6 flex flex-wrap items-center gap-3">
-              <div className="inline-flex rounded-full border border-line bg-card p-1">
-                <button aria-pressed={!isAnnual} onClick={() => setAnnual(false)} className={`min-h-11 rounded-full px-5 py-2 font-semibold ${!isAnnual ? "bg-forest text-cream" : "text-forest"}`}>Monthly</button>
-                <button aria-pressed={isAnnual} onClick={() => setAnnual(true)} className={`min-h-11 rounded-full px-5 py-2 font-semibold ${isAnnual ? "bg-forest text-cream" : "text-forest"}`}>Annual</button>
+              <div className="inline-flex rounded-[10px] border border-line bg-card p-1">
+                <button aria-pressed={!isAnnual} onClick={() => setAnnual(false)} className={`min-h-11 rounded-lg px-5 py-2 text-base font-semibold transition-colors duration-150 ${!isAnnual ? "bg-forest text-cream" : "text-stone hover:text-ink"}`}>Monthly</button>
+                <button aria-pressed={isAnnual} onClick={() => setAnnual(true)} className={`min-h-11 rounded-lg px-5 py-2 text-base font-semibold transition-colors duration-150 ${isAnnual ? "bg-forest text-cream" : "text-stone hover:text-ink"}`}>Annual</button>
               </div>
-              {isAnnual && <span className="font-semibold text-forest">2 months free — 10 months for the price of 12</span>}
+              {isAnnual && <span className="text-base font-medium text-stone">2 months free — 10 months for the price of 12</span>}
             </div>
 
             {/* Co-Parent Check-In offer banner — arrived via ?checkin=50.
                 First 3 months at half price on monthly plans. Honest, no countdown. */}
             {checkinActive && (
-              <div className="mt-6 rounded-2xl border border-forest/25 bg-cream-deep/70 px-5 py-4 text-base text-forest">
+              <div className="mt-6 rounded-xl border border-forest/25 bg-cream-deep/70 px-5 py-3.5 text-base text-forest">
                 You have the Check-In offer — your first 3 months at half price on monthly plans.
               </div>
             )}
 
-            {/* Free / Steady / Command grid — value first (audit TOP-10 #5: plan
-                order matches COMPARE_ROWS, no decoy-before-value) */}
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              {PLANS.filter(([k]) => k !== "ultimate").map(([key, name, tag, features]) => (
-                <article className="rounded-3xl border border-line bg-card p-5 shadow-card transition md:hover:border-forest/30" key={key}>
-                  <h2 className="font-display text-2xl font-semibold text-forest">{name}</h2>
-                  <p className="mt-2 text-sm text-stone">{tag}</p>
-                  <p className="mt-4 font-display text-3xl font-semibold text-forest">
+            {/* All four plans in one quiet grid — value first (audit TOP-10 #5:
+                plan order matches COMPARE_ROWS, no decoy-before-value). One
+                subtle featured treatment on Ultimate — no neon, no glow. */}
+            <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {PLANS.map(([key, name, tag, features]) => (
+                <article key={key} className={`card flex flex-col p-5 ${key === "ultimate" ? "border-forest/40" : ""}`}>
+                  {key === "ultimate" && <p className="text-xs font-semibold uppercase tracking-[.14em] text-bronze">Recommended</p>}
+                  <h2 className="font-display text-xl font-semibold text-ink">{name}</h2>
+                  <p className="mt-1.5 text-sm leading-relaxed text-stone">{tag}</p>
+                  <p className="mt-4 font-display text-3xl font-semibold text-ink">
                     {key === "free" ? <>$0<span className="font-sans text-sm font-normal text-stone">/forever</span></> : <>{money(price(key))}<span className="font-sans text-sm font-normal text-stone">/{isAnnual ? "yr" : "mo"}</span></>}
                   </p>
-                  {key !== "free" && isAnnual && <p className="mt-1 text-sm font-semibold text-forest">Save {key === "steady" ? "$9.98" : "$24.98"}</p>}
-                  {key !== "free" && checkinActive && !isAnnual && <p className="mt-1 text-sm font-semibold text-forest">First 3 months: {key === "steady" ? "$2.49" : "$6.24"}/mo — 50% off</p>}
-                  <details className="mt-4 group"><summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 font-semibold text-forest [&::-webkit-details-marker]:hidden">All benefits <IconChevronDown className="h-5 w-5 text-forest-soft transition-transform duration-200 group-open:rotate-180" /></summary><ul className="mt-2 space-y-2 text-sm text-stone">{features.map((x) => <li key={x} className="flex items-start gap-2"><IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-forest" /><span>{x}</span></li>)}</ul></details>
-                  {key === "free" ? (
-                    <a href="/#review" className="btn-ghost mt-6 block w-full text-center">Start free</a>
-                  ) : (
-                    <button onClick={() => checkout(key, isAnnual ? "year" : "month")} className="btn-ghost mt-6 w-full">
-                      {busy === `${key}${isAnnual ? "year" : "month"}` ? "Opening checkout…" : key === "command" ? "Get Command Center" : `Choose ${name}`}
-                    </button>
-                  )}
-                  {key === "command" && <p className="mt-2 text-sm text-stone">Document Organizer, Case Summary, Action Center, and Export — all live.</p>}
+                  {key === "ultimate" && !checkinActive && !isAnnual && <p className="mt-1 text-sm font-medium text-forest">First 3 months at $19.99 — then $24.99/mo</p>}
+                  {key !== "free" && isAnnual && <p className="mt-1 text-sm font-medium text-forest">Save {key === "steady" ? "$9.98" : key === "command" ? "$24.98" : "$49.98"}</p>}
+                  {key !== "free" && checkinActive && !isAnnual && <p className="mt-1 text-sm font-medium text-forest">First 3 months: {key === "steady" ? "$2.49" : key === "command" ? "$6.24" : "$12.49"}/mo — 50% off</p>}
+                  <details className="mt-4 group">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-base font-semibold text-forest [&::-webkit-details-marker]:hidden">
+                      All benefits <IconChevronDown className="h-5 w-5 text-stone transition-transform duration-200 group-open:rotate-180" />
+                    </summary>
+                    <ul className="mt-2 space-y-2 text-sm leading-relaxed text-stone">
+                      {features.map((x) => (
+                        <li key={x} className="flex items-start gap-2"><IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-forest" /><span>{x}</span></li>
+                      ))}
+                    </ul>
+                  </details>
+                  <div className="mt-auto pt-5">
+                    {key === "free" ? (
+                      <a href="/#review" className="btn-ghost block w-full text-center">Start free</a>
+                    ) : (
+                      <button onClick={() => checkout(key, isAnnual ? "year" : "month")} className={`${key === "ultimate" ? "btn-primary" : "btn-ghost"} w-full`}>
+                        {busy === `${key}${isAnnual ? "year" : "month"}` ? "Opening checkout…" : key === "command" ? "Get Command Center" : key === "ultimate" ? "Get Ultimate" : `Get ${name}`}
+                      </button>
+                    )}
+                  </div>
                 </article>
               ))}
-            </div>
-
-            {/* Ultimate hero card — Recommended, keeps its full-width treatment */}
-            <div className="mt-6 rounded-[2rem] border-2 border-forest bg-card p-6 shadow-card sm:p-8">
-              <span className="rounded-full bg-forest px-4 py-1 text-sm font-semibold text-cream">Recommended — the complete system</span>
-              <h2 className="mt-4 font-display text-3xl font-semibold text-forest">Ultimate Co-Parent</h2>
-              <p className="mt-2 text-stone">Everything we offer, one plan — plus a human to talk it through.</p>
-              <p className="mt-5 font-display text-4xl font-semibold text-forest">
-                {money(price("ultimate"))}<span className="font-sans text-base font-normal text-stone"> / {isAnnual ? "year" : "month"}</span>
-              </p>
-              {isAnnual && <p className="mt-2 font-semibold text-forest">Save $49.98/year vs monthly</p>}
-              {checkinActive && !isAnnual && <p className="mt-2 font-semibold text-forest">First 3 months: $12.49/mo — 50% off</p>}
-              <p className="mt-3 text-sm text-stone">
-                $127.49 of included items at list prices — $12.50/mo more than Command Center
-              </p>
-              <details className="mt-5 group">
-                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 font-semibold text-forest [&::-webkit-details-marker]:hidden">All benefits <IconChevronDown className="h-5 w-5 text-forest-soft transition-transform duration-200 group-open:rotate-180" /></summary>
-                <ul className="mt-3 grid gap-2 text-stone sm:grid-cols-2">{PLANS[3][3].map((x) => <li key={x} className="flex items-start gap-2"><IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-forest" /><span>{x}</span></li>)}</ul>
-              </details>
-              <button onClick={() => checkout("ultimate", isAnnual ? "year" : "month")} className="btn-primary mt-7 w-full">
-                {busy === "ultimatemonth" || busy === "ultimateyear" ? "Opening checkout…" : "Get Ultimate Co-Parent"}
-              </button>
-              <p className="mt-3 text-sm text-stone">Cancel anytime · First 3 months at $19.99 · 2 months free on annual</p>
             </div>
 
             {/* Launch-offer in-flow card (reward-loop spec Step 7.3): replaces the
@@ -395,9 +394,9 @@ function Pricing() {
                 plan cards — and only after the visitor has gotten value (a completed
                 review or Check-In) this session. Never before value. */}
             {valueDelivered() && !checkinActive && !isUltimate && !offerAccepted() && !purchasedThisSession() && (
-              <div className="mt-6 rounded-3xl border border-forest/25 bg-cream-deep/70 p-6 text-center">
-                <p className="text-base font-semibold text-forest">Still deciding? Here's the whole system at the launch price.</p>
-                <p className="mt-2 text-base leading-relaxed text-stone">Ultimate Co-Parent — everything included — $19.99/mo for your first 3 months, then $24.99. Cancel anytime.</p>
+              <div className="card mt-6 border-forest/25 p-6 text-center">
+                <p className="text-base font-semibold text-ink">Still deciding? Ultimate at the launch price — $19.99/mo × 3.</p>
+                <p className="mt-1.5 text-base leading-relaxed text-stone">Everything included, then $24.99/mo. Cancel anytime.</p>
                 <button onClick={() => checkout("ultimate", "month")} className="btn-primary mt-4">
                   {busy === "ultimatemonth" ? "Opening checkout…" : "Get Ultimate — $19.99/mo × 3"}
                 </button>
@@ -410,26 +409,25 @@ function Pricing() {
           <section className="mt-7">
             <div className="grid gap-4 sm:grid-cols-2">
               {ONETIME.map(([n, p, d, included]) => (
-                <article className="rounded-3xl border border-line bg-card p-5 shadow-card transition md:hover:border-forest/30" key={n}>
-                  <h2 className="font-display text-2xl font-semibold text-forest">{n}</h2>
-                  <p className="mt-2 font-display text-3xl text-forest">{p}</p>
-                  <p className="mt-2 text-stone">{d}</p>
-                  <p className="mt-3 text-sm text-stone">Buy once — no subscription{n === "Review Top-Up" ? " · 10 credits" : ""}</p>
+                <article key={n} className="card p-5">
+                  <h2 className="font-display text-xl font-semibold text-ink">{n}</h2>
+                  <p className="mt-2 font-display text-3xl text-ink">{p}</p>
+                  <p className="mt-2 text-base leading-relaxed text-stone">{d}</p>
                   {n === "Record Review" ? (
                     recordReview?.entitled && recordReview.kind === "purchased" ? (
-                      <span className="mt-4 inline-block rounded-full border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Record Review unlocked ✓</span>
+                      <span className="mt-4 inline-block rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Record Review unlocked ✓</span>
                     ) : recordReview?.entitled ? (
                       // kind === "ultimate" — allowance available this year.
-                      <span className="mt-4 inline-block rounded-full border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>
+                      <span className="mt-4 inline-block rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>
                     ) : (
                       // Not entitled — Ultimate members who used their 1/year
                       // allowance see the Buy button too (honest: they can buy more).
                       <button onClick={() => checkout("record_review")} className="btn-ghost mt-4 w-full">Buy Record Review</button>
                     )
                   ) : isUltimate && included ? (
-                    <span className="mt-4 inline-block rounded-full border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>
+                    <span className="mt-4 inline-block rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>
                   ) : n === "Attorney Prep Pack" && attorneyPrepOwned ? (
-                    <span className="mt-4 inline-block rounded-full border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Attorney Prep Pack unlocked ✓</span>
+                    <span className="mt-4 inline-block rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Attorney Prep Pack unlocked ✓</span>
                   ) : n === "Sort My Pile" ? (
                     <button onClick={() => checkout("sortpile")} className="btn-ghost mt-4 w-full">Buy Sort My Pile</button>
                   ) : n === "Review Top-Up" ? (
@@ -455,8 +453,8 @@ function Pricing() {
                 at 390px; sticky-column bleed is sidestepped entirely). */}
             <div className="mt-7 space-y-4 md:hidden">
               {COMPARE_ROWS.map((r) => (
-                <div key={r[0]} className="rounded-3xl border border-line bg-card p-5 shadow-card">
-                  <p className="font-semibold text-forest">{r[0]}</p>
+                <div key={r[0]} className="card p-5">
+                  <p className="font-semibold text-ink">{r[0]}</p>
                   <div className="mt-3 space-y-2">
                     {["Free", "Steady", "Command", "Ultimate"].map((p, i) => (
                       <div key={p} className="flex items-center justify-between gap-3">
@@ -495,13 +493,20 @@ function Pricing() {
         )}
 
         {tab === "FAQ" && (
-          <section className="mt-7 space-y-5 text-stone">
-            <p><b>Is this legal advice?</b><br />No. Communication guidance and organization, not legal advice.</p>
-            <p><b>Can I cancel?</b><br />Yes — cancel anytime from the account's Manage subscription button (it opens Stripe's billing portal) — no phone call needed. Access continues through the paid period.</p>
-            <p><b>What is the special offer?</b><br />Ultimate is $19.99/mo for the first 3 months, then $24.99/mo. There is no countdown or fake deadline.</p>
-            <p><b>Do one-time buys need a subscription?</b><br />No. They are separate purchases.</p>
-            <p><b>If I'm on Ultimate, do I pay for one-time items?</b><br />No — included items are included in Ultimate Co-Parent.</p>
-            <p><b>What happens to my data?</b><br />Your drafts and records stay private. We never sell your data.</p>
+          <section className="mt-7 max-w-2xl divide-y divide-line">
+            {[
+              ["Is this legal advice?", "No. Communication guidance and organization, not legal advice."],
+              ["Can I cancel?", "Yes — from the account's Manage subscription button (Stripe's billing portal). Access continues through the paid period."],
+              ["What is the special offer?", "Ultimate is $19.99/mo for the first 3 months, then $24.99/mo. No countdown, no fake deadline."],
+              ["Do one-time buys need a subscription?", "No. They are separate purchases."],
+              ["If I'm on Ultimate, do I pay for one-time items?", "No — included items are included in Ultimate Co-Parent."],
+              ["What happens to my data?", "Your drafts and records stay private. We never sell your data."],
+            ].map(([q, a]) => (
+              <div key={q} className="py-4">
+                <p className="font-semibold text-ink">{q}</p>
+                <p className="mt-1 text-base leading-relaxed text-stone">{a}</p>
+              </div>
+            ))}
           </section>
         )}
 
@@ -512,11 +517,11 @@ function Pricing() {
           </a>
         )}
         {giftCode && (
-          <div className="mt-5 rounded-3xl border border-forest/25 bg-card p-6 shadow-card">
-            <p className="text-lg font-semibold text-forest">Your gift is ready.</p>
+          <div className="card mt-5 p-6">
+            <p className="text-lg font-semibold text-ink">Your gift is ready.</p>
             <p className="mt-1 text-base text-stone">One month of Steady, for a dad who needs it.</p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <span className="rounded-2xl border border-line bg-cream-deep px-4 py-3 font-mono text-lg font-semibold tracking-wider text-forest">{giftCode}</span>
+              <span className="rounded-xl border border-line bg-cream-deep px-4 py-3 font-mono text-lg font-semibold tracking-wider text-forest">{giftCode}</span>
               <button onClick={copyGiftCode} className="btn-ghost min-h-11 text-forest">Copy</button>
             </div>
             <p className="mt-3 text-base text-stone">Send it to a dad who needs it — they sign in, enter the code, done.</p>
@@ -530,9 +535,9 @@ function Pricing() {
             Sign in to link your purchase →
           </a>
         )}
-        <section className="mt-12 rounded-3xl border border-line bg-card p-6 text-stone">
-          <b>No pressure. No lock-in.</b><br />
-          The free review always stays free. Your drafts and records are private.
+        <section className="card mt-12 p-6 text-stone">
+          <p className="font-semibold text-ink">No pressure. No lock-in.</p>
+          <p className="mt-1 text-base leading-relaxed">The free review always stays free. Your drafts and records are private.</p>
         </section>
       </main>
       <SiteFooter />

@@ -16,10 +16,12 @@ export function TrustPage({ kind, active = "other" }: { kind: keyof typeof pages
   return (
     <div className="min-h-dvh bg-cream">
       <SiteHeader active={active} />
-      <main id="main" tabIndex={-1} className="mx-auto max-w-3xl px-5 py-10">
-        <p className="mt-4 text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">{p.eyebrow}</p>
-        <h1 className="mt-3 font-display text-4xl font-semibold leading-tight text-forest">{p.title}</h1>
-        <div className="mt-8 rounded-3xl border border-line bg-card p-6 shadow-card sm:p-8"><article className="prose max-w-none space-y-5 text-base leading-relaxed text-ink">{p.body}</article></div>
+      <main id="main" tabIndex={-1} className="mx-auto max-w-2xl px-5 py-10 sm:py-14">
+        <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">{p.eyebrow}</p>
+        <h1 className="mt-3 font-display text-4xl font-semibold leading-tight text-ink">{p.title}</h1>
+        <div className="mt-8 border-t border-line pt-8">
+          <article className="prose max-w-none space-y-5 text-base leading-relaxed text-ink">{p.body}</article>
+        </div>
       </main>
       <SiteFooter />
     </div>

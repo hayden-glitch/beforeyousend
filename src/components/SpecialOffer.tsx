@@ -224,7 +224,7 @@ export default function SpecialOffer() {
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="bys-sheet absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-[2rem] border-t-2 border-forest bg-card p-6 shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[2rem] sm:border-2"
+        className="bys-sheet absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-[14px] border-t border-line bg-card p-6 shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[14px] sm:border"
       >
         <div className="bys-grabber" aria-hidden="true" />
         <div className="flex items-start justify-between gap-4">
@@ -241,12 +241,10 @@ export default function SpecialOffer() {
           </button>
         </div>
         <h2 className="mt-2 font-display text-2xl font-semibold leading-tight text-forest">
-          Take the whole system — and let us set it up for you.
+          The whole system, one plan.
         </h2>
         <p className="mt-2 text-base leading-relaxed text-stone">
-          You've been comparing plans. Here's the simplest way in: Ultimate Co-Parent — everything
-          we offer, in one plan — at $19.99/mo for your first 3 months, then $24.99/mo. Cancel
-          anytime.
+          Ultimate Co-Parent — everything we offer — $19.99/mo for your first 3 months, then $24.99/mo. Cancel anytime.
         </p>
         <ul className="mt-4 space-y-2 text-base leading-relaxed text-ink">
           <li className="flex items-start gap-2"><IconCheck className="mt-1 h-4 w-4 shrink-0 text-forest-soft" /><span>1 free consultation a year ({consultationMoney} value)</span></li>
@@ -261,8 +259,7 @@ export default function SpecialOffer() {
           No thanks — I'm still deciding
         </button>
         <p className="mt-3 text-xs leading-relaxed text-stone">
-          This launch price is real and time-boxed by the plan itself — no countdown, no games.
-          Cancel anytime from your account — no phone call, no games.
+          Real launch price, time-boxed by the plan — no countdown. Cancel anytime from your account.
         </p>
         <p className="mt-2 text-xs text-taupe">Communication guidance, not legal advice.</p>
         {msg && (

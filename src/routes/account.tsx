@@ -43,11 +43,11 @@ const PLAN_PRICES: Record<string, string> = {
   ultimate: "Ultimate Co-Parent · $24.99/mo",
 };
 
-function CardSection({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+function SettingsSection({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
   return (
-    <section className="rounded-3xl border border-line bg-card p-6 shadow-card">
-      <h2 className="font-display text-xl font-semibold text-forest">{title}</h2>
-      {sub && <p className="mt-1 text-base leading-relaxed text-stone">{sub}</p>}
+    <section className="border-b border-line py-6">
+      <h2 className="font-display text-lg font-semibold text-ink">{title}</h2>
+      {sub && <p className="mt-0.5 text-base leading-relaxed text-stone">{sub}</p>}
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -250,7 +250,7 @@ function AccountPage() {
   if (authState === "error") {
     return (
       <div className="flex min-h-dvh items-center justify-center px-5">
-        <div className="w-full max-w-md rounded-3xl border border-line bg-card p-7 text-center shadow-card">
+        <div className="card w-full max-w-md p-7 text-center">
           <h1 className="font-display text-2xl font-semibold leading-snug text-forest">We couldn't reach the server — give it a moment.</h1>
           <button
             type="button"
@@ -281,14 +281,14 @@ function AccountPage() {
         </a>
         <h1 className="mt-4 font-display text-4xl font-semibold leading-tight text-forest sm:text-5xl">Account</h1>
         <p className="mt-3 max-w-xl text-base leading-relaxed text-stone">
-          Your profile, plan, and privacy — one calm place.
+          Your profile, plan, and privacy.
         </p>
 
-        <div className="mt-8 space-y-4">
+        <div className="mt-4 border-t border-line">
           {/* 1 — Profile. Future profile fields (co-parent/child/case — data
               strategy spec, in flight) slot in as new cards below this one,
               additively; no restructuring needed. */}
-          <CardSection title="Profile" sub="What we call you — used on your dashboard and in your record.">
+          <SettingsSection title="Profile" sub="What we call you — used on your dashboard and in your record.">
             <label htmlFor="account-name" className="field-label">Your name</label>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <input
@@ -298,7 +298,7 @@ function AccountPage() {
                 onChange={(e) => { setName(e.target.value); setProfileSaved(false); }}
                 maxLength={100}
                 placeholder="Your name"
-                className="min-h-12 w-full rounded-2xl border border-line bg-cream px-4 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+                className="input"
               />
               <button onClick={saveProfile} disabled={saving || !name.trim()} className="btn-primary shrink-0">
                 {saving ? "Saving…" : "Save"}
@@ -318,17 +318,17 @@ function AccountPage() {
                 .
               </p>
             )}
-          </CardSection>
+          </SettingsSection>
 
           {/* 2 — Email (read-only; no change endpoint exists). */}
-          <CardSection title="Email" sub="Your email is your sign-in — it can't be changed yet.">
-            <p className="min-h-12 w-full rounded-2xl border border-line bg-cream-deep px-4 py-3 text-base text-ink">
+          <SettingsSection title="Email" sub="Your email is your sign-in — it can't be changed yet.">
+            <p className="min-h-12 w-full rounded-xl border border-line bg-cream-deep px-4 py-3 text-base text-ink">
               {user?.email || ""}
             </p>
-          </CardSection>
+          </SettingsSection>
 
           {/* 3 — Password (set flow when none exists; honest state otherwise). */}
-          <CardSection title="Password">
+          <SettingsSection title="Password">
             {user?.hasPassword ? (
               <div>
                 <p className="text-base leading-relaxed text-stone">Change it here if you'd like a new one.</p>
@@ -353,7 +353,7 @@ function AccountPage() {
                     {pwMsg && !pwDone && <p role="alert" className="mt-2 text-base text-red-800">{pwMsg}</p>}
                   </div>
                 ) : (
-                  <button onClick={() => { setPwOpen(true); setPwDone(false); setPwMsg(""); }} className="mt-3 min-h-11 rounded-full border border-line bg-card px-5 text-base font-semibold text-forest">Change password →</button>
+                  <button onClick={() => { setPwOpen(true); setPwDone(false); setPwMsg(""); }} className="chip mt-3">Change password →</button>
                 )}
               </div>
             ) : (
@@ -371,7 +371,7 @@ function AccountPage() {
                       value={pw}
                       onChange={(e) => { setPw(e.target.value); setPwMsg(""); }}
                       placeholder="At least 8 characters"
-                      className="min-h-12 w-full rounded-full border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+                      className="input"
                     />
                     <button onClick={() => setPassword()} disabled={pwBusy} className="btn-primary shrink-0">
                       {pwBusy ? "Saving…" : "Set password"}
@@ -379,18 +379,18 @@ function AccountPage() {
                     <button onClick={() => setPwOpen(false)} className="btn-ghost shrink-0 text-stone">Cancel</button>
                   </div>
                 ) : (
-                  <button onClick={() => setPwOpen(true)} className="mt-3 min-h-11 rounded-full border border-line bg-card px-5 text-base font-semibold text-forest">
+                  <button onClick={() => setPwOpen(true)} className="chip mt-3">
                     Set a password →
                   </button>
                 )}
                 {pwMsg && !pwDone && <p role="alert" className="mt-2 text-base text-red-800">{pwMsg}</p>}
               </>
             )}
-          </CardSection>
+          </SettingsSection>
 
           {/* 4 — Plan & billing (portal only with a Stripe customer id). */}
-          <CardSection title="Plan &amp; billing">
-            <p className="text-lg font-semibold text-forest">
+          <SettingsSection title="Plan &amp; billing">
+            <p className="text-lg font-semibold text-ink">
               {paidTier ? PLAN_PRICES[profile.tier] || PLAN_LABELS[profile.tier] || "Paid" : PLAN_LABELS[tier] || "Free"}
             </p>
             {gifted && (
@@ -410,10 +410,10 @@ function AccountPage() {
                 See plans →
               </a>
             )}
-          </CardSection>
+          </SettingsSection>
 
           {/* 5 — Export (Command/Ultimate entitlement; honest teaser otherwise). */}
-          <CardSection
+          <SettingsSection
             title="Export your record"
             sub={
               suite
@@ -437,25 +437,25 @@ function AccountPage() {
                 See Command Center →
               </a>
             )}
-          </CardSection>
+          </SettingsSection>
 
           {/* 6 — Privacy. */}
-          <CardSection title="Privacy" sub="What we collect, how it's handled, and how to delete your data — in plain language.">
+          <SettingsSection title="Privacy" sub="What we collect, how it's handled, and how to delete your data — in plain language.">
             <a href="/privacy" className="inline-flex min-h-11 items-center text-base font-semibold text-forest underline underline-offset-4">
               Read the privacy policy →
             </a>
-          </CardSection>
+          </SettingsSection>
 
           {/* 7 — Account (delete — calm, red, at the bottom). */}
-          <CardSection title="Account" sub="Delete your account and everything in it — saved reviews, log, and timeline.">
-            <button onClick={deleteAccount} className="min-h-11 rounded-full border border-red-900/30 bg-card px-5 text-base font-semibold text-red-900">
+          <SettingsSection title="Account" sub="Delete your account and everything in it — saved reviews, log, and timeline.">
+            <button onClick={deleteAccount} className="min-h-11 rounded-[10px] border border-red-900/30 bg-card px-5 text-base font-semibold text-red-900">
               Delete my account
             </button>
-          </CardSection>
+          </SettingsSection>
         </div>
 
         {notice && (
-          <p className="mt-5 rounded-2xl bg-cream-deep px-4 py-3 text-base text-stone" role="status">
+          <p className="mt-5 rounded-xl bg-cream-deep px-4 py-3 text-base text-stone" role="status">
             {notice}
           </p>
         )}

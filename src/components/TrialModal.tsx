@@ -355,7 +355,7 @@ export default function TrialModal() {
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="bys-sheet absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-[2rem] border-t-2 border-forest bg-card p-6 shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[2rem] sm:border-2"
+        className="bys-sheet absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-[14px] border-t border-line bg-card p-6 shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[14px] sm:border"
       >
         <div className="bys-grabber" aria-hidden="true" />
         <div className="flex items-start justify-between gap-4">
@@ -375,9 +375,9 @@ export default function TrialModal() {
           A free 24 hours of Before You Send.
         </h2>
         <p className="mt-2 text-base leading-relaxed text-stone">
-          We think you'd be a good fit — see for yourself. No card, no catch.
+          The full experience, free for one day. No card, no catch.
         </p>
-        <div className="mt-4 rounded-2xl border border-line bg-cream-deep/60 px-4 py-3">
+        <div className="mt-4 rounded-xl border border-line bg-cream-deep/60 px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-forest-soft">
             Everything, unlocked for one day
           </p>
