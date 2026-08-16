@@ -64,9 +64,14 @@ type Props = {
   onUseOwnMessage?: () => void;
 };
 
+// Results answer order (spec §11 / DECISION §11): the review answers the three
+// questions a dad actually has, in order — how it lands, what escalates, what
+// to send instead. The client map is authoritative for known ids (server-sent
+// legacy titles like "How it may be received" still render their old wording
+// in saved payloads only when the id is unknown).
 const SECTION_TITLES: Record<string, string> = {
-  received: "How it may be received",
-  risks: "Conflict & escalation risks",
+  received: "How might this land?",
+  risks: "What specifically could escalate?",
   watchout: "Watch out for",
   facts: "Facts worth preserving",
   // Situation Analyzer sections (two-mode AI Co-Parent, 2026-08-11).
@@ -75,6 +80,11 @@ const SECTION_TITLES: Record<string, string> = {
   next: "What to do next",
   document: "What to document",
 };
+// Review mode renders sections in the §11 answer order: the two "answers" the
+// dad needs most (how it lands, what escalates) render as open content, the
+// supplementary sections (watch out / facts) stay collapsible below the
+// rewrites. Unknown ids keep their stream arrival order (stable sort).
+const REVIEW_SECTION_ORDER = ["received", "risks", "watchout", "facts"];
 
 const REWRITE_TITLES: Record<string, string> = {
   gentle: "Gentle",
@@ -375,6 +385,18 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
     return { order, map, rewrites: finalRewrites };
   }, [blocks]);
 
+  // Section render order (spec §11): review answers in fixed order — how it
+  // lands, what escalates, then the supplementary sections; the analyzer keeps
+  // the stream's own order (its four sections ARE the answers).
+  const sectionOrder = useMemo(() => {
+    if (isAnalyze) return sections.order;
+    const rank = (id: string) => {
+      const i = REVIEW_SECTION_ORDER.indexOf(id);
+      return i === -1 ? 99 : i;
+    };
+    return [...sections.order].sort((a, b) => rank(a) - rank(b));
+  }, [sections.order, isAnalyze]);
+
   // Message Impact Score (calm-loop slice 1): deterministic, from the review's
   // own structured flags only — the card renders right after the rewrites
   // (reward first), before any ask. Real + example reviews, never demo mode.
@@ -440,24 +462,23 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
       });
       return;
     }
-    // Full sequence, total ~650ms of appearances (fills/settles end <1s):
+    // Full sequence, total ~700ms of appearances (fills/settles end <1s):
     // Step 1 t=0      score card mounts (bys-wizard-in) + fill starts 0→score
-    // Step 2 t≈130–370 the three rewrite cards settle ~120ms apart
-    // Step 3 t≈440–650 the analysis sections unfold; first auto-opens
+    // Step 2 t≈130    answer 1 — How might this land? (received) settles
+    // Step 3 t≈250    answer 2 — What specifically could escalate? (risks)
+    // Step 4 t≈370    answer 3 — the recommended rewrite settles
+    // Step 5 t≈490    the two alternatives settle
+    // Step 6 t≈560    the supplementary sections (watch out / facts) unfold
     setFillPct(0);
     const push = (fn: () => void, ms: number) => {
       seqTimersRef.current.push(setTimeout(fn, ms));
     };
     push(() => setFillPct(target), 30); // one frame later so the width transition 0→score actually plays
-    push(() => setSeq((s) => ({ ...s, rw: 1 })), 130);
-    push(() => setSeq((s) => ({ ...s, rw: 2 })), 250);
-    push(() => setSeq((s) => ({ ...s, rw: 3 })), 370);
-    push(() => {
-      setSeq((s) => ({ ...s, analysis: Math.max(1, s.analysis) }));
-      if (firstDetailsRef.current) firstDetailsRef.current.open = true;
-    }, 440);
-    push(() => setSeq((s) => ({ ...s, analysis: Math.max(2, s.analysis) })), 510);
-    push(() => setSeq((s) => ({ ...s, analysis: Math.max(3, s.analysis) })), 580);
+    push(() => setSeq((s) => ({ ...s, analysis: Math.max(1, s.analysis) })), 130);
+    push(() => setSeq((s) => ({ ...s, analysis: Math.max(2, s.analysis) })), 250);
+    push(() => setSeq((s) => ({ ...s, rw: Math.max(1, s.rw) })), 370);
+    push(() => setSeq((s) => ({ ...s, rw: Math.max(2, s.rw) })), 490);
+    push(() => setSeq((s) => ({ ...s, analysis: Math.max(3, s.analysis) })), 560);
     push(() => setSeq((s) => ({ ...s, analysis: Math.max(4, s.analysis) })), 650);
     return () => {
       seqTimersRef.current.forEach(clearTimeout);
@@ -512,86 +533,23 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
         </p>
       )}
 
-      {/* Rewrites — the payoff, FIRST so they dominate the first viewport.
-          In the analyzer this is the single "A calm reply to consider" card:
-          no heading (the card carries its own title) and a fixed honesty line. */}
-      {sections.rewrites.length > 0 && (
-        <div>
-          {!isAnalyze && (
-            <h3 className="text-base font-semibold text-forest">Rewrites to send</h3>
+      {/* Streaming state first — the work is visible before any content lands
+          (the answer order starts below; nothing stacks on the pill). */}
+      {streaming && (
+        <>
+          <div className="flex items-center gap-2.5 rounded-xl border border-line bg-cream-deep/70 px-4 py-3"><span aria-hidden="true" className="bys-stream-pulse h-1.5 w-1.5 shrink-0 rounded-full bg-forest-soft" /><p className="text-base text-stone">{isAnalyze ? "Reading the situation — how it may look, and what to do next…" : "Reading the tone, conflict risks, and calmer rewrites…"}</p></div>
+          {stalled && (
+            <p className="rounded-xl border border-forest/15 bg-card px-4 py-3 text-base text-stone">
+              Still working — this can take up to a minute when things are slow. Nothing's lost.
+            </p>
           )}
-          <div className={isAnalyze ? "" : "mt-4 space-y-4"}>
-            {sections.rewrites.map((r, ri) => (
-              <div
-                key={r.id}
-                className={`rounded-xl border border-line bg-card p-5${ri < seq.rw ? " bys-wizard-settle" : ""}`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-base font-semibold text-forest">{r.title}</span>
-                  <button
-                    type="button"
-                    onClick={() => copy(`rw-${r.id}`, r.text)}
-                    className={`btn-copy ${copiedId === `rw-${r.id}` ? "btn-copy--done" : ""}`}
-                    aria-label={isAnalyze ? "Copy suggested reply" : `Copy ${r.title} rewrite`}
-                  >
-                    {copiedId === `rw-${r.id}` ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <path
-                            d="M5 13l4 4L19 7"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        Copied
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <rect
-                            x="9"
-                            y="9"
-                            width="11"
-                            height="11"
-                            rx="2"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                          />
-                          <path
-                            d="M5 15V6a2 2 0 0 1 2-2h9"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                        Copy
-                      </span>
-                    )}
-                  </button>
-                </div>
-                <p
-                  className={`mt-2 whitespace-pre-line text-base leading-relaxed text-ink ${
-                    streaming && r === sections.rewrites[sections.rewrites.length - 1]
-                      ? "stream-caret"
-                      : ""
-                  }`}
-                >
-                  {r.text}
-                </p>
-                {isAnalyze && (
-                  <p className="mt-3 text-sm text-stone">A starting point — not a script.</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        </>
       )}
 
-      {/* Message Impact Score — right after the rewrites (reward first), before
-          the capture ask. Honest, deterministic, from this review's own flags.
-          The footer line is mandatory on every render — never remove it. */}
+      {/* Message Impact Score — the quiet labeled stat, FIRST (comp A / §11):
+          scoring stays secondary to actionable language; the answers follow.
+          Honest, deterministic, from this review's own flags. The footer line
+          is mandatory on every render — never remove it. */}
       {scoreVisible && impact && (
         <div className="bys-wizard-in rounded-xl border border-line bg-card p-4">
           {/* Labeled stat (DECISION §11 — kills the "46Heated" ambiguity):
@@ -619,21 +577,285 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
           <p className="mt-2 text-sm text-stone">Tone and conflict signals only — not a prediction.</p>
         </div>
       )}
-      {/* P2 11pm Lamp — right after the score card, BEFORE the capture ask:
-          the brand promise ("The message you wrote at 11pm doesn't have to be
-          the one you send") made real at the exact moment it matters. The
-          component owns idle → saved → hidden; the parent gate defers it
+      {/* P2 11pm Lamp — right after the score card, BEFORE the answers and the
+          capture ask: the brand promise made real at the moment it matters.
+          The component owns idle → saved → hidden; the parent gate defers it
           behind the capture sheet (one ask at a time). */}
       {lampVisible && lampState !== "hidden" && impact && (
         <div className="mt-4">
           <TomorrowLamp draft={draft} score={impact.score} label={impact.label} />
         </div>
       )}
-      {/* Capture ask — directly after the rewrites, BEFORE the collapsible
-          analysis sections (capture-moment redesign): the ask lands in the
-          first post-completion viewport. Desktop (md+) shows the in-flow card;
-          on mobile the card is hidden — the bottom sheet IS the ask. For
-          example reviews the ask is the honesty line: never a save offer. */}
+
+      {/* ===== Review answers (§11 order) =====
+          1. How might this land? (received) — open content
+          2. What specifically could escalate? (risks) — open content
+          3. What should I send instead? (rewrites) — one recommended + alts
+          Then the supplementary sections (watch out / facts) stay collapsible.
+          The analyzer keeps its own shape: the reply card first (the payoff),
+          then its four sections as collapsible steps. */}
+      {!isAnalyze && (() => {
+        const openIds = ["received", "risks"];
+        const open = openIds
+          .map((id) => ({ id, s: sections.map.get(id) }))
+          .filter((x): x is { id: string; s: { title: string; paras: string[]; items: string[] } } => !!x.s);
+        const rest = sectionOrder.filter((id) => !openIds.includes(id));
+        const recommendedIdx = ["gentle", "direct", "firm"].reduce((acc, p) => (acc !== -1 ? acc : sections.rewrites.findIndex((r) => r.id === p)), -1);
+        const recIdx = recommendedIdx === -1 && sections.rewrites.length > 0 ? 0 : recommendedIdx;
+        const rec = recIdx >= 0 ? sections.rewrites[recIdx] : null;
+        const alts = recIdx >= 0 ? sections.rewrites.filter((_, i) => i !== recIdx) : sections.rewrites;
+        return (
+          <>
+            {open.map(({ id, s }, ai) => (
+              <section
+                key={id}
+                aria-label={SECTION_TITLES[id]}
+                className={`rounded-xl border border-line bg-card p-5${ai + 1 < seq.analysis ? " bys-wizard-settle" : ""}`}
+              >
+                <div className="flex items-baseline gap-2.5">
+                  <span className="text-sm font-bold text-forest-soft tabular-nums">{ai + 1}</span>
+                  <h3 className="text-base font-semibold text-forest">{SECTION_TITLES[id]}</h3>
+                </div>
+                {s.paras.length > 0 && (
+                  <p className="mt-3 text-base leading-relaxed text-ink">
+                    {s.paras.join("\n\n")}
+                  </p>
+                )}
+                {s.items.length > 0 && (
+                  <ul className={s.paras.length > 0 ? "mt-3 space-y-2.5" : "mt-3 space-y-2.5"}>
+                    {s.items.map((item, i) => (
+                      <li key={i} className="flex gap-3 text-base leading-relaxed text-ink">
+                        <span className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-forest-soft" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ))}
+
+            {/* Answer 3 — What should I send instead? ONE recommended rewrite,
+                two alternatives visible but quieter (comp A / §11). */}
+            {sections.rewrites.length > 0 && (
+              <section aria-label="What should I send instead?" className="space-y-3">
+                <div className="flex items-baseline gap-2.5">
+                  <span className="text-sm font-bold text-forest-soft tabular-nums">{open.length + 1}</span>
+                  <h3 className="text-base font-semibold text-forest">What should I send instead?</h3>
+                </div>
+                {rec && (
+                  <div className={`rounded-xl border border-forest/45 bg-forest/[0.06] p-5${1 <= seq.rw ? " bys-wizard-settle" : ""}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-base font-semibold text-forest">
+                        {rec.title}
+                        <span className="ml-2 inline-flex items-center rounded-full bg-forest px-2.5 py-0.5 text-xs font-semibold text-cream">Recommended</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => copy(`rw-${rec.id}`, rec.text)}
+                        className={`btn-copy ${copiedId === `rw-${rec.id}` ? "btn-copy--done" : ""}`}
+                        aria-label={`Use ${rec.title} rewrite`}
+                      >
+                        {copiedId === `rw-${rec.id}` ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            Copied — ready to paste
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            Use this one
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                    <p
+                      className={`mt-2 whitespace-pre-line text-base leading-relaxed text-ink ${
+                        streaming && rec.id === sections.rewrites[sections.rewrites.length - 1].id ? "stream-caret" : ""
+                      }`}
+                    >
+                      {rec.text}
+                    </p>
+                  </div>
+                )}
+                {alts.length > 0 && (
+                  <div className={2 <= seq.rw ? "space-y-3 bys-wizard-settle" : "space-y-3"}>
+                    {alts.map((r) => (
+                      <div key={r.id} className="rounded-xl border border-line bg-card p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-base font-medium text-forest">{r.title}</span>
+                          <button
+                            type="button"
+                            onClick={() => copy(`rw-${r.id}`, r.text)}
+                            className={`btn-copy ${copiedId === `rw-${r.id}` ? "btn-copy--done" : ""}`}
+                            aria-label={`Copy ${r.title} rewrite`}
+                          >
+                            {copiedId === `rw-${r.id}` ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                  <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                Copied
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                  <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                                  <path d="M5 15V6a2 2 0 0 1 2-2h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                                </svg>
+                                Copy
+                              </span>
+                            )}
+                          </button>
+                        </div>
+                        <p className={`mt-2 whitespace-pre-line text-base leading-relaxed text-ink ${streaming && r.id === sections.rewrites[sections.rewrites.length - 1].id ? "stream-caret" : ""}`}>
+                          {r.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Supplementary sections (watch out for / facts worth preserving) —
+                collapsible so the three answers stay front and center. */}
+            {rest.map((id, ri) => {
+              const s = sections.map.get(id)!;
+              const title = SECTION_TITLES[id] ?? s.title ?? id;
+              return (
+                <details
+                  key={id}
+                  className={`group rounded-xl border border-line bg-card${ri + 3 < seq.analysis ? " bys-wizard-settle" : ""}`}
+                >
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3.5 text-base font-semibold text-forest [&::-webkit-details-marker]:hidden">
+                    <span>{title}</span>
+                    <span aria-hidden="true" className="shrink-0">
+                      <IconChevronDown className="h-5 w-5 text-forest-soft transition-transform duration-200 group-open:rotate-180" />
+                    </span>
+                  </summary>
+                  <div className="px-5 pb-5">
+                    {s.paras.length > 0 && (
+                      <p className="text-base leading-relaxed text-ink">
+                        {s.paras.join("\n\n")}
+                      </p>
+                    )}
+                    {s.items.length > 0 && (
+                      <ul className={s.paras.length > 0 ? "mt-3 space-y-2.5" : "space-y-2.5"}>
+                        {s.items.map((item, i) => (
+                          <li key={i} className="flex gap-3 text-base leading-relaxed text-ink">
+                            <span className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-forest-soft" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </details>
+              );
+            })}
+          </>
+        );
+      })()}
+
+      {/* Analyzer sections — the reply card first (the payoff), then its four
+          sections as calm collapsible steps; the first auto-opens. */}
+      {isAnalyze && (
+        <>
+          {sections.rewrites.length > 0 && (
+            <div>
+              <div className="space-y-4">
+                {sections.rewrites.map((r, ri) => (
+                  <div
+                    key={r.id}
+                    className={`rounded-xl border border-line bg-card p-5${ri < seq.rw ? " bys-wizard-settle" : ""}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-base font-semibold text-forest">{r.title}</span>
+                      <button
+                        type="button"
+                        onClick={() => copy(`rw-${r.id}`, r.text)}
+                        className={`btn-copy ${copiedId === `rw-${r.id}` ? "btn-copy--done" : ""}`}
+                        aria-label="Copy suggested reply"
+                      >
+                        {copiedId === `rw-${r.id}` ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            Copied
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                              <path d="M5 15V6a2 2 0 0 1 2-2h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                            </svg>
+                            Copy
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                    <p
+                      className={`mt-2 whitespace-pre-line text-base leading-relaxed text-ink ${
+                        streaming && r === sections.rewrites[sections.rewrites.length - 1]
+                          ? "stream-caret"
+                          : ""
+                      }`}
+                    >
+                      {r.text}
+                    </p>
+                    <p className="mt-3 text-sm text-stone">A starting point — not a script.</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {sectionOrder.map((id, ai) => {
+            const s = sections.map.get(id)!;
+            const title = SECTION_TITLES[id] ?? s.title ?? id;
+            return (
+              <details
+                key={id}
+                ref={ai === 0 ? firstDetailsRef : undefined}
+                className={`group rounded-xl border border-line bg-card${ai < seq.analysis ? " bys-wizard-settle" : ""}`}
+              >
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3.5 text-base font-semibold text-forest [&::-webkit-details-marker]:hidden">
+                  <span>{title}</span>
+                  <span aria-hidden="true" className="shrink-0">
+                    <IconChevronDown className="h-5 w-5 text-forest-soft transition-transform duration-200 group-open:rotate-180" />
+                  </span>
+                </summary>
+                <div className="px-5 pb-5">
+                  {s.paras.length > 0 && (
+                    <p className="text-base leading-relaxed text-ink">
+                      {s.paras.join("\n\n")}
+                    </p>
+                  )}
+                  {s.items.length > 0 && (
+                    <ul className={s.paras.length > 0 ? "mt-3 space-y-2.5" : "space-y-2.5"}>
+                      {s.items.map((item, i) => (
+                        <li key={i} className="flex gap-3 text-base leading-relaxed text-ink">
+                          <span className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-forest-soft" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </details>
+            );
+          })}
+        </>
+      )}
+
+      {/* Capture ask — the ONE dominant next step after the answers (§10/§11):
+          desktop (md+) shows the in-flow card; on mobile the card is hidden —
+          the bottom sheet IS the ask. For example reviews the ask is the
+          honesty line: never a save offer. Nothing else stacks here. */}
       {!streaming && mode === "live" && captureAsk && !example && !hideCapture && (
         <div id="bys-capture-card" className={`hidden md:block ${nudged ? "bys-capture-nudge" : ""}`}>
           <EmailCapture draft={draft} reviewText={fullText(blocks)} noun={noun} onSubmitted={() => setEmailDone(true)} />
@@ -643,69 +865,17 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
         <ExampleAsk onUseOwnMessage={onUseOwnMessage} />
       )}
 
-      {/* Analysis sections — collapsible so the rewrites stay front and center.
-          Wizard A step 3: on completion the FIRST section auto-opens (native
-          details API — never a controlled prop), the rest stay closed but
-          tappable; each gets a gentle transform-only settle. */}
-      {sections.order.map((id, ai) => {
-        const s = sections.map.get(id)!;
-        const title = s.title || SECTION_TITLES[id] || id;
-        return (
-          <details
-            key={id}
-            ref={ai === 0 ? firstDetailsRef : undefined}
-            className={`group rounded-xl border border-line bg-card${ai < seq.analysis ? " bys-wizard-settle" : ""}`}
-          >
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3.5 text-base font-semibold text-forest [&::-webkit-details-marker]:hidden">
-              <span>{title}</span>
-              <span aria-hidden="true" className="shrink-0">
-                <IconChevronDown className="h-5 w-5 text-forest-soft transition-transform duration-200 group-open:rotate-180" />
-              </span>
-            </summary>
-            <div className="px-5 pb-5">
-              {s.paras.length > 0 && (
-                <p className="text-base leading-relaxed text-ink">
-                  {s.paras.join("\n\n")}
-                </p>
-              )}
-              {s.items.length > 0 && (
-                <ul className={s.paras.length > 0 ? "mt-3 space-y-2.5" : "space-y-2.5"}>
-                  {s.items.map((item, i) => (
-                    <li key={i} className="flex gap-3 text-base leading-relaxed text-ink">
-                      <span className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-forest-soft" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </details>
-        );
-      })}
-
       <p className="text-base text-stone">
         {isAnalyze
           ? "A fair read of the situation — not a prediction, and not legal advice."
           : "An honest read — not legal advice."}
       </p>
 
-      {streaming ? (
-        <>
-          <div className="flex items-center gap-2.5 rounded-xl border border-line bg-cream-deep/70 px-4 py-3"><span aria-hidden="true" className="bys-stream-pulse h-1.5 w-1.5 shrink-0 rounded-full bg-forest-soft" /><p className="text-base text-stone">{isAnalyze ? "Reading the situation — how it may look, and what to do next…" : "Reading the tone, conflict risks, and calmer rewrites…"}</p></div>
-          {stalled && (
-            <p className="rounded-xl border border-forest/15 bg-card px-4 py-3 text-base text-stone">
-              Still working — this can take up to a minute when things are slow. Nothing's lost.
-            </p>
-          )}
-        </>
-      ) : mode === "demo" ? (
+      {!streaming && mode === "demo" && (
         <p className="rounded-xl border border-line bg-cream-deep px-4 py-3 text-base text-stone">
           {isAnalyze ? "Sample output is never saved to an account. Describe a real situation and get a live analysis." : "Sample output is never saved to an account. Paste a real draft and get a live AI review."}
         </p>
-      ) : !captureAsk && !hideCapture ? (
-        /* Legacy position (dashboard /home): the card stays at the bottom. */
-        <EmailCapture draft={draft} reviewText={fullText(blocks)} noun={noun} onSubmitted={() => setEmailDone(true)} />
-      ) : null}
+      )}
 
       {!streaming && mode === "live" && !example && (
         <div className="rounded-xl border border-line bg-cream-deep/50 p-4">

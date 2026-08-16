@@ -747,7 +747,7 @@ export default function Organizer({
                 {files.length === 0 ? (
                   <p className="px-4 py-5 text-base leading-relaxed text-ink">
                     {primary
-                      ? `${primary.name}'s folder is empty for now. Every paper starts here — add your first message, agreement, or receipt and it'll be filed where you can find it.`
+                      ? `Nothing's saved for ${primary.name} yet. Every paper starts here — add your first message, agreement, or receipt and it'll be filed where you can find it.`
                       : EMPTY_COPY}
                   </p>
                 ) : (
