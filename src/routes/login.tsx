@@ -294,7 +294,7 @@ function Login(){
   };
   const fitLine=(()=>{ const rec=q3?recommend(q1,q2,q3):null; return rec?FIT_LINES[rec.plan]:null; })();
   const dots=step===0?1:step===1?2:step===2?3:3;
-  return <main id="main" tabIndex={-1} className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-5 py-12"><a href="/" className="flex items-center gap-2 font-display text-2xl font-semibold text-forest"><img src="/logo-bys.svg" alt="" aria-hidden="true" className="h-7 w-7" />Before You Send<span className="text-forest-soft">.</span></a><div className="card mt-10 p-7">
+  return <main id="main" tabIndex={-1} className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-5 py-12"><a href="/" className="flex min-h-11 items-center gap-2 font-display text-2xl font-semibold text-forest"><img src="/logo-bys.svg" alt="" aria-hidden="true" className="h-7 w-7" />Before You Send<span className="text-forest-soft">.</span></a><div className="card mt-10 p-7">
     {!authReady ? <div className="flex min-h-[16rem] items-center justify-center"><h1 className="font-display text-2xl font-semibold text-forest">One moment…</h1></div>
       : showIntake ? <div>
         <div className="flex items-center justify-between gap-4">

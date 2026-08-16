@@ -121,7 +121,7 @@ function Redeem() {
 
   return (
     <main id="main" tabIndex={-1} className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-5 py-12">
-      <a href="/" className="flex items-center gap-2 font-display text-2xl font-semibold text-forest">
+      <a href="/" className="flex min-h-11 items-center gap-2 font-display text-2xl font-semibold text-forest">
         <img src="/logo-bys.svg" alt="" aria-hidden="true" className="h-7 w-7" />
         Before You Send<span className="text-forest-soft">.</span>
       </a>

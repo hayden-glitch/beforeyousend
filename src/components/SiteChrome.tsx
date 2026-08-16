@@ -141,21 +141,21 @@ export function SiteFooter() {
       <div className="mx-auto max-w-3xl px-5 sm:px-6">
         <nav aria-label="Footer" className="mb-5 flex flex-wrap gap-x-5 gap-y-2 text-base text-stone">
           {FOOTER_LINKS.map((l) => (
-            <a key={l.label} href={l.href} className="inline-flex min-h-11 items-center px-1.5 transition-colors hover:text-ink">
+            <a key={l.label} href={l.href} className="inline-flex min-h-11 items-center px-2 transition-colors hover:text-ink">
               {l.label}
             </a>
           ))}
           {signedIn ? (
             <>
-              <a key="command-center" href="/home" className="inline-flex min-h-11 items-center px-1.5 transition-colors hover:text-ink">
+              <a key="command-center" href="/home" className="inline-flex min-h-11 items-center px-2 transition-colors hover:text-ink">
                 Command Center
               </a>
-              <button key="log-out" type="button" onClick={logoutFromChrome} className="inline-flex min-h-11 items-center px-1.5 transition-colors hover:text-ink">
+              <button key="log-out" type="button" onClick={logoutFromChrome} className="inline-flex min-h-11 items-center px-2 transition-colors hover:text-ink">
                 Log out
               </button>
             </>
           ) : (
-            <a key="sign-in" href="/login" className="inline-flex min-h-11 items-center px-1.5 transition-colors hover:text-ink">
+            <a key="sign-in" href="/login" className="inline-flex min-h-11 items-center px-2 transition-colors hover:text-ink">
               Sign in
             </a>
           )}
