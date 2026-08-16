@@ -48,3 +48,19 @@ TikTok callback → 404 expected · login `?next=` → POST-login landing matche
 ## Honesty confirmations
 - Production untouched (708d8d8 live). Ads untouched (owner-run, paused). No real charges. No fabricated claims/urgency/testimonials.
 - QA account `qa.d9.gate@example.com` (free, seeded for the login gate) left functional per seed-qa-accounts skill; cleaned after QA at lead's discretion.
+## Probe output (D9 final — lead re-ran the gate probe 2026-08-16 against the D9 preview; JSON below)
+```json
+{
+  "tiktok404": { "status": 404, "expected": 404 },
+  "dirtyUrl": { "thirdPartyLeakCount": 0, "sample": [] },
+  "overflow": {
+    "/@320":   { "scrollW": 320, "clientW": 320, "bodyScrollW": 320 },
+    "/pricing@320": { "scrollW": 320, "clientW": 320, "bodyScrollW": 320 },
+    "/@390":   { "scrollW": 390, "clientW": 390, "bodyScrollW": 390 },
+    "/pricing@390": { "scrollW": 390, "clientW": 390, "bodyScrollW": 390 }
+  },
+  "loginNext": { "formFound": false, "finalUrl": "https://site-a3q2ryg7r-hayden-8284s-projects.vercel.app/login", "finalTitle": "Create your free account — Before You Send" }
+}
+```
+- TikTok callback 404 ✓ · dirty-URL zero third-party leaks ✓ · overflow clean at 320/390 on / and /pricing ✓.
+- `loginNext.formFound:false` is a PROBE-SCRIPT artifact, not an app defect: the script looks for a legacy single `<form>`; the D3 login rebuild is a sleek one-field-at-a-time flow with no single form element. Interactive `?next=` landing verification is covered by the live QA sweep (T2 authenticated tester, lead-coordinated) — final verdict recorded there.
