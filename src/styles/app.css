@@ -476,6 +476,11 @@
   width: 5.6em;
   height: 1.4em;
   overflow: visible;
+  /* Perf (D10): the panic text carries a feTurbulence filter; without a
+     promoted layer every opacity fade re-rasterizes it on the main
+     thread. Promoting it caches the filtered layer so the §4 fades run
+     on the compositor. */
+  will-change: opacity;
 }
 .hero-state .hero-panic-text {
   font-family: var(--font-sans);

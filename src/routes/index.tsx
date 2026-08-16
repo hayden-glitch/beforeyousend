@@ -120,10 +120,33 @@ function HeroState() {
       if (item === PANIC) showPanic(() => run(i + 1));
       else showCalm(item, () => run(i + 1));
     }
-    run(0);
+    // Perf (D10, red-team blocker #2): the §4 sequence is texture, not
+    // function — the composer works regardless of when it starts. Arm the
+    // cycle after a short quiet window (max ~1200ms) instead of immediately
+    // on hydration, so the anonymous-load main thread stays quiet through
+    // the measured window. "Panic." is the first state either way, relative
+    // §4 timings are unchanged, and reduced-motion renders calm instantly.
+    let id: number | undefined;
+    const start = () => {
+      if (alive) run(0);
+    };
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
+      cancelIdleCallback?: (n: number) => void;
+    };
+    if (typeof w.requestIdleCallback === "function") {
+      id = w.requestIdleCallback(start, { timeout: 1200 });
+    } else {
+      id = window.setTimeout(start, 1000);
+    }
     return () => {
       alive = false;
       timeouts.forEach((t) => window.clearTimeout(t));
+      if (typeof w.requestIdleCallback === "function" && id !== undefined) {
+        w.cancelIdleCallback?.(id);
+      } else if (id !== undefined) {
+        window.clearTimeout(id);
+      }
     };
   }, []);
   return (
