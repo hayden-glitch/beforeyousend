@@ -11,7 +11,7 @@ export default function OrganizerLocked({ tier, onSortPile }: { tier: string; on
   const [pileDismissed, setPileDismissed] = useState(false);
   const planName = tier === "steady" ? "Steady" : "Free";
   return (
-    <section className="mt-5 rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
+    <section className="card mt-5 p-6 sm:p-8">
       <div className="flex items-center gap-2">
         <IconOrganizer className="h-5 w-5 text-forest-soft" />
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">The Organizer</p>
@@ -29,7 +29,7 @@ export default function OrganizerLocked({ tier, onSortPile }: { tier: string; on
         <span className="chip select-none whitespace-nowrap text-sm">Legal &amp; Court</span>
         <span className="chip select-none whitespace-nowrap text-sm">…and more</span>
       </div>
-      <div className="mt-6 rounded-3xl border border-line bg-cream-deep/60 p-6">
+      <div className="mt-6 rounded-[14px] border border-line bg-cream-deep/60 p-6">
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Sort My Pile</p>
         <p className="mt-2 text-base leading-relaxed text-ink">
           Got a pile? Sort My Pile files up to 50 documents into your Organizer folders for you — no subscription, one time.
@@ -47,7 +47,7 @@ export default function OrganizerLocked({ tier, onSortPile }: { tier: string; on
           <button onClick={() => setPileDismissed(true)} className="mt-4 text-sm text-stone underline underline-offset-4">Not now</button>
         )}
       </div>
-      <div className="mt-6 rounded-3xl border border-forest/20 bg-cream-deep/60 p-6">
+      <div className="mt-6 rounded-[14px] border border-forest/20 bg-cream-deep/60 p-6">
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Part of Command Center</p>
         <p className="mt-2 text-base leading-relaxed text-ink">
           The Organizer is part of Command Center — {tier === "steady" ? "everything in Steady, plus" : "everything, including"} generous document storage (hundreds of files), the Communication Log, the Event Timeline, and more.

@@ -54,13 +54,13 @@ function FileIcon({ f }: { f: OrganizerFile }) {
         src={f.dataUrl}
         alt={f.description || f.title || "Document"}
         loading="lazy"
-        className="h-16 w-16 shrink-0 rounded-xl border border-line object-cover"
+        className="h-11 w-11 shrink-0 rounded-[10px] border border-line object-cover"
       />
     );
   }
   return (
-    <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-line bg-cream-deep/70 text-base font-semibold text-forest">
-      {f.kind === "image" ? (isPdf(f) ? "PDF" : "📷") : "Aa"}
+    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-line bg-cream-deep/70 text-xs font-semibold text-forest">
+      {f.kind === "image" ? (isPdf(f) ? "PDF" : "Photo") : "Text"}
     </span>
   );
 }
@@ -484,14 +484,24 @@ export default function Organizer({
   }, [files, view]);
 
   return (
-    <section className="mt-5 rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
+    <section className="mt-5">
       <div className="flex items-center gap-2">
         <IconOrganizer className="h-5 w-5 text-forest-soft" />
-        <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">The Organizer · Command Center</p>
+        <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">The Organizer</p>
       </div>
+      <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-forest">
+        {primary
+          ? children.length === 1
+            ? `${primary.name}'s papers, in one calm place.`
+            : "Your kids' papers, in one calm place."
+          : "Your documents, in one calm place."}
+      </h2>
+      <p className="mt-2 max-w-xl text-base leading-relaxed text-stone">
+        Messages, screenshots, bills, records — filed the moment you drop them in.
+      </p>
 
       {loadErr ? (
-        <div className="mt-6 rounded-3xl border border-line bg-cream-deep/60 p-6">
+        <div className="mt-6 rounded-[14px] border border-line bg-cream-deep/60 p-6">
           <p className="text-base leading-relaxed text-ink">{loadErr}</p>
           <button onClick={load} className="btn-primary mt-4 w-full sm:w-auto">Try again</button>
         </div>
@@ -505,10 +515,10 @@ export default function Organizer({
               {/* ===== FRONT A: the notice card (first in the body, above
                   everything — an unclassifiable upload must be unmissable) ===== */}
               {needsSorting ? (
-                <div className="mt-4 rounded-3xl border border-amber-500/40 bg-amber-50 p-5 sm:max-w-2xl">
+                <div className="mt-4 rounded-[14px] border border-amber-500/40 bg-amber-50 p-5 sm:max-w-2xl">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
-                      <span className="text-2xl leading-none" aria-hidden="true">📎</span>
+                      <IconOrganizer className="mt-0.5 h-5 w-5 shrink-0 text-amber-900" aria-hidden="true" />
                       <div>
                         {stillUnsure ? (
                           <>
@@ -551,7 +561,7 @@ export default function Organizer({
                           }}
                           maxLength={500}
                           placeholder="What is this? e.g. Daycare bill for February — receipt from the center"
-                          className="min-h-12 w-full flex-1 rounded-full border border-line bg-cream px-5 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+                          className="input min-h-12 w-full flex-1"
                         />
                         <button type="submit" disabled={!refileDraft.trim() || refileBusy} className="btn-primary shrink-0">
                           {refileBusy ? "Filing it…" : "File it"}
@@ -572,7 +582,7 @@ export default function Organizer({
                   ) : (
                     <>
                       {moving && moving.id === needsSorting.id ? (
-                        <div className="mt-4 rounded-2xl border border-line bg-card p-4">
+                        <div className="mt-4 rounded-[14px] border border-line bg-card p-4">
                           <p className="text-base font-semibold text-forest">Move it somewhere else?</p>
                           <div className="mt-3">
                             <FolderPicker
@@ -617,7 +627,7 @@ export default function Organizer({
                   the Ratings + To-Do papers render below the scene in flow, and
                   the fixed open-folder bar pins at top: 5rem until the dad
                   closes it (✕ or cover-tap). No scroll-away, no park, no sheet. ===== */}
-              <div className="mt-5 space-y-6">
+              <div className="mt-5 space-y-3">
                 {children.length === 0 ? (
                   <ChildFolder
                     child={null}
@@ -671,7 +681,7 @@ export default function Organizer({
                           track("child_capture_started", { plan: tier });
                           setCapture({ open: true, initial: null });
                         }}
-                        className="min-h-11 rounded-full border border-line bg-card px-5 text-base font-semibold text-forest transition hover:border-forest/40"
+                        className="min-h-11 rounded-[10px] border border-line bg-card px-5 text-base font-semibold text-forest transition hover:border-forest/40"
                       >
                         + Add another child
                       </button>
@@ -701,7 +711,7 @@ export default function Organizer({
               </div>
 
               {lapsed ? (
-                <div className="mt-5 rounded-3xl border border-forest/20 bg-cream-deep/60 p-5">
+                <div className="mt-5 rounded-[14px] border border-forest/20 bg-cream-deep/60 p-5">
                   <p className="text-base leading-relaxed text-ink">
                     Your Sort My Pile access has ended - your papers are still here. You can keep viewing, renaming, and deleting them.
                   </p>
@@ -710,21 +720,6 @@ export default function Organizer({
                   </a>
                 </div>
               ) : null}
-              {/* Optional P1 personalization (B8): the folder voice. */}
-              <h2 className="mt-3 font-display text-3xl font-semibold text-forest">
-                {primary
-                  ? children.length === 1
-                    ? `${primary.name}'s papers, in one calm place.`
-                    : "Your kids' papers, in one calm place."
-                  : "Your documents, in one calm place."}
-              </h2>
-              {/* Real-count header (5-Paper Trial 2026-08-12): once the record
-                  holds 3+, name the real number — quiet proof it's his. */}
-              {files.length >= 3 && (
-                <p className="mt-2 text-base font-semibold text-forest">{files.length} files filed — they're yours to find in seconds.</p>
-              )}
-              <p className="mt-2 text-base leading-relaxed text-stone">Messages, screenshots, bills, records — filed the moment you drop them in. Everything findable in seconds.</p>
-
               {lapsed ? (
                 <div className="mt-5">
                   <a href="/pricing" className="btn-primary min-h-14 w-full text-center sm:w-auto sm:inline-flex sm:items-center">
@@ -742,78 +737,86 @@ export default function Organizer({
               </div>
               )}
 
-              {files.length === 0 ? (
-                <div className="mt-6 rounded-3xl border border-line bg-cream-deep/60 p-6">
-                  <p className="text-base leading-relaxed text-ink">
+              {/* ===== Documents — the working list (§7): type, category, date,
+                  filing suggestion — one recessed ledger surface ===== */}
+              <div className="mt-6 overflow-hidden rounded-[14px] border border-line bg-cream-deep/60">
+                <div className="flex items-center justify-between gap-3 border-b border-line/70 px-4 py-3">
+                  <h3 className="font-display text-lg font-semibold text-forest">Documents</h3>
+                  <span className="text-sm text-taupe tabular-nums">{files.length} file{files.length === 1 ? "" : "s"}</span>
+                </div>
+                {files.length === 0 ? (
+                  <p className="px-4 py-5 text-base leading-relaxed text-ink">
                     {primary
                       ? `${primary.name}'s folder is empty for now. Every paper starts here — add your first message, agreement, or receipt and it'll be filed where you can find it.`
                       : EMPTY_COPY}
                   </p>
-                  <p className="mt-2 text-sm leading-relaxed text-stone">
-                    {primary ? "One paper at a time, when it's in front of you." : "No filing nights. One item at a time, when it's in front of you."}
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-6 space-y-3">
-                  {/* A6: persistent slim strip — needs-sorting rows exist and the
-                      notice is closed. Quiet, not a card, no amber bomb. */}
-                  {!needsSorting && needsSortingRows.length > 0 && !stripDismissed ? (
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-amber-500/30 bg-amber-50/60 px-4 py-3">
-                      <p className="min-w-0 flex-1 text-base text-amber-900">
-                        {needsSortingRows.length === 1
-                          ? "1 paper is waiting for a line from you — file it in 30 seconds."
-                          : `${needsSortingRows.length} papers are waiting for a line from you — file them in 30 seconds.`}
-                      </p>
-                      <button
-                        onClick={() => {
-                          setNeedsSorting(needsSortingRows[0]);
-                          setStillUnsure(false);
-                          setRefileDraft("");
-                          setRefileErr("");
-                          setStripDismissed(false);
-                        }}
-                        className="min-h-11 text-base font-semibold text-amber-900 underline underline-offset-4"
-                      >
-                        File it now
-                      </button>
-                      <button
-                        onClick={() => {
-                          setStripDismissed(true);
-                          track("organizer_needs_sorting_dismissed", { plan: tier });
-                        }}
-                        className="icon-btn min-h-11 text-amber-900"
-                        aria-label="Dismiss"
-                      >
-                        <IconClose className="h-5 w-5" />
-                      </button>
-                    </div>
-                  ) : null}
-                  <h3 className="font-display text-xl font-semibold text-forest">Folders</h3>
-                  {TAXONOMY.map((f) => {
-                    const amber = f.slug === "other" && needsSortingRows.length > 0;
-                    const flash = flashFolder === f.slug;
-                    return (
-                      <button
-                        key={f.slug}
-                        onClick={() => { track("organizer_folder_view", { plan: tier, folder: f.slug }); setView({ name: "folder", folder: f.slug }); }}
-                        className={`w-full rounded-3xl border border-line bg-card p-5 text-left shadow-card transition hover:border-forest/30 ${flash ? "bys-needs-sorting-flash" : ""}`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-lg font-semibold text-forest">{f.label}</p>
-                          <span className={`shrink-0 rounded-full border px-3 py-1 text-sm font-medium ${amber ? "border-amber-500/50 bg-amber-50 text-amber-900" : "border-line bg-cream-deep text-stone"}`}>
-                            {counts[f.slug] || 0}
-                          </span>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {f.subfolders.map((s) => (
-                            <span key={s.slug} className="chip select-none whitespace-nowrap text-sm">{s.label}</span>
-                          ))}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                ) : (
+                  <div className="divide-y divide-line/60">
+                    {/* A6: persistent slim strip — needs-sorting rows exist and the
+                        notice is closed. Quiet, not a card, no amber bomb. */}
+                    {!needsSorting && needsSortingRows.length > 0 && !stripDismissed ? (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                        <p className="min-w-0 flex-1 text-base text-amber-900">
+                          {needsSortingRows.length === 1
+                            ? "1 paper is waiting for a line from you — file it in 30 seconds."
+                            : `${needsSortingRows.length} papers are waiting for a line from you — file them in 30 seconds.`}
+                        </p>
+                        <button
+                          onClick={() => {
+                            setNeedsSorting(needsSortingRows[0]);
+                            setStillUnsure(false);
+                            setRefileDraft("");
+                            setRefileErr("");
+                            setStripDismissed(false);
+                          }}
+                          className="min-h-11 text-base font-semibold text-amber-900 underline underline-offset-4"
+                        >
+                          File it now
+                        </button>
+                        <button
+                          onClick={() => {
+                            setStripDismissed(true);
+                            track("organizer_needs_sorting_dismissed", { plan: tier });
+                          }}
+                          className="icon-btn min-h-11 text-amber-900"
+                          aria-label="Dismiss"
+                        >
+                          <IconClose className="h-5 w-5" />
+                        </button>
+                      </div>
+                    ) : null}
+                    {files.map((f) => (
+                      <FileRow key={f.id} f={f} onOpen={() => openDrawer(f)} flash={flashFileId === f.id} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ===== Browse by folder — quiet navigation rows ===== */}
+              <h3 className="mt-6 font-display text-lg font-semibold text-forest">Browse by folder</h3>
+              <div className="mt-3 space-y-2">
+                {TAXONOMY.map((f) => {
+                  const amber = f.slug === "other" && needsSortingRows.length > 0;
+                  const flash = flashFolder === f.slug;
+                  return (
+                    <button
+                      key={f.slug}
+                      onClick={() => { track("organizer_folder_view", { plan: tier, folder: f.slug }); setView({ name: "folder", folder: f.slug }); }}
+                      className={`flex w-full flex-wrap items-center gap-x-4 gap-y-1.5 rounded-[14px] border border-line bg-card px-4 py-3 text-left shadow-card transition hover:border-forest/30 ${flash ? "bys-needs-sorting-flash" : ""}`}
+                    >
+                      <span className="min-w-0 text-base font-semibold text-forest">{f.label}</span>
+                      <span className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${amber ? "border-amber-500/50 bg-amber-50 text-amber-900" : "border-line bg-cream-deep text-stone"}`}>
+                        {counts[f.slug] || 0}
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-wrap justify-end gap-1.5">
+                        {f.subfolders.map((s) => (
+                          <span key={s.slug} className="rounded-md border border-line bg-cream-deep px-2 py-0.5 text-xs font-medium text-stone">{s.label}</span>
+                        ))}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </>
           ) : null}
 
@@ -834,14 +837,16 @@ export default function Organizer({
                 {TAXONOMY.find((f) => f.slug === view.folder)?.subfolders.map((s) => s.label).join(" · ")}
               </p>
               {shownFiles.length === 0 ? (
-                <div className="mt-5 rounded-3xl border border-line bg-cream-deep/60 p-6">
+                <div className="mt-5 rounded-[14px] border border-line bg-cream-deep/60 p-5">
                   <p className="text-base leading-relaxed text-ink">Nothing in this folder yet.</p>
                 </div>
               ) : (
-                <div className="mt-5 space-y-3">
-                  {shownFiles.map((f) => (
-                    <FileCard key={f.id} f={f} onOpen={() => openDrawer(f)} flash={flashFileId === f.id} />
-                  ))}
+                <div className="mt-5 overflow-hidden rounded-[14px] border border-line bg-cream-deep/60">
+                  <div className="divide-y divide-line/60">
+                    {shownFiles.map((f) => (
+                      <FileRow key={f.id} f={f} onOpen={() => openDrawer(f)} flash={flashFileId === f.id} />
+                    ))}
+                  </div>
                 </div>
               )}
             </>
@@ -875,13 +880,13 @@ export default function Organizer({
                     rows={6}
                     maxLength={10000}
                     placeholder="A message from your co-parent, an agreement excerpt, a note to remember…"
-                    className="mt-2 min-h-40 w-full resize-y rounded-2xl border border-line bg-cream p-4 text-base leading-relaxed text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+                    className="mt-2 min-h-40 w-full resize-y rounded-[14px] border border-line bg-cream p-4 text-base leading-relaxed text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
                   />
                   <p className="mt-2 text-sm text-stone">{text.length}/10000</p>
                 </>
               ) : (
                 <div className="mt-5">
-                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-cream-deep px-4 py-2 text-base font-semibold text-forest transition hover:border-forest/40">
+                  <label className="btn-ghost min-h-11 cursor-pointer gap-1.5 text-base">
                     {fileName ? <><IconCheck className="h-4 w-4" />{fileName.length > 40 ? fileName.slice(0, 37) + "…" : fileName}</> : <>Choose a photo, screenshot, or PDF →</>}
                     <input
                       type="file"
@@ -893,7 +898,7 @@ export default function Organizer({
                   {fileErr && <p role="alert" className="mt-3 text-base text-red-800">{fileErr}</p>}
                   {dataUrl && !dataUrl.startsWith("data:application/pdf") && <img src={dataUrl} alt="Your upload" className="mt-4 max-h-64 rounded-2xl border border-line object-contain" />}
                   {dataUrl && dataUrl.startsWith("data:application/pdf") && (
-                    <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-line bg-cream-deep px-4 py-3">
+                    <div className="mt-4 inline-flex items-center gap-2 rounded-[14px] border border-line bg-cream-deep px-4 py-3">
                       <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-card text-sm font-bold text-forest">PDF</span>
                       <span className="min-w-0 text-base font-semibold text-forest">{fileName || "Document ready"}</span>
                     </div>
@@ -906,7 +911,7 @@ export default function Organizer({
                     rows={2}
                     maxLength={500}
                     placeholder="e.g. Daycare bill for February — receipt from the center"
-                    className="mt-2 w-full resize-y rounded-2xl border border-line bg-cream p-4 text-base leading-relaxed text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
+                    className="mt-2 w-full resize-y rounded-[14px] border border-line bg-cream p-4 text-base leading-relaxed text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none"
                   />
                   <p className="mt-2 text-sm leading-relaxed text-stone">Your files stay private to you — photos you add through the app are re-saved with location and other details stripped.</p>
                 </div>
@@ -927,7 +932,7 @@ export default function Organizer({
 
           {/* ===== CLASSIFIED RESULT (the instant reward) ===== */}
           {result && view.name === "browse" ? (
-            <div aria-live="polite" className="mt-6 rounded-3xl border border-forest/20 bg-cream-deep/60 p-6">
+            <div aria-live="polite" className="mt-6 rounded-[14px] border border-forest/20 bg-cream-deep/60 p-5">
               <div className="flex items-start justify-between gap-3">
                 <h3 className="font-display text-2xl font-semibold leading-snug text-forest">
                   Filed under {folderLabel(result.folder)} › {subfolderLabel(result.folder, result.category)}
@@ -954,7 +959,7 @@ export default function Organizer({
               <p className="mt-4 border-t border-line/70 pt-4 text-sm leading-relaxed text-stone">That's our best guess — you're the one who decides where it lives.</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {moving && moving.id === result.id ? (
-                  <div className="w-full rounded-2xl border border-line bg-card p-4">
+                  <div className="w-full rounded-[14px] border border-line bg-card p-4">
                     <p className="text-base font-semibold text-forest">Move it somewhere else?</p>
                     <div className="mt-3">
                       <FolderPicker
@@ -983,7 +988,7 @@ export default function Organizer({
 
 
           {notice && (
-            <p className="mt-5 rounded-2xl bg-cream-deep px-4 py-3 text-base text-stone" role="status">{notice}</p>
+            <p className="mt-5 rounded-[14px] bg-cream-deep px-4 py-3 text-base text-stone" role="status">{notice}</p>
           )}
         </>
       )}
@@ -999,7 +1004,7 @@ export default function Organizer({
           />
           <div
             tabIndex={-1}
-            className="bys-sheet absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-[2rem] border-t-2 border-forest bg-card p-6 pb-[max(24px,env(safe-area-inset-bottom))] shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[2rem] sm:border-2"
+            className="bys-sheet absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-[14px] border-t-2 border-forest bg-elevated p-6 pb-[max(24px,env(safe-area-inset-bottom))] shadow-2xl outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[26rem] sm:rounded-[14px] sm:border-2"
           >
             <div className="bys-grabber" aria-hidden="true" />
             <div className="flex items-start justify-between gap-3">
@@ -1027,9 +1032,9 @@ export default function Organizer({
               </div>
             ) : null}
             {openFile.kind === "text" ? (
-              <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-cream-deep/60 p-4 text-sm leading-relaxed text-ink">{openFile.content}</p>
+              <p className="mt-4 whitespace-pre-wrap rounded-[14px] bg-cream-deep/60 p-4 text-sm leading-relaxed text-ink">{openFile.content}</p>
             ) : (
-              <p className="mt-4 rounded-2xl bg-cream-deep/60 p-4 text-sm leading-relaxed text-ink">{snippet(openFile)}</p>
+              <p className="mt-4 rounded-[14px] bg-cream-deep/60 p-4 text-sm leading-relaxed text-ink">{snippet(openFile)}</p>
             )}
             {drawerMode === "idle" && (
               <div className="mt-6 flex flex-wrap gap-2">
@@ -1047,7 +1052,7 @@ export default function Organizer({
                   onChange={(e) => setTitleDraft(e.target.value)}
                   maxLength={200}
                   placeholder="A short name to find it by…"
-                  className="min-h-12 w-full rounded-2xl border border-line bg-cream px-4"
+                  className="input min-h-12 w-full rounded-xl px-4"
                   autoFocus
                 />
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -1079,7 +1084,7 @@ export default function Organizer({
               </div>
             )}
             {drawerMode === "delete" && (
-              <div className="mt-6 flex flex-wrap items-center gap-2 rounded-full border border-red-900/30 bg-red-50 px-4 py-2">
+              <div className="mt-6 flex flex-wrap items-center gap-2 rounded-[14px] border border-red-900/30 bg-red-50 px-4 py-2">
                 <span className="text-base text-red-900">Remove this item?</span>
                 <button onClick={() => doDelete(openFile)} disabled={deleting} className="min-h-11 text-base font-semibold text-red-900 underline underline-offset-4">
                   {deleting ? "Removing…" : "Yes, remove"}
@@ -1107,46 +1112,29 @@ export default function Organizer({
   );
 }
 
-function FileCard({ f, onOpen, flash }: { f: OrganizerFile; onOpen: () => void; flash?: boolean }) {
+function FileRow({ f, onOpen, flash }: { f: OrganizerFile; onOpen: () => void; flash?: boolean }) {
   const needsSorting = f.folder === "other" && f.category === "needs-sorting";
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label={`Open ${f.title || "document"} details`}
-      className={`w-full rounded-3xl border border-line bg-card p-5 text-left shadow-card transition hover:border-forest/30 ${flash ? "bys-needs-sorting-flash" : ""}`}
+      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-cream-deep/70 ${flash ? "bys-needs-sorting-flash" : ""}`}
     >
-      <div className="flex items-start gap-4">
-        <FileIcon f={f} />
-        <div className="min-w-0 flex-1">
-          {f.title && (
-            <p className="flex items-center gap-2 font-semibold text-forest">
-              <span className="truncate">{f.title}</span>
-              {needsSorting && (
-                <span className="shrink-0 rounded-full border border-amber-500/50 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-900">Needs sorting</span>
-              )}
-            </p>
+      <FileIcon f={f} />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="truncate font-medium text-ink">{f.title || (f.kind === "text" ? "Pasted text" : isPdf(f) ? "PDF" : "Photo")}</span>
+          {needsSorting && (
+            <span className="shrink-0 rounded-md border border-amber-500/50 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">Needs sorting</span>
           )}
-          <p className={`text-base leading-relaxed text-ink ${f.title ? "mt-0.5" : ""}`}>
-            <span className="line-clamp-2 whitespace-pre-wrap">{snippet(f)}</span>
-          </p>
-          {f.kind === "text" && f.summary ? (
-            <p className="mt-1 text-sm leading-relaxed text-stone">{f.summary}</p>
-          ) : null}
-          <p className="mt-1 text-sm text-stone">
-            {fmtDate(f.createdAt)} ·{" "}
-            {needsSorting ? "Needs a line from you" : `${folderLabel(f.folder)} › ${subfolderLabel(f.folder, f.category)}`}
-          </p>
-          {f.tags && f.tags.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {f.tags.slice(0, 3).map((t) => (
-                <span key={t} className="rounded-full border border-line bg-cream-deep px-2.5 py-0.5 text-xs font-medium text-stone">{t}</span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        <IconChevronDown className="mt-1 h-5 w-5 shrink-0 -rotate-90 text-forest-soft" />
-      </div>
+        </span>
+        <span className="mt-0.5 block line-clamp-1 text-sm text-stone">{snippet(f)}</span>
+        <span className="mt-0.5 block text-sm text-taupe">
+          {fmtDate(f.createdAt)} · {needsSorting ? "Needs a line from you" : `${folderLabel(f.folder)} › ${subfolderLabel(f.folder, f.category)}`}
+        </span>
+      </span>
+      <IconChevronDown className="h-5 w-5 shrink-0 -rotate-90 text-forest-soft" />
     </button>
   );
 }

@@ -197,7 +197,7 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
   const folderChips = TAXONOMY.filter((f) => f.slug !== "other");
 
   return (
-    <section className="mt-5 rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8">
+    <section className="card mt-5 p-6 sm:p-8">
       <div className="flex items-center gap-2">
         <IconOrganizer className="h-5 w-5 text-forest-soft" />
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">The Organizer · Try it free</p>
@@ -226,7 +226,7 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
             <p className="text-base font-semibold text-forest">First one filed. The pile shrinks one paper at a time.</p>
           )}
           {cards.map((card, i) => (
-            <div key={i} aria-live="polite" className={`rounded-3xl border border-forest/20 bg-cream-deep/60 p-6 ${i === pulseIdx ? "bys-trial-just-added" : ""}`}>
+            <div key={i} aria-live="polite" className={`rounded-[14px] border border-forest/20 bg-cream-deep/60 p-5 ${i === pulseIdx ? "bys-trial-just-added" : ""}`}>
               <h3 className="font-display text-2xl font-semibold leading-snug text-forest">
                 We'd file this under {folderLabel(card.folder)} › {subfolderLabel(card.folder, card.category)}
               </h3>
@@ -352,13 +352,13 @@ export default function OrganizerTrial({ trialRemaining = TRIAL_LIMIT }: { trial
       )}
 
       {phase === "blocked" && (
-        <div aria-live="polite" className="mt-6 rounded-3xl border border-line bg-cream-deep/60 p-6">
+        <div aria-live="polite" className="mt-6 rounded-[14px] border border-line bg-cream-deep/60 p-5">
           <p className="text-base leading-relaxed text-ink">{err}</p>
         </div>
       )}
 
       {showUpsell && !upsellDeclined ? (
-        <div className="mt-6 rounded-3xl border border-forest/25 bg-forest p-6 text-cream">
+        <div className="mt-6 rounded-[14px] border border-forest/25 bg-forest p-6 text-cream">
           <p className="text-sm font-semibold uppercase tracking-[.16em] text-cream/70">Five down — the pile shrinks one paper at a time.</p>
           <h3 className="mt-3 font-display text-2xl font-semibold leading-snug">The rest of your case, in one calm place.</h3>
           <p className="mt-3 text-base leading-relaxed text-cream/85">Command Center is coming together — and the Document Organizer you just tried is already live and working. Messages, screenshots, bills, school and medical papers — filed and findable in seconds. No filing nights.</p>

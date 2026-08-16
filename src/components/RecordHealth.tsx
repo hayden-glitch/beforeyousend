@@ -159,7 +159,7 @@ export default function RecordHealthPanel({
   if (!data) {
     // First paint — quiet placeholder so nothing jumps.
     return (
-      <div className="rounded-3xl border border-line bg-card p-5 shadow-card">
+      <div className="card p-5">
         <p className="text-base text-stone">Checking your record…</p>
       </div>
     );
@@ -194,7 +194,7 @@ export default function RecordHealthPanel({
     cards.push({
       key: "empty",
       node: (
-        <div className="rounded-3xl border border-line bg-cream-deep/60 p-5">
+        <div className="rounded-[14px] border border-line bg-cream-deep/60 p-5">
           <p className="text-lg font-semibold text-forest">A record starts with one paper.</p>
           <p className="mt-1 text-base leading-relaxed text-stone">
             You've got {data.docs} on file. Every paper you add makes the picture clearer — no pressure, one at a time.
@@ -206,7 +206,7 @@ export default function RecordHealthPanel({
     cards.push({
       key: "coverage",
       node: (
-        <div className="rounded-3xl border border-line bg-card p-5 shadow-card">
+        <div className="card p-5">
           <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Coverage</p>
           <p className="mt-1 text-base leading-relaxed text-ink">Records on {data.coverage.days} of the last {data.coverage.total} days.</p>
           <p className="mt-1 text-base leading-relaxed text-stone">
@@ -219,7 +219,7 @@ export default function RecordHealthPanel({
       cards.push({
         key: "gap",
         node: (
-          <div className="rounded-3xl border border-amber-500/40 bg-amber-50 p-5">
+          <div className="rounded-[14px] border border-amber-500/40 bg-amber-50 p-5">
             <p className="text-sm font-semibold uppercase tracking-[.16em] text-amber-900">A quiet week</p>
             <p className="mt-1 text-base leading-relaxed text-ink">
               {data.gap.fromLabel}–{data.gap.toLabel} has no records.
@@ -250,7 +250,7 @@ export default function RecordHealthPanel({
       cards.push({
         key: `missing-${m.folder}`,
         node: (
-          <div className="rounded-3xl border border-line bg-card p-5 shadow-card">
+          <div className="card p-5">
             <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Worth adding</p>
             <p className="mt-1 text-base leading-relaxed text-ink">
               You mentioned the {m.quote} {recency(m.daysAgo)} — add the notice.
@@ -285,7 +285,7 @@ export default function RecordHealthPanel({
       cards.push({
         key: "consistency",
         node: (
-          <div className="rounded-3xl border border-forest/20 bg-cream-deep/60 p-5">
+          <div className="rounded-[14px] border border-forest/20 bg-cream-deep/60 p-5">
             <p className="text-base font-semibold text-forest">{data.consistency.headline}</p>
             <p className="mt-1 text-base leading-relaxed text-stone">{data.consistency.body}</p>
             <p className="mt-1 text-sm text-stone">{data.consistency.sub}</p>
@@ -296,7 +296,7 @@ export default function RecordHealthPanel({
   }
 
   return (
-    <div className="rounded-3xl border border-line bg-card p-5 shadow-card">
+    <div className="card p-5">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-sm font-semibold uppercase tracking-[.16em] text-forest-soft">Record health</p>
         {fresh(data.updatedAt) && <p className="text-sm text-stone">Updated just now</p>}
@@ -338,7 +338,7 @@ export default function RecordHealthPanel({
  *  + checkout_started via startCommandCheckout). Casual, zero warning. */
 export function RecordHealthTeaser({ onGoCommand }: { onGoCommand?: () => void }) {
   return (
-    <div className="rounded-3xl border border-line bg-card p-5 shadow-card">
+    <div className="card p-5">
       <div className="flex items-center gap-4">
         <span className="shrink-0">
           <Ring pct={0} grayed />
