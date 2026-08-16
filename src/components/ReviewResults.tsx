@@ -491,7 +491,7 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
   const SCORE_CHIP: Record<ScoreLabel, string> = {
     Calm: "bg-forest/10 text-forest",
     "Fairly calm": "bg-forest/10 text-forest",
-    Heated: "bg-amber-500/15 text-amber-700",
+    Heated: "bg-amber-500/15 text-amber-900",
     "High conflict signals": "bg-red-900/10 text-red-900",
   };
 
@@ -594,14 +594,16 @@ export default function ReviewResults({ blocks, mode, draft, streaming, example 
           The footer line is mandatory on every render — never remove it. */}
       {scoreVisible && impact && (
         <div className="bys-wizard-in rounded-xl border border-line bg-card p-4">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-base font-semibold text-forest">How this message reads</p>
-            <div className="shrink-0 text-right">
-              <span className="text-2xl font-semibold leading-none text-forest">{impact.score}</span>
-              <span className={`ml-2 inline-flex translate-y-[-2px] rounded-full px-2.5 py-1 text-sm font-semibold ${SCORE_CHIP[impact.label]}`}>
-                {impact.label}
-              </span>
-            </div>
+          {/* Labeled stat (DECISION §11 — kills the "46Heated" ambiguity):
+              Impact 46 · Heated · of 100 · tone signals only, each piece
+              separated and labeled. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="text-xs font-semibold uppercase tracking-[.08em] text-stone">Impact</span>
+            <span className="text-2xl font-bold leading-none text-ink tabular-nums">{impact.score}</span>
+            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-sm font-semibold ${SCORE_CHIP[impact.label]}`}>
+              {impact.label}
+            </span>
+            <span className="text-xs text-taupe">of 100 · tone signals only</span>
           </div>
           <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-cream-deep">
             <div

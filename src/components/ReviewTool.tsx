@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, RefObject } from "react";
 import { streamReview, streamAnalyze, type ReviewEvent, type Attachment, EMAIL_RE, confirmPath, saveReview } from "~/lib/api";
 import { track, trackFunnelOnce } from "~/lib/analytics";
@@ -6,10 +6,16 @@ import { readCaptureVariant } from "~/lib/captureVariant";
 import { markValueDelivered } from "~/lib/offer";
 import { useReviewTyping } from "~/lib/useReviewTyping";
 import ReviewResults, { type ResultBlock } from "~/components/ReviewResults";
-import TomorrowDraftsList from "~/components/TomorrowDraftsList";
 import ModeSwitch, { type ToolMode } from "~/components/ModeSwitch";
 import AttachControl, { AttachChips } from "~/components/AttachControl";
 import { scrollBehavior } from "~/lib/motion";
+
+// Performance (spec §23): TomorrowDraftsList is a device-local drafts widget
+// that only matters to a SIGNED-IN visitor (anonymous dads have no drafts).
+// It is split into its own chunk via lazy() and rendered only after
+// /api/auth/me resolves the visitor as authenticated — the anonymous landing
+// path never imports it, so first paint excludes the drafts-list module.
+const TomorrowDraftsList = lazy(() => import("~/components/TomorrowDraftsList"));
 
 const EXAMPLE_DRAFT = `Can you please stop being so unreasonable? You never let me see the kids when it suits you, and you're always making excuses. I'm tired of your games — if this keeps up, I'll have my attorney take you back to court. The kids deserve better than how you treat them, and everyone knows it.`;
 
@@ -382,16 +388,27 @@ export default function ReviewTool({ reviewRef }: Props) {
       className="scroll-mt-24"
       aria-label="Free message review"
     >
-      <div className="rounded-[2rem] border border-line bg-card p-6 shadow-card sm:p-8 max-[340px]:p-5">
-        <form onSubmit={onSubmit} noValidate>
-          {/* Two-mode AI Co-Parent: the mode pill is the FIRST element of the
-              card (spec §1). Order: [ModeSwitch] → [label] → [TomorrowDrafts] →
-              [textarea] → [footer row] → [submit]. */}
+      {/* The workplane (comp A / spec §3): the composer as the central working
+          plane of the page — hairline border, restrained 14px radius, ONE
+          elevated plane. No giant floating 2rem marketing card. */}
+      <div className="overflow-hidden rounded-[14px] border border-line bg-card shadow-card">
+        <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+          {/* Two-mode AI Co-Parent: the segmented control is the FIRST element
+              (spec §1). Order: [ModeSwitch] → [sr-label] → [TomorrowDrafts] →
+              [textarea] → [footer row]. */}
           <ModeSwitch mode={tool} onChange={switchTool} />
-          <label htmlFor="draft" key={tool} className="field-label bys-mode-settle mt-5">
+        </div>
+        <form onSubmit={onSubmit} noValidate>
+          <label htmlFor="draft" key={tool} className="sr-only">
             {isAnalyze ? "What happened?" : "Your message to your co-parent"}
           </label>
-          <TomorrowDraftsList onLoad={(t) => { patch(tool, { draft: t }); }} />
+          {authed && (
+            <Suspense fallback={null}>
+              <div className="px-3 sm:px-4">
+                <TomorrowDraftsList onLoad={(t) => { patch(tool, { draft: t }); }} />
+              </div>
+            </Suspense>
+          )}
           <textarea
             id="draft"
             value={st.draft}
@@ -401,34 +418,23 @@ export default function ReviewTool({ reviewRef }: Props) {
             placeholder={isAnalyze ? "Tell it like it happened — what they said, what you did, where it left things. No need to be perfect." : "Paste or type the message you're about to send…"}
             rows={6}
             maxLength={5000}
-            className="input min-h-44 resize-y text-base leading-relaxed"
+            className="block min-h-44 w-full resize-y border-0 bg-transparent px-3 py-3 text-base leading-relaxed text-ink placeholder:text-taupe focus:outline-none focus:ring-0 sm:px-4"
           />
           {/* Attach chips (Steady+): between the textarea and the footer row. */}
           {attachments.length > 0 && (
-            <AttachChips
-              mode={tool}
-              attachments={attachments}
-              onRemove={(name) => setAttachments((prev) => prev.filter((a) => a.name !== name))}
-            />
+            <div className="px-3 sm:px-4">
+              <AttachChips
+                mode={tool}
+                attachments={attachments}
+                onRemove={(name) => setAttachments((prev) => prev.filter((a) => a.name !== name))}
+              />
+            </div>
           )}
-          {/* Footer row — live counter + attach control, one right-aligned line
-              (landing-redesign F3; the counter keeps the honest 0/5000 readout). */}
-          <div className="mt-3 flex items-center justify-end gap-2">
-            <span className="text-sm text-stone">{st.draft.trim().length || 0}/5000</span>
-            <AttachControl
-              mode={tool}
-              canAttach={canAttach}
-              signedOut={!authed}
-              attachments={attachments}
-              onChange={setAttachments}
-              disabled={st.status === "streaming"}
-            />
-          </div>
-          {/* Quiet full-width rows above submit: review = the example chip;
-              analyze = the prompt chips (auto-hide once typed >120 chars). */}
+          {/* Quiet rows above the footer: review = the example chip; analyze =
+              the prompt chips (auto-hide once typed >120 chars). */}
           {isAnalyze ? (
             st.draft.trim().length <= 120 && (
-              <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="What happened">
+              <div className="mt-1 flex flex-wrap gap-2 px-3 sm:px-4" role="group" aria-label="What happened">
                 {PROMPT_CHIPS.map((c) => (
                   <button key={c.label} type="button" onClick={() => appendChip(c.prefix)} className="chip">
                     {c.label}
@@ -437,27 +443,39 @@ export default function ReviewTool({ reviewRef }: Props) {
               </div>
             )
           ) : (
-            <div className="mt-2 flex w-full justify-center">
+            <div className="mt-1 flex w-full justify-center px-3 sm:px-4">
               <button type="button" onClick={fillExampleAndRun} className="chip">
                 No draft? See a real example →
               </button>
             </div>
           )}
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="btn-primary mt-5 w-full text-lg"
-          >
-            <span key={tool} className="bys-mode-settle">
-              {st.status === "streaming"
-                ? isAnalyze ? "Analyzing…" : "Reviewing…"
-                : isAnalyze ? "Analyze this situation" : "Review My Message"}
-            </span>
-          </button>
-          <p className="mt-3 text-center text-base text-stone">
-            Free · No account · Private
-          </p>
-          <p className="mt-1 text-center text-sm text-taupe">
+          {/* Footer row — attach + honest 0/5000 counter on the left, the
+              primary action on the right; stacks on mobile. */}
+          <div className="mt-2 flex flex-col gap-3 border-t border-line px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div className="flex items-center justify-between gap-3 sm:justify-start">
+              <AttachControl
+                mode={tool}
+                canAttach={canAttach}
+                signedOut={!authed}
+                attachments={attachments}
+                onChange={setAttachments}
+                disabled={st.status === "streaming"}
+              />
+              <span className="text-sm text-taupe tabular-nums">{st.draft.trim().length || 0}/5000</span>
+            </div>
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="btn-primary w-full text-lg sm:w-auto sm:min-w-56"
+            >
+              <span key={tool} className="bys-mode-settle">
+                {st.status === "streaming"
+                  ? isAnalyze ? "Analyzing…" : "Reviewing…"
+                  : isAnalyze ? "Analyze this situation" : "Review my message"}
+              </span>
+            </button>
+          </div>
+          <p className="pb-4 text-center text-sm text-taupe">
             Usually about 10–20 seconds.
           </p>
         </form>
@@ -466,7 +484,7 @@ export default function ReviewTool({ reviewRef }: Props) {
           <div ref={resultsWrapRef} aria-live="polite" className="scroll-mt-24">
             {st.status === "error" && (
               st.quota ? (
-                <div className="mt-8 rounded-3xl border border-red-300 bg-red-50 p-6">
+                <div className="mt-8 rounded-xl border border-red-300 bg-red-50 p-6">
                   <p className="text-base text-red-900">{st.error}</p>
                   <QuotaCTA draft={st.draft} />
                 </div>
@@ -532,7 +550,7 @@ function QuotaCTA({ draft }: { draft: string }) {
 
   if (state === "saved") {
     return (
-      <div className="mt-4 rounded-3xl border border-forest/25 bg-forest p-6 text-cream">
+      <div className="mt-4 rounded-xl border border-forest/25 bg-forest p-6 text-cream">
         <p className="text-lg font-semibold">Your free account is one step away.</p>
         <p className="mt-2 text-base text-cream/85">
           Your draft is saved and waiting. Use the in-app confirmation below to unlock 5 free uses a month.
@@ -549,7 +567,7 @@ function QuotaCTA({ draft }: { draft: string }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-4 rounded-3xl border border-forest/25 bg-forest p-6 text-cream" noValidate>
+    <form onSubmit={onSubmit} className="mt-4 rounded-xl border border-forest/25 bg-forest p-6 text-cream" noValidate>
       <p className="text-lg font-semibold">A free account gives you 5 uses every month — reviews and situation analyses both — and your history is saved.</p>
       <p className="mt-1 text-base text-cream/85">Your draft stays here — we'll save it to your new account.</p>
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -624,7 +642,7 @@ function ReviewFallback({ draft, error, onRetry }: { draft: string; error: strin
 
   if (state === "saved") {
     return (
-      <div className="mt-8 rounded-3xl border border-forest/25 bg-forest p-6 text-cream">
+      <div className="mt-8 rounded-xl border border-forest/25 bg-forest p-6 text-cream">
         <p className="text-lg font-semibold">Your message is saved and waiting.</p>
         <p className="mt-2 text-base text-cream/85">
           Your draft is on its way to your record — confirm below and it's yours.
@@ -641,7 +659,7 @@ function ReviewFallback({ draft, error, onRetry }: { draft: string; error: strin
   }
 
   return (
-    <div className="mt-8 rounded-3xl border-2 border-forest bg-card p-6 shadow-card">
+    <div className="mt-8 rounded-xl border-2 border-forest bg-card p-6 shadow-card">
       <p className="text-lg font-semibold leading-snug text-forest">The review engine is taking a break right now.</p>
       <p className="mt-2 text-base leading-relaxed text-stone">
         Late night for the review engine — it'll be back shortly. Your message matters, and we don't want you to lose it. Here's what we can do:

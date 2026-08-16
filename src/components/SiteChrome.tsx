@@ -82,13 +82,19 @@ export function SiteHeader({ active = "other" }: { active?: SiteTab | string }) 
   const auth = useSiteAuth();
   const signedIn = !!auth?.user;
   const tier = auth?.quota?.tier || auth?.user?.profile?.tier || "free";
+  // Lightweight header (spec §5 / comp A): hairline bar, 58px tall, brand
+  // ALWAYS visible — the wordmark shows at 320/375/390/393/430 (never hidden
+  // below a breakpoint). Public nav stays tiny: brand · Pricing · Sign in.
   return (
-    <header className="sticky top-0 z-20 border-b border-line/70 bg-cream/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-5 sm:px-6 max-[400px]:px-4">
-        <a href="/" className="flex shrink-0 items-center gap-2 font-display text-[1.3rem] font-semibold tracking-tight text-ink -m-2 p-2">
-          <img src="/logo-bys.svg" alt="" aria-hidden="true" className="h-8 w-8 max-[400px]:h-7 max-[400px]:w-7" />
-          <span className="hidden min-[480px]:inline">Before You Send</span>
-          <span className="hidden min-[480px]:inline text-stone">.</span>
+    <header className="sticky top-0 z-20 border-b border-line/60 bg-cream/85 backdrop-blur">
+      <div className="mx-auto flex h-[58px] max-w-[1180px] items-center justify-between gap-2 px-4 sm:px-6">
+        <a
+          href="/"
+          aria-label="Before You Send home"
+          className="-m-1 flex min-h-11 shrink-0 items-center gap-2 rounded-lg p-1 text-[15.5px] font-semibold tracking-tight text-ink transition-colors duration-150 hover:text-forest max-[370px]:gap-1.5 max-[370px]:text-[14.5px]"
+        >
+          <img src="/logo-bys.svg" alt="" aria-hidden="true" className="h-7 w-7 max-[370px]:h-6 max-[370px]:w-6" />
+          <span className="whitespace-nowrap">Before You Send</span>
         </a>
         <div className="flex min-w-0 items-center gap-1 sm:gap-2">
           <nav aria-label="Main" className="flex items-center">
@@ -97,7 +103,7 @@ export function SiteHeader({ active = "other" }: { active?: SiteTab | string }) 
                 key={t.id}
                 href={t.href}
                 aria-current={active === t.id ? "page" : undefined}
-                className={`relative inline-flex min-h-11 items-center whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-[400px]:px-2 ${
+                className={`relative inline-flex min-h-11 items-center whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-[370px]:px-2 ${
                   active === t.id ? "text-ink" : "text-stone hover:text-ink"
                 }`}
               >
@@ -111,7 +117,7 @@ export function SiteHeader({ active = "other" }: { active?: SiteTab | string }) 
           ) : (
             <a
               href="/login"
-              className="inline-flex min-h-11 shrink-0 items-center rounded-[10px] border border-line bg-card px-4 text-sm font-medium text-ink transition-colors duration-150 hover:border-forest/40 hover:text-forest max-[480px]:px-3"
+              className="inline-flex min-h-11 shrink-0 items-center rounded-[10px] border border-line bg-card px-4 text-sm font-medium text-ink transition-colors duration-150 hover:border-forest/40 hover:text-forest max-[370px]:px-2.5"
             >
               Sign in
             </a>

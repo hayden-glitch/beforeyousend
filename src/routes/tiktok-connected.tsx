@@ -1,13 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { seoHead } from "~/lib/seo";
 
 // Friendly OAuth landing for the TikTok Content Posting connection. Plain,
 // factual copy only (honesty rails): "connected" / "not connected", no claims.
+// seoHead adds the canonical URL + Open Graph tags (SEO basics — every public
+// route carries them; this one was missing them).
 export const Route = createFileRoute('/tiktok-connected')({
   head: () => ({
-    meta: [
-      { title: "TikTok connection — Before You Send" },
-      { name: "description", content: "TikTok connection status for Before You Send." },
-    ],
+    ...seoHead({
+      title: "TikTok connection — Before You Send",
+      description: "TikTok connection status for Before You Send.",
+      path: "/tiktok-connected",
+    }),
   }),
   component: TikTokConnectedPage,
 });

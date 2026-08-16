@@ -95,7 +95,7 @@ export default function DigestCard({ digest, tier, onGoLog }: Props) {
       {toneLine && <p className="mt-1 text-base text-stone">{toneLine}</p>}
 
       {scores.length === 1 && (
-        <p className="mt-3 text-base text-stone">Last message: {scores[0]}</p>
+        <p className="mt-3 text-base text-stone">Last message impact: <span className="tabular-nums">{scores[0]}</span> of 100</p>
       )}
       {scores.length >= 2 && (
         <div className="mt-3 border-t border-line pt-4">

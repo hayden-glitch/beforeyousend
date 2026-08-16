@@ -74,13 +74,6 @@ export const Route = createRootRoute({
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/svg+xml", href: "/favicon-bys.svg" },
-      {
-        rel: "preload",
-        href: "/fonts/fraunces-latin.woff2",
-        as: "font",
-        type: "font/woff2",
-        crossOrigin: "anonymous",
-      },
     ],
     // Co-Parent Check-In A/B group: assign bys_checkin (on|off, default 25%)
     // BEFORE first paint so no flash of the pill for off-group visitors. Sets

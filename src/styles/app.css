@@ -20,13 +20,13 @@
    very-low-opacity ambient gradient — not brightness or glows.
    ============================================================ */
 
-@font-face {
-  font-family: "Fraunces";
-  src: url("/fonts/fraunces-latin.woff2") format("woff2");
-  font-weight: 400 700;
-  font-style: normal;
-  font-display: swap;
-}
+/* Typography (final-prod-candidate D2, spec §6): SANS-FIRST product system.
+   Fraunces is gone — no @font-face, no preload, no font download. The
+   --font-display token now resolves to the same system stack as --font-sans
+   (kept as a token so every existing `font-display` utility class across the
+   app simply becomes sans — brand, hero, pricing, login, legal headings,
+   final CTA). Serif is reserved for the one rare editorial accent on the
+   landing final CTA (.editorial — Georgia italic). */
 
 @theme {
   --color-cream: var(--bys-bg);
@@ -50,7 +50,8 @@
   --color-amber-900: var(--bys-amber-900);
   --shadow-card: var(--bys-shadow-card);
   --shadow-pop: var(--bys-shadow-pop);
-  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
 }
@@ -422,68 +423,349 @@
   }
 }
 
-/* ---- Hero state — the required Panic animation (5304729186 §2) ----
-   Sequence, driven by data-phase on the container:
-   panic (word readable ~1.8s) → strike (red line draws across ~550ms)
-   → calm (crossfade to the settled positive word). One replacement
-   word per page load, chosen in JS; never loops. The two words share
-   one grid cell so the container is sized by the widest word — no
-   layout shift. The block is aria-hidden; screen readers get the
-   single stable H1 phrase in index.tsx instead of every transition.
-   prefers-reduced-motion: JS renders the calm word immediately
-   (resolved state, no timers, no strike); the blanket reduced-motion
-   rule below additionally zeroes every animation/transition. */
+/* ---- Hero state — the required Panic animation (spec §4, final-prod D2) ----
+   Sequence (driven by data-phase on the container, JS timers):
+     panic (word readable 2800ms) → x1 (first X diagonal draws 600ms)
+     → x2 (pause 200ms, second diagonal draws 600ms) → crossed (hold 900ms)
+     → resolve (panic word fades out 1500ms, X fades) → calm word in (600ms
+     crossfade); calm words rotate every 4000ms with a 600ms crossfade;
+     Panic. re-enters every 5th rotation and is always resolved by the red X.
+   "Panic." is an inline SVG text with a subtle static displacement filter
+   (grease-pencil wobble — adult, not cartoonish; zero font download). Both
+   calm words + the panic SVG share one grid cell: the cell is always sized by
+   the panic SVG's 5.6em width (wider than any calm word) so there is NO
+   layout shift at any phase. The block is aria-hidden; the H1 carries the
+   stable semantic phrase. prefers-reduced-motion renders the resolved calm
+   state immediately (no timers, no X) — the global reduced-motion rule also
+   zeroes every transition. */
 .hero-state {
   position: relative;
   display: inline-grid;
   place-items: center;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-size: clamp(2.4rem, 5.6vw, 3.6rem);
+  line-height: 1.05;
+  color: var(--bys-ink);
 }
-.hero-state .hero-word {
+.hero-state > * {
   grid-area: 1 / 1;
 }
-.hero-state .hero-state-panic {
+.hero-state .hero-calm-item {
+  opacity: 0;
+  transition: opacity 600ms ease;
+  color: var(--bys-accent);
+  white-space: nowrap;
+}
+.hero-state .hero-calm-item.on {
   opacity: 1;
 }
-.hero-state .hero-state-calm {
+.hero-state .hero-panic-svg {
+  width: 5.6em;
+  height: 1.4em;
+  overflow: visible;
+}
+.hero-state .hero-panic-text {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  fill: var(--bys-ink);
+}
+.hero-state[data-phase="resolve"] .hero-panic-svg {
+  opacity: 0;
+  transition: opacity 1500ms ease;
+}
+.hero-state[data-phase="calm"] .hero-panic-svg {
   opacity: 0;
 }
-.hero-state[data-phase="strike"] .hero-state-panic,
-.hero-state[data-phase="strike"] .hero-state-calm,
-.hero-state[data-phase="calm"] .hero-state-panic,
-.hero-state[data-phase="calm"] .hero-state-calm {
-  transition: opacity 220ms ease-out;
-}
-.hero-state[data-phase="calm"] .hero-state-panic {
-  opacity: 0;
-}
-.hero-state[data-phase="calm"] .hero-state-calm {
-  opacity: 1;
-}
-.hero-state .hero-strike {
+.hero-state .hero-x {
   position: absolute;
-  left: -1.5%;
-  right: -1.5%;
-  top: 52%;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--bys-danger);
-  transform: scaleX(0);
-  transform-origin: left center;
+  inset: -10% -12%;
+  width: 124%;
+  height: 120%;
   pointer-events: none;
+  overflow: visible;
 }
-.hero-state[data-phase="strike"] .hero-strike {
-  animation: bys-strike-draw 550ms ease-in-out forwards;
+.hero-state .hero-x line {
+  stroke: var(--bys-danger);
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  fill: none;
 }
-.hero-state[data-phase="calm"] .hero-strike {
+.hero-state .hero-x .s1,
+.hero-state .hero-x .s2 {
+  stroke-dasharray: 480;
+  stroke-dashoffset: 480;
+  transition: stroke-dashoffset 600ms ease-in-out;
+}
+.hero-state[data-phase="x1"] .hero-x .s1 {
+  stroke-dashoffset: 0;
+}
+.hero-state[data-phase="x2"] .hero-x .s1,
+.hero-state[data-phase="x2"] .hero-x .s2,
+.hero-state[data-phase="crossed"] .hero-x .s1,
+.hero-state[data-phase="crossed"] .hero-x .s2,
+.hero-state[data-phase="resolve"] .hero-x .s1,
+.hero-state[data-phase="resolve"] .hero-x .s2 {
+  stroke-dashoffset: 0;
+}
+.hero-state[data-phase="resolve"] .hero-x,
+.hero-state[data-phase="calm"] .hero-x {
   opacity: 0;
-  transition: opacity 260ms ease 60ms;
+  transition: opacity 300ms ease;
 }
-@keyframes bys-strike-draw {
-  from {
-    transform: scaleX(0);
+
+/* ---- Landing — single product scene (final-prod-candidate D2, comp A
+   "The Workbench" structure on the dark BYS palette). 1180px composition,
+   narrow reading measures, composer as the central working plane. ---- */
+.hero {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  padding: 44px 0 18px;
+}
+.hero-copy {
+  margin-top: 14px;
+  font-size: clamp(1.05rem, 2.2vw, 1.22rem);
+  color: var(--bys-muted);
+  max-width: 46ch;
+  line-height: 1.45;
+}
+.hero-copy strong {
+  color: var(--bys-ink);
+  font-weight: 600;
+}
+.hero .workplane {
+  width: 100%;
+  max-width: 760px;
+}
+.trust-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13.5px;
+  color: var(--bys-muted);
+  flex-wrap: wrap;
+}
+.trust-line .sep {
+  color: var(--bys-muted-2);
+}
+.trust-line a {
+  color: var(--bys-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--bys-line);
+}
+.trust-line a:hover {
+  color: var(--bys-ink);
+  text-decoration-color: var(--bys-accent-soft);
+}
+.hero-second {
+  text-align: center;
+  margin-top: 26px;
+  padding-bottom: 6px;
+}
+.hero-second a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--bys-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.hero-second a:hover {
+  color: var(--bys-ink);
+}
+
+/* Product narrative — one connected chain (message → better response →
+   organized record → useful preparation), §8. Real product data shapes,
+   no decorative illustration, no matching cards. */
+.narrative {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 60px 0 20px;
+}
+.narrative h2 {
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  text-align: center;
+}
+.narrative .lede {
+  text-align: center;
+  color: var(--bys-muted);
+  margin-top: 8px;
+  font-size: 15.5px;
+  max-width: 52ch;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.5;
+}
+.chain {
+  display: grid;
+  grid-template-columns: 1fr 44px 1fr 44px 1fr;
+  align-items: stretch;
+  margin-top: 36px;
+}
+.chain-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bys-card);
+  border: 1px solid var(--bys-line);
+  border-radius: 10px;
+  padding: 18px;
+  box-shadow: var(--bys-shadow-card);
+}
+.chain-step .k {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bys-accent);
+}
+.chain-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bys-muted-2);
+}
+.chain-arrow svg {
+  width: 26px;
+  height: 26px;
+}
+.msg-draft {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--bys-muted);
+}
+.msg-draft .strike {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--bys-danger) 70%, transparent);
+  text-decoration-thickness: 2px;
+}
+.msg-calm {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--bys-ink);
+  font-weight: 500;
+}
+.ledger-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  border-top: 1px solid var(--bys-line);
+  padding-top: 8px;
+}
+.ledger-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.ledger-row .d {
+  color: var(--bys-muted-2);
+  font-size: 12px;
+  width: 56px;
+  flex-shrink: 0;
+}
+.ledger-row .t {
+  color: var(--bys-ink);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ledger-row .k2 {
+  color: var(--bys-muted);
+  font-size: 12px;
+}
+.summary-line {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--bys-muted);
+}
+.summary-line b {
+  color: var(--bys-ink);
+  font-weight: 600;
+}
+.summary-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--bys-line);
+  padding-top: 10px;
+  font-size: 12px;
+  color: var(--bys-muted-2);
+}
+.summary-meta .exp {
+  font-weight: 700;
+  color: var(--bys-accent);
+}
+
+/* Final CTA — one headline, one action; the ONE rare serif editorial accent
+   (§6 — Georgia italic, nothing else on the site uses serif). */
+.final-cta {
+  text-align: center;
+  padding: 64px 20px 76px;
+}
+.final-cta h2 {
+  font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.final-cta .sub {
+  margin-top: 10px;
+  color: var(--bys-muted);
+  font-size: 16px;
+}
+.final-cta .btn {
+  margin-top: 26px;
+}
+.final-cta .editorial {
+  margin-top: 26px;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--bys-muted);
+}
+
+@media (max-width: 900px) {
+  .chain {
+    grid-template-columns: 1fr;
+    gap: 0;
   }
-  to {
-    transform: scaleX(1);
+  .chain-arrow {
+    transform: rotate(90deg);
+    padding: 6px 0;
+  }
+}
+@media (max-width: 430px) {
+  .hero {
+    padding: 34px 0 16px;
+  }
+  .hero-state {
+    font-size: 2.35rem;
+  }
+  .hero-copy {
+    font-size: 1.02rem;
+    margin-top: 10px;
+  }
+  .trust-line {
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  .hero-second {
+    margin-top: 22px;
+  }
+  .narrative {
+    padding-top: 46px;
+  }
+  .chain {
+    margin-top: 24px;
   }
 }
 

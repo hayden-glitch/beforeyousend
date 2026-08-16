@@ -17,8 +17,8 @@ export const Route = createFileRoute("/")({
     // Landing hero A/B/C split (bys_hero_variant cookie): the head script
     // assigns a|b|c before first paint and sets data-hero-variant on <html>.
     // Kept for funnel analytics continuity (hero_view / hero_cta_click carry
-    // the variant); the visual hero itself is now the single brand + Panic
-    // state per 5304729186 §2.
+    // the variant); the VISUAL hero is now the single spec-§4 Panic→X→Calm
+    // state — the variant is analytics-only, never a visual branch.
     scripts: [
       { tag: "script", children: `(function(){try{var c=document.cookie.match(/(?:^|;\\s*)bys_hero_variant=([^;]+)/);var r=Math.random();var v=(c&&(c[1]==="a"||c[1]==="b"||c[1]==="c"))?c[1]:(r<1/3?"a":(r<2/3?"b":"c"));if(!c)document.cookie="bys_hero_variant="+v+"; Max-Age=31536000; Path=/; SameSite=Lax";document.documentElement.setAttribute("data-hero-variant",v);}catch(e){}})();` },
       // The Organizer promo (100% since 2026-08-12 D3 — every free dad sees
@@ -42,127 +42,181 @@ function scrollToReview() {
   setTimeout(() => document.getElementById("draft")?.focus({ preventScroll: true }), 450);
 }
 
-/* ---- The required Panic animation (5304729186 §2) ----
-   "Panic." sits in the hero as the emotional state, stays readable
-   ~1.8s, a red strike draws across it (~550ms), then a calm positive
-   word settles in the same visual position. ONE replacement word per
-   page load (module-level cache — remounts keep the same word, never
-   loops). Both words share one grid cell so the container is sized by
-   the widest — no layout shift. The whole block is aria-hidden; the
-   H1 carries one stable semantic phrase. prefers-reduced-motion
-   renders the resolved calm state immediately (no timers, no strike). */
-const CALM_WORDS = ["Think.", "Breathe.", "Pause.", "Respond."] as const;
-let calmWordForPage: string | null = null;
-function pickCalmWord(): string {
-  if (!calmWordForPage) {
-    calmWordForPage = CALM_WORDS[Math.floor(Math.random() * CALM_WORDS.length)];
+/* ---- The Panic animation (spec §4, exact timings) ----
+   Sequence: hold `Panic.` 2800ms → first X diagonal draws 600ms → pause
+   200ms → second diagonal draws 600ms → hold crossed 900ms → resolve
+   1500ms (panic word fades, X fades) → calm word in (600ms crossfade).
+   Calm words rotate every 4000ms with a 600ms soft crossfade;
+   `Panic.` re-enters every 5th rotation and is ALWAYS resolved by the red X.
+   `Panic.` is an inline SVG text with a subtle static displacement filter
+   (grease-pencil wobble — adult, not cartoonish, zero font download). All
+   words share one grid cell sized by the panic SVG's 5.6em width — NO layout
+   shift at any phase. The block is aria-hidden; the H1 carries the stable
+   semantic phrase. prefers-reduced-motion renders the resolved calm state
+   immediately (no timers, no X). The animation is pure texture: it never
+   gates typing or the Review action (it is a sibling of the composer). */
+const CALM_WORDS = ["Calm.", "Think.", "Breathe.", "Pause.", "Respond.", "Steady.", "Clear."] as const;
+const PANIC = "__PANIC__";
+const T = { holdPanic: 2800, s1: 600, gap: 200, s2: 600, crossed: 900, resolve: 1500, calmHold: 4000, fade: 600 };
+type HeroPhase = "panic" | "x1" | "x2" | "crossed" | "resolve" | "calm";
+
+function buildHeroCycle(): string[] {
+  const out: string[] = [PANIC];
+  for (let i = 0; i < 26; i++) {
+    if (i > 0 && i % 5 === 0) out.push(PANIC);
+    out.push(CALM_WORDS[i % CALM_WORDS.length]);
   }
-  return calmWordForPage;
+  return out;
 }
-type HeroPhase = "panic" | "strike" | "calm";
+
 function HeroState() {
-  // Initial state is identical on server and client ("Think." is a stable
-  // placeholder that is never visible — opacity 0). The real word is picked
-  // client-side right after mount, so hydration never mismatches and the
-  // container width is stable from first paint (widest word reserves space).
+  // Initial state is identical on server and client: phase "panic", both calm
+  // spans hidden, panic SVG + (later) the X over the cell. The cell is always
+  // 5.6em wide (the panic SVG) — wider than any calm word — so hydration and
+  // every phase change are layout-stable.
   const [phase, setPhase] = useState<HeroPhase>("panic");
-  const [calm, setCalm] = useState<string>(CALM_WORDS[0]);
+  const [words, setWords] = useState<{ a: string; b: string; front: "a" | "b" }>({
+    a: CALM_WORDS[0],
+    b: CALM_WORDS[1],
+    front: "a",
+  });
   useEffect(() => {
-    setCalm(pickCalmWord());
     if (typeof window === "undefined" || !window.matchMedia) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setPhase("calm");
       return;
     }
     let alive = true;
-    const t1 = window.setTimeout(() => { if (alive) setPhase("strike"); }, 1800);
-    const t2 = window.setTimeout(() => { if (alive) setPhase("calm"); }, 1800 + 550);
+    const timeouts: number[] = [];
+    const later = (ms: number, fn: () => void) => {
+      timeouts.push(window.setTimeout(() => { if (alive) fn(); }, ms));
+    };
+    const cycle = buildHeroCycle();
+    function crossfade(word: string) {
+      setWords((w) => {
+        const nextFront: "a" | "b" = w.front === "a" ? "b" : "a";
+        return {
+          a: nextFront === "a" ? word : w.a,
+          b: nextFront === "b" ? word : w.b,
+          front: nextFront,
+        };
+      });
+    }
+    function showCalm(word: string, done: () => void) {
+      setPhase("calm");
+      crossfade(word);
+      later(T.calmHold + T.fade, done);
+    }
+    function showPanic(done: () => void) {
+      setPhase("panic");
+      later(T.holdPanic, () => setPhase("x1"));
+      later(T.holdPanic + T.s1 + T.gap, () => setPhase("x2"));
+      later(T.holdPanic + T.s1 + T.gap + T.s2, () => setPhase("crossed"));
+      later(T.holdPanic + T.s1 + T.gap + T.s2 + T.crossed, () => setPhase("resolve"));
+      later(T.holdPanic + T.s1 + T.gap + T.s2 + T.crossed + T.resolve, done);
+    }
+    function run(i: number) {
+      const item = cycle[i % cycle.length];
+      if (item === PANIC) showPanic(() => run(i + 1));
+      else showCalm(item, () => run(i + 1));
+    }
+    run(0);
     return () => {
       alive = false;
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
+      timeouts.forEach((t) => window.clearTimeout(t));
     };
   }, []);
   return (
     <span className="hero-state" data-phase={phase} aria-hidden="true">
-      <span className="hero-word hero-state-panic">Panic.</span>
-      <span className="hero-word hero-state-calm">{calm}</span>
-      <span className="hero-strike" />
+      <span className={`hero-calm-item ${phase === "calm" && words.front === "a" ? "on" : ""}`}>{words.a}</span>
+      <span className={`hero-calm-item ${phase === "calm" && words.front === "b" ? "on" : ""}`}>{words.b}</span>
+      <svg className="hero-panic-svg" viewBox="0 0 560 140" aria-hidden="true" focusable="false">
+        <defs>
+          <filter id="bys-hero-crayon" x="-8%" y="-14%" width="116%" height="128%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="11" result="wobble" />
+            <feDisplacementMap in="SourceGraphic" in2="wobble" scale="2.6" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+        <text className="hero-panic-text" x="50%" y="52%" textAnchor="middle" dominantBaseline="central" filter="url(#bys-hero-crayon)">
+          Panic.
+        </text>
+      </svg>
+      <svg className="hero-x" viewBox="0 0 120 60" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <line className="s1" x1="6" y1="8" x2="114" y2="52" />
+        <line className="s2" x1="114" y1="8" x2="6" y2="52" />
+      </svg>
     </span>
   );
 }
 
-/* ---- The three ideas (5304729186 §2) — three distinct compositions,
-   headline + one sentence each. No identical cards. ---- */
-
-// 1. Review — a struck hot draft settles into the calm line.
-function IdeaReview() {
-  return (
-    <section className="mt-16 sm:mt-24">
-      <h2 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">Review — make the message clearer.</h2>
-      <p className="mt-2 max-w-md text-stone">See how your words land, keep the facts, send the calmer version.</p>
-      <div className="mt-6 max-w-xl rounded-[14px] border border-line bg-card p-5 shadow-card sm:p-6">
-        <p className="text-base leading-relaxed text-stone line-through decoration-red-500/90 decoration-2">
-          You keep ruining the schedule. The kids deserve better than this.
-        </p>
-        <p className="mt-4 border-t border-line pt-4 text-base leading-relaxed text-ink">
-          I'd like to settle a schedule that works for both of us. Can we talk it through this week?
-        </p>
-      </div>
-    </section>
-  );
-}
-
-// 2. Record — a quiet ledger of rows and rules, not a pile of cards.
+/* ---- The product narrative (spec §8) — one connected chain:
+   message → better response → organized record → useful preparation.
+   Real product data shapes; no decorative illustration, no matching cards. ---- */
 const LEDGER_ROWS: { date: string; title: string; kind: string }[] = [
   { date: "Aug 12", title: "Draft review — calm version sent", kind: "Review" },
   { date: "Aug 10", title: "Pick-up change", kind: "Log" },
   { date: "Aug 04", title: "Parenting plan", kind: "Document" },
 ];
-function IdeaRecord() {
+
+function ChainArrow() {
   return (
-    <section className="mt-16 sm:mt-24">
-      <h2 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">Record — keep what matters organized.</h2>
-      <p className="mt-2 max-w-md text-stone">Messages, events, and documents — dated and filed as they happen.</p>
-      <div className="mt-6 max-w-xl overflow-hidden rounded-[14px] border border-line bg-card shadow-card">
-        {LEDGER_ROWS.map((r, i) => (
-          <div
-            key={r.title}
-            className={`grid grid-cols-[5.5rem_1fr_auto] items-baseline gap-3 px-5 py-3.5 sm:grid-cols-[6.5rem_1fr_auto] ${
-              i > 0 ? "border-t border-line" : ""
-            }`}
-          >
-            <span className="text-xs text-taupe">{r.date}</span>
-            <span className="min-w-0 truncate text-ink">{r.title}</span>
-            <span className="text-xs text-stone">{r.kind}</span>
+    <div className="chain-arrow" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 12h14M13 6l6 6-6 6" />
+      </svg>
+    </div>
+  );
+}
+
+function Narrative() {
+  return (
+    <section className="narrative" aria-label="What happens after you review">
+      <h2>One message, then a record that works for you.</h2>
+      <p className="lede">Review the draft. Send the calmer version. Keep it on the record. Be ready when it matters.</p>
+      <div className="chain">
+        <div className="chain-step">
+          <span className="k">Review</span>
+          <p className="msg-draft">
+            <span className="strike">You keep ruining the schedule. The kids deserve better than this.</span>
+          </p>
+          <p className="msg-calm">“I’d like to settle a schedule that works for both of us. Can we talk it through this week?”</p>
+        </div>
+        <ChainArrow />
+        <div className="chain-step">
+          <span className="k">Record</span>
+          {LEDGER_ROWS.map((r) => (
+            <div key={r.title} className="ledger-row">
+              <span className="d">{r.date}</span>
+              <span className="t">{r.title}</span>
+              <span className="k2">{r.kind}</span>
+            </div>
+          ))}
+        </div>
+        <ChainArrow />
+        <div className="chain-step">
+          <span className="k">Prepare</span>
+          <p className="summary-line">
+            <b>Case summary</b> — key events this quarter, in order, each backed by the message or document.
+          </p>
+          <div className="summary-meta">
+            <span>Timeline · Log · Documents</span>
+            <span className="exp">Export</span>
           </div>
-        ))}
+        </div>
       </div>
     </section>
   );
 }
 
-// 3. Prepare — one document surface with a quiet export affordance.
-function IdeaPrepare() {
+function FinalCTA() {
   return (
-    <section className="mt-16 sm:mt-24">
-      <h2 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">Prepare — turn the record into something usable.</h2>
-      <p className="mt-2 max-w-md text-stone">Case summaries and export packs, built from what you've kept.</p>
-      <div className="mt-6 max-w-xl overflow-hidden rounded-[14px] border border-line bg-card shadow-card">
-        <div className="flex items-baseline justify-between gap-3 border-b border-line px-5 py-4">
-          <span className="font-semibold text-ink">Case summary</span>
-          <span className="text-xs text-taupe">Updated today</span>
-        </div>
-        <div className="space-y-3 px-5 py-5">
-          <p className="text-sm leading-relaxed text-stone">Key events this quarter, in order.</p>
-          <p className="text-sm leading-relaxed text-stone">Messages and documents that back each point.</p>
-          <p className="text-sm leading-relaxed text-stone">Ready to share or print.</p>
-        </div>
-        <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3.5">
-          <span className="text-xs text-taupe">Timeline · Log · Documents</span>
-          <span className="text-sm font-semibold text-forest">Export</span>
-        </div>
-      </div>
+    <section className="final-cta">
+      <h2>Your next message can be the calm one.</h2>
+      <p className="sub">See how it lands before you send it — free.</p>
+      <button type="button" onClick={scrollToReview} className="btn-primary">
+        Review a message
+      </button>
+      <p className="editorial">The record you keep quietly is the one that speaks later.</p>
     </section>
   );
 }
@@ -183,60 +237,39 @@ function Home() {
   return (
     <div className="min-h-dvh">
       <SiteHeader active="home" />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl px-5 sm:px-6">
-        {/* Hero — brand → Panic state → one support line → CTAs → trust row.
-            No floating product objects here (5304729186 §2). */}
-        <section className="pb-14 pt-14 sm:pb-16 sm:pt-20">
-          <h1 className="max-w-2xl font-display text-[clamp(1.9rem,5.4vw,2.9rem)] font-semibold leading-[1.06] tracking-tight text-ink">
-            Before You Send
-            <span className="sr-only"> — turns panic into a deliberate response.</span>
-          </h1>
-          <p className="mt-5 font-display text-[clamp(2.5rem,7.4vw,4.1rem)] font-semibold leading-none tracking-tight text-ink">
-            <HeroState />
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[1180px] px-4 sm:px-6">
+        {/* Single product scene (spec §3): emotional hero state → one promise →
+            the working composer as the central plane → primary action →
+            trust line adjacent → See plans. The visitor never scrolls to
+            reach the product; the composer IS the page. */}
+        <section className="hero" aria-label="Before You Send">
+          <h1 className="sr-only">See how your message may land before you send it.</h1>
+          <HeroState />
+          <p className="hero-copy">
+            See how your message may land <strong>before you send it.</strong>
           </p>
-          <p className="mt-5 max-w-md text-lg leading-relaxed text-stone">
-            See how your words land before you send.
+          <div className="workplane mt-7 sm:mt-9">
+            <ReviewTool reviewRef={reviewRef} />
+          </div>
+          <p className="trust-line">
+            <span>First review free</span>
+            <span className="sep" aria-hidden="true">·</span>
+            <span>No account</span>
+            <span className="sep" aria-hidden="true">·</span>
+            <span>Private</span>
+            <span className="sep" aria-hidden="true">·</span>
+            <a href="/trust">How privacy works</a>
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <button type="button" onClick={scrollToReview} className="btn-primary">
-              Review a message
-            </button>
-            <a href="/pricing" className="btn-ghost">
-              View plans
-            </a>
-          </div>
-          <ul className="mt-9 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm text-stone">
-            <li>First review free</li>
-            <li aria-hidden="true" className="text-taupe">·</li>
-            <li>No account needed</li>
-            <li aria-hidden="true" className="text-taupe">·</li>
-            <li>Not legal advice</li>
-          </ul>
+          <p className="hero-second">
+            <a href="/pricing">See plans</a>
+          </p>
         </section>
 
-        {/* The working tool — one restrained application surface (the primary
-            CTA above lands here). */}
-        <section id="review" ref={reviewRef} className="scroll-mt-24">
-          <ReviewTool reviewRef={reviewRef} />
-        </section>
+        {/* One connected narrative — Review → Record → Prepare. */}
+        <Narrative />
 
-        {/* Three ideas — Review / Record / Prepare, each a distinct composition. */}
-        <IdeaReview />
-        <IdeaRecord />
-        <IdeaPrepare />
-
-        {/* Final CTA — one headline, one action. */}
-        <section className="mt-16 border-t border-line pb-16 pt-12 sm:mt-24 sm:pb-20 sm:pt-16">
-          <h2 className="max-w-xl font-display text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-            Your next message can be the calm one.
-          </h2>
-          <p className="mt-3 max-w-md text-stone">See how it lands before you send it — free.</p>
-          <div className="mt-6">
-            <button type="button" onClick={scrollToReview} className="btn-primary">
-              Review a message
-            </button>
-          </div>
-        </section>
+        {/* Final CTA — one headline, one action (serif editorial accent only). */}
+        <FinalCTA />
       </main>
       <SiteFooter />
     </div>
