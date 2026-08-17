@@ -4711,7 +4711,26 @@ async function handleEvents(req: Request) {
   try { body = await req.json(); } catch { try { body = JSON.parse(await req.text()); } catch {} }
   const vid = typeof body?.vid === "string" && body.vid.length < 100 ? body.vid : crypto.randomUUID();
   const name = typeof body?.name === "string" ? body.name.slice(0,80) : "";
-  if (!name) return new Response(null, { status: 400 });
+  if (!name) {
+    // /api/events 400 incident (2026-08-17): foreign/unknown producers POST
+    // parseable JSON without a `name` key and got a 400 (the owner's dashboard
+    // spike). Ingest must never break — a beacon-like nameless payload (non-empty
+    // object) is accepted with a bounded diagnostic warn (UA slice 120 + path +
+    // body slice 200, NO tokens/cookies/session data), and 400 stays only for
+    // truly empty/unparseable junk. The nameless payload is never stored — the
+    // warn line is the only trace.
+    if (body && typeof body === "object" && !Array.isArray(body) && Object.keys(body).length > 0) {
+      let pathname = "/api/events";
+      try { pathname = new URL(req.url).pathname; } catch { /* keep default */ }
+      console.warn("[events] nameless payload dropped:", JSON.stringify({
+        ua: (req.headers.get("user-agent") || "").slice(0, 120),
+        path: pathname,
+        body: JSON.stringify(body).slice(0, 200),
+      }));
+      return new Response(null, { status: 204 });
+    }
+    return new Response(null, { status: 400 });
+  }
   const plan = typeof body?.plan === "string" ? body.plan.slice(0,40) : undefined;
   let meta = body?.meta && typeof body.meta === "object" ? body.meta : {};
   // Track A (Codex consolidated order §2+§3+§4): safe-key ingestion. SAFE_META_KEYS
