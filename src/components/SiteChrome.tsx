@@ -37,7 +37,10 @@ function checkSiteAuth(): Promise<SiteAuth> {
   const now = Date.now();
   if (siteAuthCache && now - siteAuthCache.at < SITE_AUTH_TTL_MS) return Promise.resolve(siteAuthCache.value);
   if (!siteAuthInFlight) {
-    siteAuthInFlight = fetch("/api/auth/me")
+    // P0 login fix (2026-08-17): bound the /me fetch — a stalled connection
+    // must resolve "not signed in" in 8s, never leave the header/auth state
+    // hanging (safe default: the header just keeps showing Sign in).
+    siteAuthInFlight = fetch("/api/auth/me", { signal: AbortSignal.timeout(8000) })
       .then(async (r) => {
         if (r.status === 401) {
           const j = await r.json().catch(() => ({ user: null }));
