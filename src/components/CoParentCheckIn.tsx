@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { track } from "~/lib/analytics";
 import { offerAccepted, purchasedThisSession } from "~/lib/offer";
-import { runCheckout, type CheckoutPlan } from "~/lib/checkout";
+import { paymentSurfaceAvailable, runCheckout, type CheckoutOpening, type CheckoutPlan } from "~/lib/checkout";
+import PaymentSurface from "~/components/PaymentSurface";
 import {
   getCheckinGroup,
   checkinPathAllowed,
@@ -37,6 +38,8 @@ const streaming = { v: false }; // a review is streaming right now
 export default function CoParentCheckIn() {
   const { pathname } = useLocation();
   const [pill, setPill] = useState(false);
+  // Slice 2b: custom-mode opening renders the branded in-app payment surface.
+  const [payOutcome, setPayOutcome] = useState<CheckoutOpening | null>(null);
   const [sheet, setSheet] = useState(false);
   const [step, setStep] = useState(0); // 0=Q1, 1=Q2, 2=Q3, 3=result
   const [q1, setQ1] = useState<string>();
@@ -280,9 +283,9 @@ export default function CoParentCheckIn() {
       setBusy,
       onError: (m) => setMsg(m || "Checkout is not available right now."),
     });
-    if (outcome.state === "opening" && outcome.url) {
-      markCheckinDone();
-      location.href = outcome.url;
+    if (outcome.state === "opening") {
+      if (paymentSurfaceAvailable(outcome)) { markCheckinDone(); setPayOutcome(outcome); return; }
+      if (outcome.url) { markCheckinDone(); location.href = outcome.url; }
     }
   }, [rec]);
 
@@ -500,6 +503,7 @@ export default function CoParentCheckIn() {
           </div>
         </div>
       )}
+      {payOutcome && <PaymentSurface outcome={payOutcome} onClose={() => setPayOutcome(null)} onError={setMsg} />}
     </>
   );
 }

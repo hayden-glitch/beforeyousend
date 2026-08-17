@@ -18,7 +18,8 @@ import { useEffect, useRef, useState } from "react";
 import { track } from "~/lib/analytics";
 import { folderLabel, subfolderLabel } from "~/lib/taxonomy";
 import { extractFile, MAX_SEND_CHARS } from "~/lib/extract";
-import { runCheckout } from "~/lib/checkout";
+import { paymentSurfaceAvailable, runCheckout, type CheckoutOpening } from "~/lib/checkout";
+import PaymentSurface from "~/components/PaymentSurface";
 import { IconArrowLeft, IconCheck, IconClose, IconOrganizer, IconPlus } from "./icons";
 
 const MAX_PAPERS = 50;
@@ -76,6 +77,8 @@ export default function SortMyPile({
   const [purchaseMsg, setPurchaseMsg] = useState("");
   const [error, setError] = useState("");
   const [buyBusy, setBuyBusy] = useState(false);
+  // Slice 2b: custom-mode opening renders the branded in-app payment surface.
+  const [payOutcome, setPayOutcome] = useState<CheckoutOpening | null>(null);
   const [zipNote, setZipNote] = useState("");
   const [displayDone, setDisplayDone] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -189,7 +192,10 @@ export default function SortMyPile({
       setBusy: setBuyBusy,
       onError: (m) => setPurchaseMsg(m || "Checkout is not available right now."),
     });
-    if (outcome.state === "opening" && outcome.url) location.href = outcome.url;
+    if (outcome.state === "opening") {
+      if (paymentSurfaceAvailable(outcome)) { setPayOutcome(outcome); return; }
+      if (outcome.url) location.href = outcome.url;
+    }
   }
 
   async function postChunk(chunk: Paper[]): Promise<SortDone> {
@@ -458,6 +464,7 @@ export default function SortMyPile({
           </p>
         </>
       )}
+      {payOutcome && <PaymentSurface outcome={payOutcome} onClose={() => setPayOutcome(null)} onError={(m) => setPurchaseMsg(m || "Checkout is not available right now.")} />}
     </section>
   );
 }

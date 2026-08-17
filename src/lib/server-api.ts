@@ -2183,7 +2183,15 @@ async function handleGiftPurchase(req) {
       success_url: `${origin2}/pricing?checkout=success&plan=gift&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin2}/pricing?checkout=cancelled`
     }, idemKey ? { idempotencyKey: idemKey } : undefined);
-    return json3({ url: giftSession.url, plan: "gift", interval: "month" });
+    return json3({ ...(await checkoutResponse(stripe, giftSession, {
+      mode: "payment",
+      line_items: [{ price: giftPrice, quantity: 1 }],
+      managed_payments: { enabled: false },
+      ui_mode: "custom",
+      return_url: customReturnUrl(origin2, "gift", "month", "/pricing"),
+      client_reference_id: s.userId,
+      metadata: { plan: "gift", user_id: s.userId }
+    }, idemKey)), plan: "gift", interval: "month" });
   } catch (err) {
     return safeCheckoutError(err);
   }
@@ -4026,6 +4034,80 @@ function qaPaymentsBlocked() {
 function stampCheckoutParams(userId, base) {
   return { ...base, client_reference_id: userId, metadata: { ...(base.metadata || {}), user_id: userId } };
 }
+// ---- BYS-native payment surface (slice 2b) -------------------------------
+// TEST-MODE-ONLY, behind an env flag. When STRIPE_SECRET_KEY is a test key
+// (sk_test_/rk_test_) AND BYS_CUSTOM_PAYMENT=1, every checkout response ALSO
+// carries a ui_mode:"custom" client_secret so the app can render the branded
+// in-app payment surface; the hosted url is ALWAYS returned too, as the
+// automatic fallback. LIVE mode (rk_live_) never creates custom sessions — the
+// hosted session and its response are byte-identical to before (only a literal
+// mode:"hosted" field is added to the JSON).
+function customCheckoutEligible() {
+  const sk = process.env.STRIPE_SECRET_KEY || "";
+  return process.env.BYS_CUSTOM_PAYMENT === "1" && /^(sk|rk)_test_/.test(sk);
+}
+// Mirrors the hosted success_url semantics so a custom return lands on the
+// SAME checkout=success&session_id= URL the existing confirm/scrub effects
+// already handle (pricing + consultations). {CHECKOUT_SESSION_ID} is replaced
+// by Stripe when it redirects after confirmPayment.
+function customReturnUrl(origin, plan, interval, successPath) {
+  const withInterval = plan === "consultation" || SUBSCRIPTION_PLANS.includes(plan);
+  return `${origin}${successPath}?checkout=success&plan=${plan}${withInterval ? `&interval=${interval}` : ""}&session_id={CHECKOUT_SESSION_ID}`;
+}
+// One-time products (topup / sortpile / attorney / record review) in custom
+// mode — same line_items/metadata/stamp as the hosted builder, ui_mode custom
+// + return_url instead of success/cancel urls.
+function customOneTimeParams(o) {
+  return {
+    mode: "payment",
+    line_items: [{ price: o.priceId, quantity: 1 }],
+    managed_payments: { enabled: false },
+    ui_mode: "custom",
+    return_url: o.returnUrl,
+    client_reference_id: o.userId,
+    metadata: { plan: o.plan, ...(o.credits ? { credits: o.credits } : {}), user_id: o.userId }
+  };
+}
+// Subscriptions + consultation in custom mode — mirrors buildSubscriptionParams.
+function customSubscriptionParams(o) {
+  const meta = { plan: o.plan, user_id: o.userId };
+  if (!o.consultation) meta.interval = o.interval;
+  if (o.offer) meta.offer = "true";
+  if (o.checkin) meta.checkin = "true";
+  const params = {
+    mode: o.consultation ? "payment" : "subscription",
+    line_items: [{ price: o.priceId, quantity: 1 }],
+    managed_payments: { enabled: false },
+    ui_mode: "custom",
+    return_url: o.returnUrl,
+    client_reference_id: o.userId,
+    metadata: meta
+  };
+  if (o.coupon) params.discounts = [{ coupon: o.coupon }];
+  return params;
+}
+// Creates the custom sibling session when eligible and returns the mode-aware
+// response shape: { url, mode, client_secret?, return_url? }. Any custom
+// failure is logged (redacted) and silently degrades to mode:"hosted" — the
+// fallback is automatic, never a dead end. The custom session gets its own
+// idempotency key (bys_checkout_custom_<intentId>) so a retried POST replays
+// the original sessions instead of minting duplicates.
+async function checkoutResponse(stripe, hostedSession, customParams, idemKey) {
+  const hosted = { url: hostedSession.url, mode: "hosted" };
+  if (!customCheckoutEligible())
+    return hosted;
+  try {
+    const customKey = idemKey ? `bys_checkout_custom_${idemKey.replace(/^bys_checkout_/, "")}` : null;
+    const custom = await stripe.checkout.sessions.create(customParams, customKey ? { idempotencyKey: customKey } : undefined);
+    if (custom.client_secret)
+      return { url: hostedSession.url, mode: "custom", client_secret: custom.client_secret, return_url: custom.return_url || customParams.return_url || "" };
+  } catch (err) {
+    const anyErr = err;
+    const detail = typeof anyErr?.message === "string" ? anyErr.message : String(err);
+    console.error("[checkout] custom session unavailable (falling back to hosted):", redactSecrets(detail));
+  }
+  return hosted;
+}
 // One-time products (topup / sortpile / attorney / record review): minimal
 // metadata — plan + credits only, plus the user stamp. No q1/q2/q3/rec, no
 // free-text anywhere in Stripe metadata.
@@ -4099,28 +4181,28 @@ async function handleCheckout(req) {
     if (plan === "topup") {
       const topupPrice = await resolveStripePrice(stripe, "topup", "month");
       const topupSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "topup", priceId: topupPrice, userId: sessionUser.userId, origin, credits: "10" }), idemKey ? { idempotencyKey: idemKey } : undefined);
-      return json3({ url: topupSession.url, plan: "topup", interval: "month" });
+      return json3({ ...(await checkoutResponse(stripe, topupSession, customOneTimeParams({ plan: "topup", priceId: topupPrice, userId: sessionUser.userId, returnUrl: customReturnUrl(origin, "topup", "month", "/pricing"), credits: "10" }), idemKey)), plan: "topup", interval: "month" });
     }
     if (plan === "sortpile") {
       // Sort My Pile — one-time $19.50 (1950c). Grants 30 days of the live
       // Organizer (profile.sortUntil) on fulfillment.
       const sortPrice = await resolveStripePrice(stripe, "sortpile", "month");
       const sortSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "sortpile", priceId: sortPrice, userId: sessionUser.userId, origin }), idemKey ? { idempotencyKey: idemKey } : undefined);
-      return json3({ url: sortSession.url, plan: "sortpile", interval: "month" });
+      return json3({ ...(await checkoutResponse(stripe, sortSession, customOneTimeParams({ plan: "sortpile", priceId: sortPrice, userId: sessionUser.userId, returnUrl: customReturnUrl(origin, "sortpile", "month", "/pricing") }), idemKey)), plan: "sortpile", interval: "month" });
     }
     if (plan === "attorney_prep_pack") {
       // Attorney Prep Pack — one-time $24.50 (2450c). Durable grant written on
       // fulfillment (bys_attorney_packs row + profile.attorneyPrep stamp).
       const appPrice = await resolveStripePrice(stripe, "attorney_prep_pack", "month");
       const appSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "attorney_prep_pack", priceId: appPrice, userId: sessionUser.userId, origin }), idemKey ? { idempotencyKey: idemKey } : undefined);
-      return json3({ url: appSession.url, plan: "attorney_prep_pack", interval: "month" });
+      return json3({ ...(await checkoutResponse(stripe, appSession, customOneTimeParams({ plan: "attorney_prep_pack", priceId: appPrice, userId: sessionUser.userId, returnUrl: customReturnUrl(origin, "attorney_prep_pack", "month", "/pricing") }), idemKey)), plan: "attorney_prep_pack", interval: "month" });
     }
     if (plan === "record_review") {
       // Record Review — one-time $29.50 (2950c). Durable grant written on
       // fulfillment (bys_record_reviews row kind='purchase' + stamp).
       const rrPrice = await resolveStripePrice(stripe, "record_review", "month");
       const rrSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "record_review", priceId: rrPrice, userId: sessionUser.userId, origin }), idemKey ? { idempotencyKey: idemKey } : undefined);
-      return json3({ url: rrSession.url, plan: "record_review", interval: "month" });
+      return json3({ ...(await checkoutResponse(stripe, rrSession, customOneTimeParams({ plan: "record_review", priceId: rrPrice, userId: sessionUser.userId, returnUrl: customReturnUrl(origin, "record_review", "month", "/pricing") }), idemKey)), plan: "record_review", interval: "month" });
     }
     if (plan !== "consultation" && !SUBSCRIPTION_PLANS.includes(plan))
       return json3({ error: "Choose a valid plan." }, 400);
@@ -4147,7 +4229,7 @@ async function handleCheckout(req) {
       consultation: plan === "consultation",
       coupon
     }), idemKey ? { idempotencyKey: idemKey } : undefined);
-    return json3({ url: session.url, plan, interval, offer: isIntro, checkin: isCheckin });
+    return json3({ ...(await checkoutResponse(stripe, session, customSubscriptionParams({ plan, interval, userId: sessionUser.userId, priceId, returnUrl: customReturnUrl(origin, plan, interval, successPath), offer: isIntro, checkin: isCheckin, consultation: plan === "consultation", coupon }), idemKey)), plan, interval, offer: isIntro, checkin: isCheckin });
   } catch (err) {
     return safeCheckoutError(err);
   }

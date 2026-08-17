@@ -13,7 +13,8 @@ import {
 } from "~/lib/offer";
 import { modalOpen, claimModal, releaseModal } from "~/lib/trial";
 import { consultationMoney } from "~/lib/prices";
-import { runCheckout } from "~/lib/checkout";
+import { paymentSurfaceAvailable, runCheckout, type CheckoutOpening } from "~/lib/checkout";
+import PaymentSurface from "~/components/PaymentSurface";
 import { IconCheck, IconClose } from "~/components/icons";
 
 // Global special-offer bottom sheet (mobile) / slide-in card (desktop).
@@ -39,6 +40,8 @@ export default function SpecialOffer() {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  // Slice 2b: custom-mode opening renders the branded in-app payment surface.
+  const [payOutcome, setPayOutcome] = useState<CheckoutOpening | null>(null);
   const [isUltimate, setIsUltimate] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const lastFocus = useRef<HTMLElement | null>(null);
@@ -198,7 +201,10 @@ export default function SpecialOffer() {
       setBusy,
       onError: (m) => setMsg(m || "Checkout is not available right now."),
     });
-    if (outcome.state === "opening" && outcome.url) location.href = outcome.url;
+    if (outcome.state === "opening") {
+      if (paymentSurfaceAvailable(outcome)) { setPayOutcome(outcome); return; }
+      if (outcome.url) location.href = outcome.url;
+    }
   }, []);
 
   if (!show) return null;
@@ -257,6 +263,7 @@ export default function SpecialOffer() {
           </p>
         )}
       </div>
+      {payOutcome && <PaymentSurface outcome={payOutcome} onClose={() => setPayOutcome(null)} onError={setMsg} />}
     </div>
   );
 }

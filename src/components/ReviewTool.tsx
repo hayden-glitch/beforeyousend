@@ -4,7 +4,8 @@ import { streamReview, streamAnalyze, type ReviewEvent, type Attachment, EMAIL_R
 import { track, trackFunnelOnce } from "~/lib/analytics";
 import { readCaptureVariant } from "~/lib/captureVariant";
 import { markValueDelivered } from "~/lib/offer";
-import { runCheckout } from "~/lib/checkout";
+import { paymentSurfaceAvailable, runCheckout, type CheckoutOpening } from "~/lib/checkout";
+import PaymentSurface from "~/components/PaymentSurface";
 import { useReviewTyping } from "~/lib/useReviewTyping";
 import ModeSwitch, { type ToolMode } from "~/components/ModeSwitch";
 import type { ResultBlock } from "~/components/ReviewResults";
@@ -619,6 +620,8 @@ function QuotaWall() {
   const [msg, setMsg] = useState("");
   const [loginHref, setLoginHref] = useState("");
   const [dismissed, setDismissed] = useState(false);
+  // Slice 2b: custom-mode opening renders the branded in-app payment surface.
+  const [payOutcome, setPayOutcome] = useState<CheckoutOpening | null>(null);
   // quota_wall_shown fires once per wall appearance (the wall remounts on each
   // fresh 402 — a dismissed wall stays gone until the next blocked attempt).
   const shownRef = useRef(false);
@@ -647,7 +650,10 @@ function QuotaWall() {
       setBusy: (b) => setBusy(b ? plan : null),
       onError: (m) => setMsg(m || "Checkout is not available right now."),
     });
-    if (outcome.state === "opening" && outcome.url) location.href = outcome.url;
+    if (outcome.state === "opening") {
+      if (paymentSurfaceAvailable(outcome)) { setPayOutcome(outcome); return; }
+      if (outcome.url) location.href = outcome.url;
+    }
   }
 
   return (
@@ -713,6 +719,7 @@ function QuotaWall() {
           Not now — I'll come back later
         </button>
       </div>
+      {payOutcome && <PaymentSurface outcome={payOutcome} onClose={() => setPayOutcome(null)} onError={setMsg} />}
     </div>
   );
 }

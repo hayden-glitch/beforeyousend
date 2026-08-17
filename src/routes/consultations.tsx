@@ -5,7 +5,8 @@ import { recordSurface, markPurchasedThisSession } from "~/lib/offer";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
 import { consultationCents, consultationMemberMoney, consultationMoney } from "~/lib/prices";
 import { seoHead } from "~/lib/seo";
-import { markConfirmPending, runCheckout } from "~/lib/checkout";
+import { markConfirmPending, paymentSurfaceAvailable, runCheckout, type CheckoutOpening } from "~/lib/checkout";
+import PaymentSurface from "~/components/PaymentSurface";
 
 export const Route = createFileRoute("/consultations")({
   head: () => ({
@@ -23,6 +24,8 @@ const money = (cents: number) => `${(cents / 100).toFixed(2).replace(/\.00$/, ""
 function Consultations() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  // Slice 2b: custom-mode opening renders the branded in-app payment surface.
+  const [payOutcome, setPayOutcome] = useState<CheckoutOpening | null>(null);
   const [purchased, setPurchased] = useState(false); // verified paid + linked to an account
   const [needLogin, setNeedLogin] = useState(false);
   // Where the sign-in link should return the user. Built from the captured
@@ -125,7 +128,10 @@ function Consultations() {
       setBusy,
       onError: (m) => setMessage(m || "Checkout is not available right now. Please try again soon."),
     });
-    if (outcome.state === "opening" && outcome.url) location.href = outcome.url;
+    if (outcome.state === "opening") {
+      if (paymentSurfaceAvailable(outcome)) { setPayOutcome(outcome); return; }
+      if (outcome.url) location.href = outcome.url;
+    }
   }
 
   // Errors raised by a RESUMED checkout land in the same message slot.
@@ -207,5 +213,6 @@ function Consultations() {
       <p className="mt-10 text-base leading-relaxed text-stone">This is not legal advice or legal representation, and no outcome is guaranteed. For legal questions, consult a licensed attorney.</p>
     </main>
     <SiteFooter />
+    {payOutcome && <PaymentSurface outcome={payOutcome} onClose={() => setPayOutcome(null)} onError={(m) => setMessage(m || "Checkout is not available right now.")} />}
   </div>;
 }

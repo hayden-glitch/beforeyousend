@@ -66,11 +66,40 @@ export interface CheckoutIntent {
   intentId: string;
 }
 
+/** The opening outcome. `url` is ALWAYS the hosted Stripe Checkout URL (the
+ *  universal fallback — any surface that can't render inline redirects here).
+ *  When the server runs in TEST mode with BYS_CUSTOM_PAYMENT=1 it ALSO returns
+ *  a ui_mode:"custom" session (clientSecret + returnUrl) so the app can render
+ *  the branded in-app payment surface instead of leaving the page. */
+export interface CheckoutOpening {
+  state: "opening";
+  url: string;
+  plan: CheckoutPlan;
+  mode: "hosted" | "custom";
+  clientSecret?: string;
+  returnUrl?: string;
+}
+
 export type CheckoutOutcome =
-  | { state: "opening"; url: string; plan: CheckoutPlan }
+  | CheckoutOpening
   | { state: "auth_required"; loginHref: string }
   | { state: "error"; message: string }
   | { state: "skipped" };
+
+/** True when the in-app branded payment surface can render for this outcome:
+ *  the server handed us a custom session AND a publishable key is baked into
+ *  this build. Any of these missing → the caller redirects to the hosted url
+ *  (the automatic fallback — never a dead end). */
+export function paymentSurfaceAvailable(o: CheckoutOpening): boolean {
+  if (o.mode !== "custom" || !o.clientSecret || !o.returnUrl) return false;
+  if (typeof window === "undefined") return false;
+  try {
+    const pk = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined)?.trim();
+    return !!pk;
+  } catch {
+    return false;
+  }
+}
 
 export interface CheckoutOptions {
   plan: CheckoutPlan;
@@ -231,10 +260,19 @@ export async function runCheckout(opts: CheckoutOptions): Promise<CheckoutOutcom
       body: JSON.stringify({ plan, interval, intentId: intent.intentId, ...(offer ? { offer: true } : {}), ...(checkin ? { checkin: true } : {}) }),
     });
     const d = await r.json().catch(() => ({}));
-    if (d.url) {
-      // Payment UI is Stripe's hosted session — the caller navigates so it
-      // can run surface-specific side effects (markCheckinDone etc.) first.
-      return { state: "opening", url: d.url, plan };
+    if (d.url || d.mode === "custom") {
+      // Opening the payment step. mode tells the caller which surface to use:
+      // "custom" → the branded in-app PaymentSurface (when paymentSurfaceAvailable
+      // is true); "hosted" (or any failure to build the custom session) → the
+      // Stripe-hosted url. The url is ALWAYS present — the fallback is automatic.
+      return {
+        state: "opening",
+        url: typeof d.url === "string" && d.url ? d.url : "",
+        plan,
+        mode: d.mode === "custom" ? "custom" : "hosted",
+        clientSecret: typeof d.client_secret === "string" ? d.client_secret : undefined,
+        returnUrl: typeof d.return_url === "string" ? d.return_url : undefined,
+      };
     }
     if (r.status === 401 || d.login_required) {
       // Rule 5: UI believed signed-in but the server says otherwise —

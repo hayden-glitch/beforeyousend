@@ -8,7 +8,8 @@ import { consultationMoney } from "~/lib/prices";
 import { scrollBehavior } from "~/lib/motion";
 import { seoHead } from "~/lib/seo";
 import { setTrialOpenPending } from "~/lib/trial";
-import { markConfirmPending, runCheckout, type CheckoutPlan, type CheckoutSource } from "~/lib/checkout";
+import { markConfirmPending, paymentSurfaceAvailable, runCheckout, type CheckoutOpening, type CheckoutPlan, type CheckoutSource } from "~/lib/checkout";
+import PaymentSurface from "~/components/PaymentSurface";
 export const Route = createFileRoute("/pricing")({
   head: () => ({
     ...seoHead({
@@ -106,6 +107,9 @@ function Pricing() {
   const [isAnnual, setAnnual] = useState(false); // Monthly is the default (owner direction)
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
+  // Slice 2b: an opening outcome in custom mode renders the branded in-app
+  // PaymentSurface instead of redirecting to Stripe's hosted page.
+  const [payOutcome, setPayOutcome] = useState<CheckoutOpening | null>(null);
   const [isUltimate, setIsUltimate] = useState(false);
   const [attorneyPrepOwned, setAttorneyPrepOwned] = useState(false);
   // Record Review entitlement shape from /api/auth/me: { entitled, kind:
@@ -302,7 +306,12 @@ function Pricing() {
       setBusy: (b) => setBusy(b ? `${plan}${interval}` : ""),
       onError: setMsg,
     });
-    if (outcome.state === "opening" && outcome.url) location.href = outcome.url;
+    if (outcome.state === "opening") {
+      // In-app branded surface when the server handed us a custom session AND
+      // this build can render it; otherwise the hosted Stripe page (automatic).
+      if (paymentSurfaceAvailable(outcome)) { setPayOutcome(outcome); return; }
+      if (outcome.url) location.href = outcome.url;
+    }
   }
 
   // Errors raised by a RESUMED checkout (after the login round-trip the
@@ -772,6 +781,7 @@ function Pricing() {
           </button>
         </div>
       )}
+      {payOutcome && <PaymentSurface outcome={payOutcome} onClose={() => setPayOutcome(null)} onError={setMsg} />}
     </div>
   );
 }
