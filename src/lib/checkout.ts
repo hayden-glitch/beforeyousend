@@ -333,6 +333,20 @@ export function dispatchCheckoutError(message: string): void {
     /* noop */
   }
 }
+// Resumed-checkout opening handoff: the resumer runs from __root, outside any
+// page's local payOutcome state, so a custom-mode opening is re-broadcast as
+// an event that the root-level CheckoutOpeningBridge renders (the same shape
+// as the bys:checkout-error bus — pages listen for errors; the bridge owns
+// the surface). Hosted-mode openings never reach this: the resumer navigates
+// directly (see useCheckoutIntentResumer).
+const CHECKOUT_OPENING_EVENT = "bys:checkout-opening";
+export function dispatchCheckoutOpening(outcome: CheckoutOpening): void {
+  try {
+    window.dispatchEvent(new CustomEvent(CHECKOUT_OPENING_EVENT, { detail: outcome }));
+  } catch {
+    /* noop */
+  }
+}
 
 export function useCheckoutIntentResumer(): void {
   // Re-renders on every route change (same hook the modal components use), so
@@ -364,6 +378,25 @@ export function useCheckoutIntentResumer(): void {
         checkin: intent.checkin,
         continuation: window.location.pathname + window.location.search,
         onError: dispatchCheckoutError,
+      }).then((outcome) => {
+        if (!alive) return;
+        // P1 fix (2026-08-17, QA release-criteria follow-up leg B): the
+        // opening outcome was DISCARDED, so after the signed-out login
+        // round-trip the server created a real Stripe Checkout Session but
+        // the client never navigated — the user landed back on the surface
+        // authed, no redirect, no message, and had to tap again. Handle it
+        // exactly like the direct path in pricing.tsx: branded in-app
+        // surface when this build can render it (custom session + publishable
+        // key — re-broadcast as an event because __root can't set a page's
+        // local payOutcome state), otherwise the hosted Stripe Checkout page
+        // (automatic, never a dead end).
+        if (outcome.state === "opening") {
+          if (paymentSurfaceAvailable(outcome)) {
+            dispatchCheckoutOpening(outcome);
+            return;
+          }
+          if (outcome.url) window.location.href = outcome.url;
+        }
       });
     });
     return () => {

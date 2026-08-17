@@ -163,6 +163,12 @@ function RootComponent() {
   return (
     <RootDocument omitPixels={!!cfg?.sensitive}>
       <Outlet />
+      {/* CheckoutOpeningBridge: renders the branded in-app PaymentSurface for
+          RESUMED checkouts (signed-out tap → login → resumer re-runs the
+          parked intent). Null until a bys:checkout-opening event fires; the
+          PaymentSurface chunk itself is lazy. Hosted-mode openings navigate
+          directly from the resumer and never reach this. */}
+      <CheckoutOpeningBridge />
       {/* Conversion surfaces (SpecialOffer / TrialModal / CoParentCheckIn /
           GuidedFunnel) mount client-side only, and all render null until
           opened by their own state. They are lazy + deferred to the
@@ -188,6 +194,10 @@ const SpecialOffer = lazy(() => import("~/components/SpecialOffer"));
 const TrialModal = lazy(() => import("~/components/TrialModal"));
 const CoParentCheckIn = lazy(() => import("~/components/CoParentCheckIn"));
 const GuidedFunnel = lazy(() => import("~/components/GuidedFunnel"));
+// Not deferred: the listener must be live from mount (a resumed checkout can
+// land on any route). Renders null until the event fires; PaymentSurface is
+// still its own lazy chunk.
+const CheckoutOpeningBridge = lazy(() => import("~/components/CheckoutOpeningBridge"));
 
 function RootDocument({ children, omitPixels }: { children: ReactNode; omitPixels?: boolean }) {
   return (
