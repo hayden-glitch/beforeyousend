@@ -2120,6 +2120,37 @@ async function handleDigest(req) {
 // BYS-XXXX-XXXX code -> he shares it himself -> recipient redeems -> 30 days of
 // Steady via profile.giftUntil. Giver reward: nothing (honest default; any
 // reciprocity is an owner decision — spec §10).
+// ---- Checkout idempotency + Stripe error safety (slice 2a) -------------------
+// One random intentId per deliberate tap comes from the client coordinator
+// (src/lib/checkout.ts) and is persisted across the login round-trip; the
+// server derives the Stripe idempotency key from it so a retried POST for the
+// SAME intent can never mint a second Checkout Session (Stripe replays the
+// original session for the same key + params). The server never trusts free
+// text: only a UUID-ish token (charset [A-Za-z0-9-], 8-64 chars) becomes a
+// key; a tampered or oversized id is ignored (no key) and never reaches
+// Stripe.
+const INTENT_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
+function sanitizeIntentId(raw) {
+  if (typeof raw !== "string") return null;
+  const s = raw.trim();
+  return INTENT_ID_RE.test(s) ? s : null;
+}
+function checkoutIdempotencyKey(rawIntentId) {
+  const id = sanitizeIntentId(rawIntentId);
+  return id ? `bys_checkout_${id}` : null;
+}
+// Stripe secret-shaped tokens (sk_/rk_/pk_/whsec_/acct_...) are scrubbed from
+// anything a payment error path logs or returns — never a key in logs or in a
+// client response.
+function redactSecrets(text) {
+  return String(text).replace(/(sk|rk|pk|whsec|acct)_[A-Za-z0-9_]+/g, "$1_***");
+}
+function safeCheckoutError(err) {
+  const anyErr = err;
+  const detail = typeof anyErr?.message === "string" ? anyErr.message : typeof anyErr?.type === "string" ? anyErr.type : typeof anyErr?.code === "string" ? anyErr.code : "";
+  console.error("[checkout] session creation failed:", redactSecrets(detail || err));
+  return json3({ error: "Checkout is not available right now. Nothing was charged.", payments_unavailable: true }, 502);
+}
 async function handleGiftPurchase(req) {
   if (!process.env.STRIPE_SECRET_KEY)
     return json3({ error: "Payments are not enabled yet — checkout will be active soon." }, 503);
@@ -2129,19 +2160,33 @@ async function handleGiftPurchase(req) {
   const qb = qaPaymentsBlocked();
   if (qb)
     return qb;
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return json3({ error: "Invalid request." }, 400);
+  }
+  // Slice 2a: idempotency key from the client's intentId (strict allowlist).
+  // Same intent + retried POST = Stripe returns the original session; a
+  // tampered/absent id simply means no key. Gift rides the same guarantee.
+  const idemKey = checkoutIdempotencyKey(body?.intentId);
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
-  const giftPrice = await resolveStripePrice(stripe, "gift", "month");
-  const origin2 = new URL(req.url).origin;
-  const giftSession = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: [{ price: giftPrice, quantity: 1 }],
-    managed_payments: { enabled: false },
-    client_reference_id: s.userId,
-    metadata: { plan: "gift", user_id: s.userId },
-    success_url: `${origin2}/pricing?checkout=success&plan=gift&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin2}/pricing?checkout=cancelled`
-  });
-  return json3({ url: giftSession.url, plan: "gift", interval: "month" });
+  try {
+    const giftPrice = await resolveStripePrice(stripe, "gift", "month");
+    const origin2 = new URL(req.url).origin;
+    const giftSession = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [{ price: giftPrice, quantity: 1 }],
+      managed_payments: { enabled: false },
+      client_reference_id: s.userId,
+      metadata: { plan: "gift", user_id: s.userId },
+      success_url: `${origin2}/pricing?checkout=success&plan=gift&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin2}/pricing?checkout=cancelled`
+    }, idemKey ? { idempotencyKey: idemKey } : undefined);
+    return json3({ url: giftSession.url, plan: "gift", interval: "month" });
+  } catch (err) {
+    return safeCheckoutError(err);
+  }
 }
 async function handleGiftCodes(req) {
   const s = getSession(req);
@@ -4027,6 +4072,12 @@ async function handleCheckout(req) {
   if (plan === "subscription")
     plan = "command";
   const interval = body?.interval === "year" ? "year" : "month";
+  // Slice 2a: idempotency key derived from the client's intentId (strict
+  // allowlist — UUID-ish, charset [A-Za-z0-9-], 8-64 chars). A retried POST
+  // for the same intent reuses the same key, so Stripe returns the original
+  // Checkout Session instead of minting a duplicate. A tampered/absent id
+  // simply means no key (only the coordinator ever calls this endpoint).
+  const idemKey = checkoutIdempotencyKey(body?.intentId);
   // Track B P0 (pre-pay account invariant): no entitlement-bearing Checkout may
   // be created without a resolved app user. The user id is stamped on
   // client_reference_id + metadata.user_id so the browser confirm and the
@@ -4042,60 +4093,64 @@ async function handleCheckout(req) {
   const qaBlocked = qaPaymentsBlocked();
   if (qaBlocked)
     return qaBlocked;
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
-  const origin = new URL(req.url).origin;
-  if (plan === "topup") {
-    const topupPrice = await resolveStripePrice(stripe, "topup", "month");
-    const topupSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "topup", priceId: topupPrice, userId: sessionUser.userId, origin, credits: "10" }));
-    return json3({ url: topupSession.url, plan: "topup", interval: "month" });
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" });
+    const origin = new URL(req.url).origin;
+    if (plan === "topup") {
+      const topupPrice = await resolveStripePrice(stripe, "topup", "month");
+      const topupSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "topup", priceId: topupPrice, userId: sessionUser.userId, origin, credits: "10" }), idemKey ? { idempotencyKey: idemKey } : undefined);
+      return json3({ url: topupSession.url, plan: "topup", interval: "month" });
+    }
+    if (plan === "sortpile") {
+      // Sort My Pile — one-time $19.50 (1950c). Grants 30 days of the live
+      // Organizer (profile.sortUntil) on fulfillment.
+      const sortPrice = await resolveStripePrice(stripe, "sortpile", "month");
+      const sortSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "sortpile", priceId: sortPrice, userId: sessionUser.userId, origin }), idemKey ? { idempotencyKey: idemKey } : undefined);
+      return json3({ url: sortSession.url, plan: "sortpile", interval: "month" });
+    }
+    if (plan === "attorney_prep_pack") {
+      // Attorney Prep Pack — one-time $24.50 (2450c). Durable grant written on
+      // fulfillment (bys_attorney_packs row + profile.attorneyPrep stamp).
+      const appPrice = await resolveStripePrice(stripe, "attorney_prep_pack", "month");
+      const appSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "attorney_prep_pack", priceId: appPrice, userId: sessionUser.userId, origin }), idemKey ? { idempotencyKey: idemKey } : undefined);
+      return json3({ url: appSession.url, plan: "attorney_prep_pack", interval: "month" });
+    }
+    if (plan === "record_review") {
+      // Record Review — one-time $29.50 (2950c). Durable grant written on
+      // fulfillment (bys_record_reviews row kind='purchase' + stamp).
+      const rrPrice = await resolveStripePrice(stripe, "record_review", "month");
+      const rrSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "record_review", priceId: rrPrice, userId: sessionUser.userId, origin }), idemKey ? { idempotencyKey: idemKey } : undefined);
+      return json3({ url: rrSession.url, plan: "record_review", interval: "month" });
+    }
+    if (plan !== "consultation" && !SUBSCRIPTION_PLANS.includes(plan))
+      return json3({ error: "Choose a valid plan." }, 400);
+    const isCheckin = body?.checkin === true;
+    const isIntro = plan === "ultimate" && interval === "month" && body?.offer === true && !isCheckin;
+    const priceId = isIntro ? await resolveStripePrice(stripe, "ultimate", "month", { cents: Number(process.env.PRICE_ULTIMATE_INTRO_USD_CENTS || 1999), productName: "Before You Send Ultimate Co-Parent", cacheKey: "ultimate:intro" }) : await resolveStripePrice(stripe, plan, interval);
+    const successPath = plan === "consultation" ? "/consultations" : "/pricing";
+    const cancelPath = plan === "consultation" ? "/consultations" : "/pricing";
+    const coupon = isCheckin ? await resolveCheckinCoupon(stripe, plan === "consultation") : undefined;
+    // Track B item 3 (metadata minimization): Check-In q1/q2/q3/rec no longer
+    // ride in Stripe metadata (or anywhere server-side). Only user/plan/interval
+    // plus the non-sensitive promo markers (offer/checkin) are kept — the
+    // Ultimate intro schedule and the Check-In coupon mechanics are unchanged.
+    const session = await stripe.checkout.sessions.create(buildSubscriptionParams({
+      plan,
+      interval,
+      userId: sessionUser.userId,
+      priceId,
+      origin,
+      successPath,
+      cancelPath,
+      offer: isIntro,
+      checkin: isCheckin,
+      consultation: plan === "consultation",
+      coupon
+    }), idemKey ? { idempotencyKey: idemKey } : undefined);
+    return json3({ url: session.url, plan, interval, offer: isIntro, checkin: isCheckin });
+  } catch (err) {
+    return safeCheckoutError(err);
   }
-  if (plan === "sortpile") {
-    // Sort My Pile — one-time $19.50 (1950c). Grants 30 days of the live
-    // Organizer (profile.sortUntil) on fulfillment.
-    const sortPrice = await resolveStripePrice(stripe, "sortpile", "month");
-    const sortSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "sortpile", priceId: sortPrice, userId: sessionUser.userId, origin }));
-    return json3({ url: sortSession.url, plan: "sortpile", interval: "month" });
-  }
-  if (plan === "attorney_prep_pack") {
-    // Attorney Prep Pack — one-time $24.50 (2450c). Durable grant written on
-    // fulfillment (bys_attorney_packs row + profile.attorneyPrep stamp).
-    const appPrice = await resolveStripePrice(stripe, "attorney_prep_pack", "month");
-    const appSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "attorney_prep_pack", priceId: appPrice, userId: sessionUser.userId, origin }));
-    return json3({ url: appSession.url, plan: "attorney_prep_pack", interval: "month" });
-  }
-  if (plan === "record_review") {
-    // Record Review — one-time $29.50 (2950c). Durable grant written on
-    // fulfillment (bys_record_reviews row kind='purchase' + stamp).
-    const rrPrice = await resolveStripePrice(stripe, "record_review", "month");
-    const rrSession = await stripe.checkout.sessions.create(oneTimeCheckoutParams({ plan: "record_review", priceId: rrPrice, userId: sessionUser.userId, origin }));
-    return json3({ url: rrSession.url, plan: "record_review", interval: "month" });
-  }
-  if (plan !== "consultation" && !SUBSCRIPTION_PLANS.includes(plan))
-    return json3({ error: "Choose a valid plan." }, 400);
-  const isCheckin = body?.checkin === true;
-  const isIntro = plan === "ultimate" && interval === "month" && body?.offer === true && !isCheckin;
-  const priceId = isIntro ? await resolveStripePrice(stripe, "ultimate", "month", { cents: Number(process.env.PRICE_ULTIMATE_INTRO_USD_CENTS || 1999), productName: "Before You Send Ultimate Co-Parent", cacheKey: "ultimate:intro" }) : await resolveStripePrice(stripe, plan, interval);
-  const successPath = plan === "consultation" ? "/consultations" : "/pricing";
-  const cancelPath = plan === "consultation" ? "/consultations" : "/pricing";
-  const coupon = isCheckin ? await resolveCheckinCoupon(stripe, plan === "consultation") : undefined;
-  // Track B item 3 (metadata minimization): Check-In q1/q2/q3/rec no longer
-  // ride in Stripe metadata (or anywhere server-side). Only user/plan/interval
-  // plus the non-sensitive promo markers (offer/checkin) are kept — the
-  // Ultimate intro schedule and the Check-In coupon mechanics are unchanged.
-  const session = await stripe.checkout.sessions.create(buildSubscriptionParams({
-    plan,
-    interval,
-    userId: sessionUser.userId,
-    priceId,
-    origin,
-    successPath,
-    cancelPath,
-    offer: isIntro,
-    checkin: isCheckin,
-    consultation: plan === "consultation",
-    coupon
-  }));
-  return json3({ url: session.url, plan, interval, offer: isIntro, checkin: isCheckin });
 }
 function tierFromCheckoutSession(session) {
   const mp = session.metadata?.plan;

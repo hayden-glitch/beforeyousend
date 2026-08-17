@@ -228,7 +228,7 @@ export async function runCheckout(opts: CheckoutOptions): Promise<CheckoutOutcom
     const r = await fetch(plan === "gift" ? "/api/gifts" : "/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan, interval, ...(offer ? { offer: true } : {}), ...(checkin ? { checkin: true } : {}) }),
+      body: JSON.stringify({ plan, interval, intentId: intent.intentId, ...(offer ? { offer: true } : {}), ...(checkin ? { checkin: true } : {}) }),
     });
     const d = await r.json().catch(() => ({}));
     if (d.url) {
