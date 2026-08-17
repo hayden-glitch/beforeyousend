@@ -7,6 +7,7 @@ import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
 import { consultationMoney } from "~/lib/prices";
 import { scrollBehavior } from "~/lib/motion";
 import { seoHead } from "~/lib/seo";
+import { setTrialOpenPending } from "~/lib/trial";
 export const Route = createFileRoute("/pricing")({
   head: () => ({
     ...seoHead({
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/pricing")({
 });
 type PlanKey = "steady" | "command" | "ultimate";
 type Interval = "month" | "year";
-type DeepTab = "One-time" | "Compare" | "FAQ" | null;
+type DeepTab = "One-time" | "Compare" | null;
 const monthly = { steady: 499, command: 1249, ultimate: 2499 };
 const annual = { steady: 4990, command: 12490, ultimate: 24990 };
 const money = (n: number) => "$" + (n / 100).toFixed(2).replace(/\.00$/, "");
@@ -170,7 +171,7 @@ function Pricing() {
     scrubReturnUrl();
     const snap = returnRef.current;
     setCheckinActive(snap?.checkin === "50");
-    if (snap?.tab === "One-time" || snap?.tab === "Compare" || snap?.tab === "FAQ") {
+    if (snap?.tab === "One-time" || snap?.tab === "Compare") {
       setDeepTab(snap.tab as DeepTab);
       if (snap.tab === "One-time") setOnetimeOpen(true);
     }
@@ -259,12 +260,13 @@ function Pricing() {
     }
   }, []);
 
-  // §12 deep-link landing: ?tab=One-time / Compare / FAQ scroll to the section
-  // on the single page (no more tab modes). Scroll after the first paint so
-  // layout is settled; reduced-motion uses the site-wide instant scroll.
+  // §12 deep-link landing: ?tab=One-time / Compare scroll to the section on
+  // the single page (no more tab modes; the pricing FAQ is gone 2026-08-16).
+  // Scroll after the first paint so layout is settled; reduced-motion uses
+  // the site-wide instant scroll.
   useEffect(() => {
     if (!deepTab) return;
-    const id = deepTab === "One-time" ? "one-time" : deepTab === "Compare" ? "compare" : "pricing-faq";
+    const id = deepTab === "One-time" ? "one-time" : "compare";
     const t = window.setTimeout(() => {
       document.getElementById(id)?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
     }, 80);
@@ -400,12 +402,18 @@ function Pricing() {
   // grant). No invented urgency anywhere.
   function openTrial() {
     if (typeof window === "undefined") return;
+    // Buffer the request (P1 fix 2026-08-16): the TrialModal chunk is
+    // deferred (mounts on first interaction / 6s cap) — a fast tap can
+    // dispatch before its listener exists. The session flag survives the
+    // race; TrialModal clears it when it handles the event and honors it
+    // on mount if the event was missed.
+    setTrialOpenPending();
     window.dispatchEvent(new CustomEvent("bys:open-trial"));
   }
   return (
     <div className="min-h-dvh">
       <SiteHeader active="pricing" />
-      <main className="mx-auto max-w-6xl px-5 pb-40 pt-12">
+      <main className="mx-auto max-w-6xl overflow-x-clip px-5 pb-40 pt-12">
         {/* One-line headline explains the choice (§12). No tabs, no modes. */}
         <h1 className="text-[clamp(1.9rem,5vw,2.6rem)] font-bold leading-[1.08] tracking-tight text-ink">
           Choose how much of the system you need.
@@ -413,16 +421,18 @@ function Pricing() {
         <p className="mt-3 max-w-xl text-lg leading-relaxed text-stone">
           Start with a free review — no account needed. Upgrade when the record matters.
         </p>
-        {/* GPT cleanup (2026-08-16): the same `Free 24 hours · no card` offer as
-            an explicit secondary action — visible, quiet, never auto-popping.
-            Hidden for paid tiers (they already have everything it unlocks). */}
+        {/* GPT cleanup (2026-08-16): the same `Free 24 hours` offer as an
+            explicit secondary action — visible, quiet, never auto-popping.
+            Hidden for paid tiers (they already have everything it unlocks).
+            UI cleanup (2026-08-16): the "no card" claim is gone — the card is
+            added only when a paid plan is chosen. */}
         {myTier === "free" && (
           <button
             type="button"
             onClick={openTrial}
             className="mt-4 inline-flex min-h-11 items-center rounded-full border border-forest/30 px-5 text-sm font-semibold text-forest transition-colors duration-150 hover:border-forest/60 hover:bg-forest/5"
           >
-            Free 24 hours · no card
+            Free 24 hours
           </button>
         )}
 
@@ -479,7 +489,7 @@ function Pricing() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectPlan(key); }
                   }}
-                  className={`card relative flex cursor-pointer flex-col p-6 outline-none transition-colors duration-150 ${
+                  className={`card plan-card plan-card-${key} relative flex cursor-pointer flex-col p-6 outline-none transition-colors duration-150 ${
                     rec ? "border-forest/45" : "border-line"
                   } ${isSel ? "border-forest" : ""} hover:border-forest/30`}
                 >
@@ -721,27 +731,6 @@ function Pricing() {
           <p className="mt-3 text-sm text-stone">One-time, no subscription — or already included in Ultimate Co-Parent.</p>
         </section>
 
-        {/* FAQ below the decision, not a mode (§12). */}
-        <section id="pricing-faq" aria-label="Pricing questions" className="mt-14 max-w-2xl">
-          <h2 className="text-2xl font-bold tracking-tight text-ink">Questions</h2>
-          <div className="mt-3 divide-y divide-line">
-            {[
-              ["Is this legal advice?", "No. Communication guidance and organization, not legal advice."],
-              ["Can I cancel?", "Yes — from the account's Manage subscription button (Stripe's billing portal). Access continues through the paid period."],
-              ["Does the plan renew automatically?", "Yes — monthly or annual plans renew automatically until you cancel. Cancel anytime from your account; access continues through the period you already paid for."],
-              ["What is the special offer?", "Ultimate is $19.99/mo for the first 3 months, then $24.99/mo. No countdown, no fake deadline."],
-              ["Do one-time buys need a subscription?", "No. They are separate purchases."],
-              ["If I'm on Ultimate, do I pay for one-time items?", "No — included items are included in Ultimate Co-Parent."],
-              ["What happens to my data?", "Your drafts and records stay private. We never sell your data."],
-            ].map(([q, a]) => (
-              <div key={q} className="py-4">
-                <p className="font-semibold text-ink">{q}</p>
-                <p className="mt-1 text-base leading-relaxed text-stone">{a}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
         {msg && <p role="status" className="mt-5 rounded-xl bg-cream-deep p-4 text-ink">{msg}</p>}
         {purchased && (
           <a href="/home" className="btn-primary mt-5 block w-full text-center sm:w-auto">
@@ -778,7 +767,12 @@ function Pricing() {
           </p>
         </section>
       </main>
-      <SiteFooter />
+      {/* Mobile-only bottom clearance for the sticky "Choose a plan" bar
+          (77px emulated / ~95px with safe-area inset) so the © line is
+          never covered at max scroll. md:pb-0 — bar is md:hidden. */}
+      <div className="pb-16 md:pb-0">
+        <SiteFooter />
+      </div>
       {/* Mobile sticky CTA — NEVER hardwired to Ultimate (§12). Neutral
           "Choose a plan" until a meaningful selection (a plan card tap),
           then it reflects the selected plan + current price. Hidden for

@@ -566,10 +566,18 @@ export default function ReviewTool({ reviewRef }: Props) {
           <div ref={resultsWrapRef} aria-live="polite" className="scroll-mt-24">
             {st.status === "error" && (
               st.quota ? (
-                <div className="mt-8 rounded-xl border border-red-300 bg-red-50 p-6">
-                  <p className="text-base text-red-900">{st.error}</p>
-                  <QuotaCTA draft={st.draft} />
-                </div>
+                // Signed-in 402 (owner 2026-08-17): the exhausted-quota wall is a
+                // calm two-option offer — Review Top-Up or The Ultimate Co-Parent —
+                // one tap straight to Stripe. Logged-out first-review-free keeps
+                // the email-capture path exactly as it was (QuotaCTA below).
+                authed ? (
+                  <QuotaWall />
+                ) : (
+                  <div className="mt-8 rounded-xl border border-red-300 bg-red-50 p-6">
+                    <p className="text-base text-red-900">{st.error}</p>
+                    <QuotaCTA draft={st.draft} />
+                  </div>
+                )
               ) : (
                 <ReviewFallback draft={st.draft} error={st.error} onRetry={() => { const t = st.draft; void (isAnalyze ? runAnalyze(t) : runReview(t, t === EXAMPLE_DRAFT)); }} />
               )
@@ -593,6 +601,128 @@ export default function ReviewTool({ reviewRef }: Props) {
         )}
       </div>
     </section>
+  );
+}
+
+// The signed-in 402 quota wall (owner 2026-08-17): when a signed-in dad
+// exhausts his free reviews, the exhausted-state prompt becomes a CALM
+// two-option offer — Review Top-Up (one-time $9.50 / 10 credits) or The
+// Ultimate Co-Parent ($24.99/mo, "Recommended — the complete system"). Exactly
+// two options, one tap straight to Stripe each. No TrialModal here (owner:
+// keep this wall to exactly these two). Prices match the live pricing surfaces
+// verbatim ($9.50 top-up; $24.99/mo monthly Ultimate with the same real intro
+// schedule the pricing card shows). The logged-out first-review-free path keeps
+// the email-capture QuotaCTA below, untouched.
+function QuotaWall() {
+  const [busy, setBusy] = useState<"topup" | "ultimate" | null>(null);
+  const [msg, setMsg] = useState("");
+  const [loginHref, setLoginHref] = useState("");
+  const [dismissed, setDismissed] = useState(false);
+  // quota_wall_shown fires once per wall appearance (the wall remounts on each
+  // fresh 402 — a dismissed wall stays gone until the next blocked attempt).
+  const shownRef = useRef(false);
+  useEffect(() => {
+    if (shownRef.current) return;
+    shownRef.current = true;
+    track("quota_wall_shown", { plan: "free" });
+  }, []);
+  if (dismissed) return null;
+
+  async function startCheckout(plan: "topup" | "ultimate") {
+    if (busy) return;
+    setBusy(plan);
+    setMsg("");
+    setLoginHref("");
+    track(plan === "topup" ? "quota_wall_topup_click" : "quota_wall_ultimate_click", { plan: "free" });
+    track("checkout_started", { plan, interval: "month" });
+    try {
+      const r = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(plan === "ultimate" ? { plan, interval: "month", offer: true } : { plan, interval: "month" }),
+      });
+      const d = await r.json();
+      if (d.url) {
+        location.href = d.url;
+        return;
+      }
+      if (r.status === 401 || d.login_required) {
+        // Session expired mid-flow — keep the draft visible, offer sign-in.
+        setLoginHref(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+        setMsg("Your session ended — sign in again to continue.");
+      } else {
+        setMsg(d.error || "Checkout is not available right now.");
+      }
+    } catch {
+      setMsg("Checkout is not available right now.");
+    }
+    setBusy(null);
+  }
+
+  return (
+    <div className="mt-8 rounded-2xl border border-line bg-card p-6 shadow-card">
+      <p className="text-lg font-semibold text-ink">No big deal — here's how to keep going.</p>
+      <p className="mt-1 text-base leading-relaxed text-stone">
+        Your 5 free reviews for this month are used up — they renew on the 1st. Your draft is still here in the box, nothing's lost.
+      </p>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        {/* Option A — Review Top-Up (one-time $9.50 / 10 credits) */}
+        <div className="relative flex flex-col rounded-xl border border-forest/30 bg-cream-deep/60 p-5">
+          <p className="text-sm font-semibold text-ink">Review Top-Up</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums text-ink">
+            $9.50<span className="text-base font-normal text-stone"> · 10 more reviews</span>
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-stone">Just need a few more right now.</p>
+          <button
+            type="button"
+            onClick={() => startCheckout("topup")}
+            disabled={busy !== null}
+            className="btn-ghost mt-4 w-full"
+          >
+            {busy === "topup" ? "Opening checkout…" : "Get 10 more reviews"}
+          </button>
+        </div>
+        {/* Option B — The Ultimate Co-Parent ($24.99/mo, Recommended) */}
+        <div className="plan-card plan-card-ultimate relative flex flex-col rounded-xl border border-line bg-cream-deep/60 p-5">
+          <span className="absolute -top-3 left-5 inline-flex min-h-6 items-center rounded-full border border-[#7aa6ce]/40 bg-elevated px-3 text-xs font-semibold tracking-wide text-[#a9cbe8]">
+            Recommended
+          </span>
+          <p className="text-sm font-semibold text-ink">The Ultimate Co-Parent</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums text-ink">
+            $24.99<span className="text-base font-normal text-stone">/mo</span>
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-stone">Unlimited reviews + the whole Command Center.</p>
+          <p className="mt-1 text-xs leading-relaxed text-taupe">First 3 months at $19.99 — then $24.99/mo</p>
+          <button
+            type="button"
+            onClick={() => startCheckout("ultimate")}
+            disabled={busy !== null}
+            className="btn-primary mt-4 w-full"
+          >
+            {busy === "ultimate" ? "Opening checkout…" : "Get Ultimate"}
+          </button>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-col items-center gap-2">
+        {msg && (
+          <p role="alert" className="text-sm text-stone">
+            {msg}
+            {loginHref && (
+              <a href={loginHref} className="ml-2 font-semibold text-forest underline underline-offset-4">
+                Sign in again →
+              </a>
+            )}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="min-h-11 text-sm text-taupe underline underline-offset-4 hover:text-stone"
+        >
+          Not now — I'll come back later
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -786,7 +916,7 @@ function ReviewFallback({ draft, error, onRetry }: { draft: string; error: strin
           )}
         </form>
       )}
-      <p className="mt-3 text-center text-sm text-stone">No card. No spam. Your message stays yours.</p>
+      <p className="mt-3 text-center text-sm text-stone">Your message stays yours.</p>
 
       <button type="button" onClick={onRetry} className="btn-ghost mt-4 w-full">
         Try again

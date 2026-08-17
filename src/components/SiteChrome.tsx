@@ -65,11 +65,6 @@ function useSiteAuth(): SiteAuth | null {
   }, []);
   return auth;
 }
-async function logoutFromChrome() {
-  try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* full reload below still lands on a logged-out landing */ }
-  window.location.assign("/");
-}
-
 export type SiteTab = "home" | "pricing" | "consultations" | "faq" | "other";
 
 // DESIGN 2: exactly one tab — Pricing. The logo is Home; Consultations + FAQ
@@ -83,18 +78,18 @@ export function SiteHeader({ active = "other" }: { active?: SiteTab | string }) 
   const signedIn = !!auth?.user;
   const tier = auth?.quota?.tier || auth?.user?.profile?.tier || "free";
   // Lightweight header (spec §5 / comp A): hairline bar, 58px tall, brand
-  // ALWAYS visible — the wordmark shows at 320/375/390/393/430 (never hidden
-  // below a breakpoint). Public nav stays tiny: brand · Pricing · Sign in.
+  // ALWAYS visible — the B·Y·S logo shows at 320/375/390/393/430 (wordmark
+  // text removed 2026-08-16 per owner — the logo is the brand; it stays
+  // tappable Home on every page). Public nav stays tiny: logo · Pricing · Sign in.
   return (
     <header className="sticky top-0 z-20 border-b border-line/60 bg-cream/85 backdrop-blur">
       <div className="mx-auto flex h-[58px] max-w-[1180px] items-center justify-between gap-2 px-4 sm:px-6">
         <a
           href="/"
           aria-label="Before You Send home"
-          className="-m-1 flex min-h-11 shrink-0 items-center gap-2 rounded-lg p-1 text-[15.5px] font-semibold tracking-tight text-ink transition-colors duration-150 hover:text-forest max-[370px]:gap-1.5 max-[370px]:text-[14.5px]"
+          className="-m-1 flex min-h-11 shrink-0 items-center gap-2 rounded-lg p-1 transition-colors duration-150 hover:text-forest max-[370px]:gap-1.5"
         >
           <img src="/logo-bys.svg" alt="" aria-hidden="true" className="h-7 w-7 max-[370px]:h-6 max-[370px]:w-6" />
-          <span className="whitespace-nowrap">Before You Send</span>
         </a>
         <div className="flex min-w-0 items-center gap-1 sm:gap-2">
           <nav aria-label="Main" className="flex items-center">
@@ -128,48 +123,70 @@ export function SiteHeader({ active = "other" }: { active?: SiteTab | string }) 
   );
 }
 
-// DESIGN 2: Consultations + FAQ move to the footer — About, Pricing,
-// Consultations, Privacy, Terms, FAQ, Contact (+ the signed-in/out block).
-const FOOTER_LINKS: { label: string; href: string }[] = [
-  { label: "About", href: "/about" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Consultations", href: "/consultations" },
-  { label: "Privacy", href: "/privacy" },
-  { label: "Terms", href: "/terms" },
-  { label: "FAQ", href: "/faq" },
-  { label: "Contact", href: "/contact" },
-];
+// Footer (owner UI cleanup 2026-08-16): benchmarked against Apple / Microsoft /
+// Stripe / polished subscription products — 3 quiet link groups (Product /
+// Company / Legal), account actions OUT of the public footer (Log out lives in
+// the profile menu; Sign in stays for signed-out visitors as a quiet Product
+// link), one short legal disclaimer visually separated below the groups, and a
+// clean 2-column mobile stack. Same premium dark system as the header.
+function FooterGroup({ title, links }: { title: string; links: { label: string; href: string }[] }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-[.14em] text-taupe">{title}</p>
+      <ul className="mt-2 space-y-0.5">
+        {links.map((l) => (
+          <li key={l.label}>
+            <a href={l.href} className="inline-flex min-h-11 items-center text-base text-stone transition-colors hover:text-ink">
+              {l.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function SiteFooter() {
   const signedIn = !!useSiteAuth()?.user;
+  const productLinks = signedIn
+    ? [
+        { label: "Pricing", href: "/pricing" },
+        { label: "Command Center", href: "/home" },
+        { label: "Consultations", href: "/consultations" },
+      ]
+    : [
+        { label: "Pricing", href: "/pricing" },
+        { label: "Consultations", href: "/consultations" },
+        { label: "Sign in", href: "/login" },
+      ];
   return (
-    <footer className="border-t border-line py-9">
-      <div className="mx-auto max-w-3xl px-5 sm:px-6">
-        <nav aria-label="Footer" className="mb-5 flex flex-wrap gap-x-5 gap-y-2 text-base text-stone">
-          {FOOTER_LINKS.map((l) => (
-            <a key={l.label} href={l.href} className="inline-flex min-h-11 items-center px-2 transition-colors hover:text-ink">
-              {l.label}
-            </a>
-          ))}
-          {signedIn ? (
-            <>
-              <a key="command-center" href="/home" className="inline-flex min-h-11 items-center px-2 transition-colors hover:text-ink">
-                Command Center
-              </a>
-              <button key="log-out" type="button" onClick={logoutFromChrome} className="inline-flex min-h-11 items-center px-2 transition-colors hover:text-ink">
-                Log out
-              </button>
-            </>
-          ) : (
-            <a key="sign-in" href="/login" className="inline-flex min-h-11 items-center px-2 transition-colors hover:text-ink">
-              Sign in
-            </a>
-          )}
-        </nav>
-        <p className="mt-4 text-base leading-relaxed text-stone">
-          Before You Send is not a law firm and does not provide legal advice. Reviews are AI-assisted communication guidance only, and your draft is processed by AI to produce them.
-        </p>
-        <p className="mt-4 text-taupe">© {new Date().getFullYear()} Before You Send</p>
+    <footer className="border-t border-line py-10">
+      <div className="mx-auto max-w-[1180px] px-4 sm:px-6">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 md:max-w-xl">
+          <FooterGroup title="Product" links={productLinks} />
+          <FooterGroup
+            title="Company"
+            links={[
+              { label: "About", href: "/about" },
+              { label: "FAQ", href: "/faq" },
+              { label: "Contact", href: "/contact" },
+            ]}
+          />
+          <FooterGroup
+            title="Legal"
+            links={[
+              { label: "Privacy", href: "/privacy" },
+              { label: "Terms", href: "/terms" },
+            ]}
+          />
+        </div>
+        <div className="mt-8 border-t border-line/70 pt-5">
+          <p className="max-w-2xl text-sm leading-relaxed text-taupe">
+            Before You Send is not a law firm and does not provide legal advice. Reviews are AI-assisted
+            communication guidance.
+          </p>
+          <p className="mt-2 text-sm text-taupe">© {new Date().getFullYear()} Before You Send</p>
+        </div>
       </div>
     </footer>
   );

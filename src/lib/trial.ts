@@ -12,6 +12,34 @@
 
 const DISMISSED_COOKIE = "bys_trial_dismissed";
 const INTENT_KEY = "bys_trial_intent";
+// Explicit-open buffer (GPT cleanup P1 2026-08-16): /pricing's inline trial
+// CTA sets a session flag BEFORE dispatching bys:open-trial. The modal is a
+// lazily-deferred chunk (DeferredMount arms on first interaction / 6s cap) —
+// a fast mobile tap can dispatch before the listener exists and the event
+// would be lost. TrialModal clears the flag when it handles the event; if the
+// event was missed, the flag is honored the moment the chunk mounts.
+const OPEN_PENDING_KEY = "bys_trial_open_pending";
+export function trialOpenPending(): boolean {
+  try {
+    return sessionStorage.getItem(OPEN_PENDING_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+export function setTrialOpenPending(): void {
+  try {
+    sessionStorage.setItem(OPEN_PENDING_KEY, "1");
+  } catch {
+    /* noop */
+  }
+}
+export function clearTrialOpenPending(): void {
+  try {
+    sessionStorage.removeItem(OPEN_PENDING_KEY);
+  } catch {
+    /* noop */
+  }
+}
 
 // Login intake suppression (owner 2026-08-13): while the 3-question intake is
 // showing on /login the TrialModal must NOT fire — the intake IS the
