@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import { track } from "~/lib/analytics";
 import { folderLabel, subfolderLabel } from "~/lib/taxonomy";
 import { extractFile, MAX_SEND_CHARS } from "~/lib/extract";
+import { runCheckout } from "~/lib/checkout";
 import { IconArrowLeft, IconCheck, IconClose, IconOrganizer, IconPlus } from "./icons";
 
 const MAX_PAPERS = 50;
@@ -178,20 +179,17 @@ export default function SortMyPile({
 
   async function buySortPile() {
     setBuyBusy(true);
-    track("checkout_started", { plan: "sortpile", interval: "month" });
-    try {
-      const r = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "sortpile", interval: "month" }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (d.url) location.href = d.url;
-      else setPurchaseMsg(d.error || "Checkout is not available right now.");
-    } catch {
-      setPurchaseMsg("Checkout is not available right now.");
-    }
-    setBuyBusy(false);
+    setPurchaseMsg("");
+    // Shared coordinator: auth-first (signed-out/expired sessions go straight
+    // to /login?next= and resume after sign-in), in-flight locked, errors land
+    // in the purchase card right here.
+    const outcome = await runCheckout({
+      plan: "sortpile",
+      source: "sortpile",
+      setBusy: setBuyBusy,
+      onError: (m) => setPurchaseMsg(m || "Checkout is not available right now."),
+    });
+    if (outcome.state === "opening" && outcome.url) location.href = outcome.url;
   }
 
   async function postChunk(chunk: Paper[]): Promise<SortDone> {

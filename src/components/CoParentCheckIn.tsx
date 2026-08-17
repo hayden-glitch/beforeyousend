@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { track } from "~/lib/analytics";
 import { offerAccepted, purchasedThisSession } from "~/lib/offer";
+import { runCheckout, type CheckoutPlan } from "~/lib/checkout";
 import {
   getCheckinGroup,
   checkinPathAllowed,
@@ -44,7 +45,6 @@ export default function CoParentCheckIn() {
   const [skipped, setSkipped] = useState(false);
   const [rec, setRec] = useState<CheckinRec | null>(null);
   const [busy, setBusy] = useState(false);
-  const [needLogin, setNeedLogin] = useState(false);
   const [msg, setMsg] = useState("");
   const [paid, setPaid] = useState(false);
   const [animKey, setAnimKey] = useState(0); // re-mounts step content (120ms fade/slide)
@@ -264,34 +264,26 @@ export default function CoParentCheckIn() {
   const cta = useCallback(async () => {
     if (!rec) return;
     track("checkin_cta_clicked", { plan: rec.plan, price: rec.price });
-    track("checkout_started", { plan: rec.plan, interval: "month", source: "checkin" });
     setBusy(true);
     setMsg("");
-    try {
-      const r = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // Track B items 2+3: only the plan + checkin marker ride the request —
-        // the answers (q1/q2/q3/rec) never leave this device, so nothing
-        // sensitive can reach Stripe metadata or any URL.
-        body: JSON.stringify({ plan: rec.plan, interval: "month", checkin: true }),
-      });
-      const d = await r.json();
-      if (d.url) {
-        markCheckinDone();
-        location.href = d.url;
-        return;
-      }
-      if (r.status === 401 || d.login_required) {
-        setMsg("Sign in to finish — your answers are still on this page, and your purchase will be linked to your account.");
-        setNeedLogin(true);
-        return;
-      }
-      setMsg(d.error || "Checkout is not available right now.");
-    } catch {
-      setMsg("Checkout is not available right now.");
+    // Shared coordinator: auth-first. Track B items 2+3 hold — only the plan +
+    // checkin marker ride the request; the answers (q1/q2/q3/rec) never leave
+    // this device, and the parked intent is plan/interval/source/checkin only,
+    // so nothing sensitive can reach Stripe metadata or any URL. After a login
+    // round-trip the __root resumer re-runs this exact checkout (the answers
+    // stay put on this page; markCheckinDone fires only on the real redirect).
+    const outcome = await runCheckout({
+      plan: rec.plan as CheckoutPlan,
+      interval: "month",
+      source: "checkin",
+      checkin: true,
+      setBusy,
+      onError: (m) => setMsg(m || "Checkout is not available right now."),
+    });
+    if (outcome.state === "opening" && outcome.url) {
+      markCheckinDone();
+      location.href = outcome.url;
     }
-    setBusy(false);
   }, [rec]);
 
   if (group !== "on") return null;
@@ -505,11 +497,6 @@ export default function CoParentCheckIn() {
                 {msg}
               </p>
             )}
-        {needLogin && (
-          <a href={`/login?next=${encodeURIComponent(pathname + window.location.search)}`} className="btn-primary mt-3 block w-full text-center">
-            Sign in to continue
-          </a>
-        )}
           </div>
         </div>
       )}

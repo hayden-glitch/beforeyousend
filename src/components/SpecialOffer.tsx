@@ -13,6 +13,7 @@ import {
 } from "~/lib/offer";
 import { modalOpen, claimModal, releaseModal } from "~/lib/trial";
 import { consultationMoney } from "~/lib/prices";
+import { runCheckout } from "~/lib/checkout";
 import { IconCheck, IconClose } from "~/components/icons";
 
 // Global special-offer bottom sheet (mobile) / slide-in card (desktop).
@@ -38,7 +39,6 @@ export default function SpecialOffer() {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const [needLogin, setNeedLogin] = useState(false);
   const [isUltimate, setIsUltimate] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const lastFocus = useRef<HTMLElement | null>(null);
@@ -184,32 +184,21 @@ export default function SpecialOffer() {
 
   const accept = useCallback(async () => {
     track("special_offer_accepted", {});
-    track("checkout_started", { plan: "ultimate", interval: "month", offer: true });
     setBusy(true);
     setMsg("");
-    try {
-      const r = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "ultimate", interval: "month", offer: true }),
-      });
-      const d = await r.json();
-      if (d.url) {
-        location.href = d.url;
-        return;
-      }
-      if (r.status === 401 || d.login_required) {
-        // Track B item 2: signed-out dad — visible sign-in step that keeps the
-        // offer intent (next=/pricing re-arms the offer after login).
-        setMsg("Sign in to start checkout — your purchase is linked to your account.");
-        setNeedLogin(true);
-        return;
-      }
-      setMsg(d.error || "Checkout is not available right now.");
-    } catch {
-      setMsg("Checkout is not available right now.");
-    }
-    setBusy(false);
+    // Shared coordinator: auth-first. A signed-out dad gets the offer intent
+    // parked + an immediate /login?next=<this page> hop (the modal never
+    // silently 401s behind an off-screen link); the __root resumer re-runs
+    // this exact offer checkout after sign-in.
+    const outcome = await runCheckout({
+      plan: "ultimate",
+      interval: "month",
+      source: "special_offer",
+      offer: true,
+      setBusy,
+      onError: (m) => setMsg(m || "Checkout is not available right now."),
+    });
+    if (outcome.state === "opening" && outcome.url) location.href = outcome.url;
   }, []);
 
   if (!show) return null;
@@ -266,11 +255,6 @@ export default function SpecialOffer() {
           <p role="status" className="mt-3 rounded-xl bg-cream-deep p-3 text-sm text-stone">
             {msg}
           </p>
-        )}
-        {needLogin && (
-          <a href="/login?next=/pricing" className="btn-primary mt-3 block w-full text-center">
-            Sign in to continue
-          </a>
         )}
       </div>
     </div>

@@ -4,6 +4,7 @@ import { streamReview, streamAnalyze, type ReviewEvent, type Attachment, EMAIL_R
 import { track, trackFunnelOnce } from "~/lib/analytics";
 import { readCaptureVariant } from "~/lib/captureVariant";
 import { markValueDelivered } from "~/lib/offer";
+import { runCheckout } from "~/lib/checkout";
 import { useReviewTyping } from "~/lib/useReviewTyping";
 import ModeSwitch, { type ToolMode } from "~/components/ModeSwitch";
 import type { ResultBlock } from "~/components/ReviewResults";
@@ -634,29 +635,19 @@ function QuotaWall() {
     setMsg("");
     setLoginHref("");
     track(plan === "topup" ? "quota_wall_topup_click" : "quota_wall_ultimate_click", { plan: "free" });
-    track("checkout_started", { plan, interval: "month" });
-    try {
-      const r = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(plan === "ultimate" ? { plan, interval: "month", offer: true } : { plan, interval: "month" }),
-      });
-      const d = await r.json();
-      if (d.url) {
-        location.href = d.url;
-        return;
-      }
-      if (r.status === 401 || d.login_required) {
-        // Session expired mid-flow — keep the draft visible, offer sign-in.
-        setLoginHref(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
-        setMsg("Your session ended — sign in again to continue.");
-      } else {
-        setMsg(d.error || "Checkout is not available right now.");
-      }
-    } catch {
-      setMsg("Checkout is not available right now.");
-    }
-    setBusy(null);
+    // Shared coordinator: resolves auth first (a session that died mid-flow is
+    // caught BEFORE the Stripe call and routed to /login?next=/home instead of
+    // surfacing an off-screen recovery link); the wall's inline message slot
+    // carries any real error adjacent to the buttons.
+    const outcome = await runCheckout({
+      plan,
+      interval: "month",
+      source: "quota_wall",
+      offer: plan === "ultimate",
+      setBusy: (b) => setBusy(b ? plan : null),
+      onError: (m) => setMsg(m || "Checkout is not available right now."),
+    });
+    if (outcome.state === "opening" && outcome.url) location.href = outcome.url;
   }
 
   return (
