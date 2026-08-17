@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@stripe/stripe-js": "^9.13.0",
     "@tanstack/react-router": "^1.158.1",
     "@tanstack/react-start": "^1.158.3",
     "jszip": "^3.10.1",
