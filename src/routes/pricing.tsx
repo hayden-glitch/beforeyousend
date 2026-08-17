@@ -778,7 +778,7 @@ function Pricing() {
           then it reflects the selected plan + current price. Hidden for
           one-time deep links (the visitor came to buy a pack, not a plan). */}
       {!purchased && !deepTab && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-cream/95 px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur md:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-cream px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:hidden">
           <button
             onClick={() => (selected ? checkout(selected, isAnnual ? "year" : "month") : scrollToPlans())}
             className="btn-primary min-h-12 w-full text-base"

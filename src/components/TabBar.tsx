@@ -47,7 +47,7 @@ export function TabBar({
       {/* Mobile: fixed bottom bar (md:hidden) */}
       <nav
         aria-label="Command Center tabs"
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-cream/95 pb-[max(10px,env(safe-area-inset-bottom))] backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-cream pb-[max(10px,env(safe-area-inset-bottom))] md:hidden"
       >
         <div className="mx-auto flex max-w-5xl">
           {TABS.map(({ key, label, Icon }) => {
@@ -77,7 +77,7 @@ export function TabBar({
       {/* Desktop: sticky tab row directly under the header */}
       <nav
         aria-label="Command Center tabs"
-        className="sticky top-16 z-10 hidden border-b border-line bg-cream/95 backdrop-blur md:block"
+        className="sticky top-16 z-10 hidden border-b border-line bg-cream md:block"
       >
         <div className="mx-auto flex max-w-5xl items-center gap-1 px-5">
           {TABS.map(({ key, label, Icon }) => {

@@ -82,7 +82,7 @@ export function SiteHeader({ active = "other" }: { active?: SiteTab | string }) 
   // text removed 2026-08-16 per owner — the logo is the brand; it stays
   // tappable Home on every page). Public nav stays tiny: logo · Pricing · Sign in.
   return (
-    <header className="sticky top-0 z-20 border-b border-line/60 bg-cream/85 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-line/60 bg-cream">
       <div className="mx-auto flex h-[58px] max-w-[1180px] items-center justify-between gap-2 px-4 sm:px-6">
         <a
           href="/"
