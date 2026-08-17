@@ -18,6 +18,8 @@ import { useEffect, useRef, useState } from "react";
 import { track } from "~/lib/analytics";
 import { folderLabel, subfolderLabel } from "~/lib/taxonomy";
 import { extractFile, MAX_SEND_CHARS } from "~/lib/extract";
+import { paymentSurfaceAvailable, runCheckout, type CheckoutOpening } from "~/lib/checkout";
+import PaymentSurface from "~/components/PaymentSurface";
 import { IconArrowLeft, IconCheck, IconClose, IconOrganizer, IconPlus } from "./icons";
 
 const MAX_PAPERS = 50;
@@ -75,6 +77,8 @@ export default function SortMyPile({
   const [purchaseMsg, setPurchaseMsg] = useState("");
   const [error, setError] = useState("");
   const [buyBusy, setBuyBusy] = useState(false);
+  // Slice 2b: custom-mode opening renders the branded in-app payment surface.
+  const [payOutcome, setPayOutcome] = useState<CheckoutOpening | null>(null);
   const [zipNote, setZipNote] = useState("");
   const [displayDone, setDisplayDone] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -178,20 +182,20 @@ export default function SortMyPile({
 
   async function buySortPile() {
     setBuyBusy(true);
-    track("checkout_started", { plan: "sortpile", interval: "month" });
-    try {
-      const r = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "sortpile", interval: "month" }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (d.url) location.href = d.url;
-      else setPurchaseMsg(d.error || "Checkout is not available right now.");
-    } catch {
-      setPurchaseMsg("Checkout is not available right now.");
+    setPurchaseMsg("");
+    // Shared coordinator: auth-first (signed-out/expired sessions go straight
+    // to /login?next= and resume after sign-in), in-flight locked, errors land
+    // in the purchase card right here.
+    const outcome = await runCheckout({
+      plan: "sortpile",
+      source: "sortpile",
+      setBusy: setBuyBusy,
+      onError: (m) => setPurchaseMsg(m || "Checkout is not available right now."),
+    });
+    if (outcome.state === "opening") {
+      if (paymentSurfaceAvailable(outcome)) { setPayOutcome(outcome); return; }
+      if (outcome.url) location.href = outcome.url;
     }
-    setBuyBusy(false);
   }
 
   async function postChunk(chunk: Paper[]): Promise<SortDone> {
@@ -460,6 +464,7 @@ export default function SortMyPile({
           </p>
         </>
       )}
+      {payOutcome && <PaymentSurface outcome={payOutcome} onClose={() => setPayOutcome(null)} onError={(m) => setPurchaseMsg(m || "Checkout is not available right now.")} />}
     </section>
   );
 }

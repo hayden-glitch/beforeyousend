@@ -8,6 +8,8 @@ import { consultationMoney } from "~/lib/prices";
 import { scrollBehavior } from "~/lib/motion";
 import { seoHead } from "~/lib/seo";
 import { setTrialOpenPending } from "~/lib/trial";
+import { markConfirmPending, paymentSurfaceAvailable, runCheckout, type CheckoutOpening, type CheckoutPlan, type CheckoutSource } from "~/lib/checkout";
+import PaymentSurface from "~/components/PaymentSurface";
 export const Route = createFileRoute("/pricing")({
   head: () => ({
     ...seoHead({
@@ -105,6 +107,9 @@ function Pricing() {
   const [isAnnual, setAnnual] = useState(false); // Monthly is the default (owner direction)
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
+  // Slice 2b: an opening outcome in custom mode renders the branded in-app
+  // PaymentSurface instead of redirecting to Stripe's hosted page.
+  const [payOutcome, setPayOutcome] = useState<CheckoutOpening | null>(null);
   const [isUltimate, setIsUltimate] = useState(false);
   const [attorneyPrepOwned, setAttorneyPrepOwned] = useState(false);
   // Record Review entitlement shape from /api/auth/me: { entitled, kind:
@@ -139,6 +144,9 @@ function Pricing() {
   } | null>(null);
   if (returnRef.current === null && typeof window !== "undefined") {
     const q = new URLSearchParams(window.location.search);
+    // A Stripe success return owns this load — tell the checkout resumer
+    // (__root) not to auto-resume a parked intent while confirm is pending.
+    if (q.get("checkout") === "success") markConfirmPending();
     returnRef.current = {
       sessionId: q.get("session_id"),
       plan: q.get("plan") || "",
@@ -273,61 +281,47 @@ function Pricing() {
     return () => window.clearTimeout(t);
   }, [deepTab]);
 
-  async function checkout(plan: PlanKey | "topup" | "consultation" | "gift" | "sortpile" | "attorney_prep_pack" | "record_review", interval: Interval = "month") {
-    setBusy(`${plan}${interval}`);
-    setMsg("");
+  // ONE checkout path — the shared coordinator (lib/checkout.ts) owns auth
+  // resolution, intent persistence, login routing, and the in-flight ref
+  // lock. This page only maps its CTAs onto it (busy label + surface error).
+  // No per-component 401/busy/continuation behavior remains here.
+  async function checkout(plan: PlanKey | "topup" | "consultation" | "gift" | "sortpile" | "attorney_prep_pack" | "record_review", interval: Interval = "month", source: CheckoutSource = "pricing") {
     // Round-6 funnel: plan/interval identifiers only — no sensitive data.
+    // checkout_started is fired ONCE per real attempt by the coordinator
+    // (10 rapid taps = 1 attempt; no event spam, honest counts).
     trackFunnelOnce("funnel_started", { entry: "pricing" });
     track("funnel_option_selected", { plan, interval });
-    track("checkout_started", { plan, interval, ...(checkinActive ? { source: "checkin" } : {}) });
-    try {
-      if (plan === "gift") {
-        const r = await fetch("/api/gifts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        const d = await r.json();
-        if (r.status === 401) {
-          // L4: a signed-out dad buying a gift gets the same login redirect the
-          // confirm flow uses — keep the pricing page in ?next= so he returns.
-          setNeedLogin(true);
-          setNeedLoginHref(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
-          setMsg("Sign in to buy a gift month — it's linked to your account.");
-          setBusy("");
-          return;
-        }
-        if (d.url) location.href = d.url;
-        else setMsg(d.error || "Checkout is not available right now.");
-        setBusy("");
-        return;
-      }
-      // Monthly Ultimate always carries the launch intro rate (3 months at $19.99) —
-      // the same honest deal the Special Offer modal offers, stated on the card.
-      // With the Check-In offer active, the coupon replaces the intro schedule.
-      const offer = plan === "ultimate" && interval === "month" && !checkinActive;
-      const r = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, interval, offer, ...(checkinActive && interval === "month" ? { checkin: true } : {}) }),
-      });
-      const d = await r.json();
-      if (d.url) location.href = d.url;
-      else if (r.status === 401 || d.login_required) {
-        // Track B item 2: visible login handling on every public caller, with
-        // the purchase intent preserved in ?next= (and the URL kept intact so a
-        // checkout=success return re-fires confirm). No sensitive answers ride
-        // the URL — the check-in answers never leave the device.
-        setNeedLogin(true);
-        setNeedLoginHref(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
-        setMsg("Sign in to start checkout — your purchase is linked to your account.");
-      }
-      else setMsg(d.error || "Checkout is not available right now.");
-    } catch {
-      setMsg("Checkout is not available right now.");
+    // Monthly Ultimate always carries the launch intro rate (3 months at
+    // $19.99) — the same honest deal the Special Offer modal offers, stated
+    // on the card. With the Check-In offer active, the coupon replaces the
+    // intro schedule.
+    const offer = plan === "ultimate" && interval === "month" && !checkinActive;
+    const checkin = checkinActive && interval === "month";
+    const outcome = await runCheckout({
+      plan: plan as CheckoutPlan,
+      interval,
+      source: checkin ? "checkin" : source,
+      offer,
+      checkin,
+      setBusy: (b) => setBusy(b ? `${plan}${interval}` : ""),
+      onError: setMsg,
+    });
+    if (outcome.state === "opening") {
+      // In-app branded surface when the server handed us a custom session AND
+      // this build can render it; otherwise the hosted Stripe page (automatic).
+      if (paymentSurfaceAvailable(outcome)) { setPayOutcome(outcome); return; }
+      if (outcome.url) location.href = outcome.url;
     }
-    setBusy("");
   }
+
+  // Errors raised by a RESUMED checkout (after the login round-trip the
+  // resumer runs in __root, outside this page's handlers) land in the same
+  // surface-adjacent message slot.
+  useEffect(() => {
+    const onErr = (e: Event) => setMsg((e as CustomEvent<string>).detail || "Checkout is not available right now.");
+    window.addEventListener("bys:checkout-error", onErr as EventListener);
+    return () => window.removeEventListener("bys:checkout-error", onErr as EventListener);
+  }, []);
 
   const price = (p: PlanKey) => (isAnnual ? annual[p] : monthly[p]);
 
@@ -780,13 +774,14 @@ function Pricing() {
       {!purchased && !deepTab && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-cream px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:hidden">
           <button
-            onClick={() => (selected ? checkout(selected, isAnnual ? "year" : "month") : scrollToPlans())}
+            onClick={() => (selected ? checkout(selected, isAnnual ? "year" : "month", "sticky") : scrollToPlans())}
             className="btn-primary min-h-12 w-full text-base"
           >
             {selected && busy === `${selected}${isAnnual ? "year" : "month"}` ? "Opening checkout…" : stickyLabel}
           </button>
         </div>
       )}
+      {payOutcome && <PaymentSurface outcome={payOutcome} onClose={() => setPayOutcome(null)} onError={setMsg} />}
     </div>
   );
 }

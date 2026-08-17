@@ -21,6 +21,7 @@ import {
   type AnalyticsConfig,
 } from "~/lib/analytics";
 import { clearReloadGuard } from "~/lib/reloadGuard";
+import { useCheckoutIntentResumer } from "~/lib/checkout";
 
 const getAnalyticsConfig = createServerFn().handler(async () => {
   const cfg: AnalyticsConfig = {};
@@ -143,6 +144,12 @@ function NotFoundPage() {
 function RootComponent() {
   const cfg = Route.useLoaderData();
   const router = useRouter();
+  // Checkout-intent resumer: after a signed-out tap → /login?next= → sign-in
+  // round-trip, this re-runs the parked purchase intent exactly once on
+  // whatever surface the visitor lands (covers SPA + hard navigations on
+  // every route). No-op unless a finite intent is parked and auth resolves
+  // signed-in; errors surface via bys:checkout-error on the landing page.
+  useCheckoutIntentResumer();
   useEffect(() => {
     // Successful mount → clear the stale-chunk reload guard, so a LATER
     // deploy in this tab session can still self-heal once (see reloadGuard.ts).

@@ -5,6 +5,8 @@ import { recordSurface, markPurchasedThisSession } from "~/lib/offer";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
 import { consultationCents, consultationMemberMoney, consultationMoney } from "~/lib/prices";
 import { seoHead } from "~/lib/seo";
+import { markConfirmPending, paymentSurfaceAvailable, runCheckout, type CheckoutOpening } from "~/lib/checkout";
+import PaymentSurface from "~/components/PaymentSurface";
 
 export const Route = createFileRoute("/consultations")({
   head: () => ({
@@ -22,6 +24,8 @@ const money = (cents: number) => `${(cents / 100).toFixed(2).replace(/\.00$/, ""
 function Consultations() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  // Slice 2b: custom-mode opening renders the branded in-app payment surface.
+  const [payOutcome, setPayOutcome] = useState<CheckoutOpening | null>(null);
   const [purchased, setPurchased] = useState(false); // verified paid + linked to an account
   const [needLogin, setNeedLogin] = useState(false);
   // Where the sign-in link should return the user. Built from the captured
@@ -46,6 +50,9 @@ function Consultations() {
   } | null>(null);
   if (returnRef.current === null && typeof window !== "undefined") {
     const query = new URLSearchParams(location.search);
+    // A Stripe success return owns this load — hold the checkout resumer
+    // (__root) off while the confirm round-trip is pending.
+    if (query.get("checkout") === "success") markConfirmPending();
     returnRef.current = {
       result: query.get("checkout"),
       plan: query.get("plan"),
@@ -109,26 +116,30 @@ function Consultations() {
     }
   }, []);
 
+  // ONE checkout path — the shared coordinator (lib/checkout.ts) owns auth
+  // resolution, intent persistence, login routing, and the ref lock. Signed-
+  // out taps persist the intent and go straight to /login?next=/consultations;
+  // after sign-in the __root resumer re-runs this exact checkout.
   async function checkout() {
-    setBusy(true); setMessage(""); track("checkout_started", { plan: "consultation" });
-    try {
-      const r = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: "consultation" }) });
-      const data = await r.json();
-      if (!r.ok) {
-        if (r.status === 401 || data.login_required) {
-          setNeedLogin(true);
-          setNeedLoginHref(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
-          setMessage("Sign in to book — your consultation is linked to your account.");
-        } else {
-          setMessage(data.error || "Checkout is not available right now. Please try again soon.");
-        }
-        setBusy(false);
-        return;
-      }
-      if (data.url) location.href = data.url;
-      else { setMessage("Checkout is not available right now. Please try again soon."); setBusy(false); }
-    } catch { setMessage("Checkout is not available right now. Please try again soon."); setBusy(false); }
+    setMessage("");
+    const outcome = await runCheckout({
+      plan: "consultation",
+      source: "consultations",
+      setBusy,
+      onError: (m) => setMessage(m || "Checkout is not available right now. Please try again soon."),
+    });
+    if (outcome.state === "opening") {
+      if (paymentSurfaceAvailable(outcome)) { setPayOutcome(outcome); return; }
+      if (outcome.url) location.href = outcome.url;
+    }
   }
+
+  // Errors raised by a RESUMED checkout land in the same message slot.
+  useEffect(() => {
+    const onErr = (e: Event) => setMessage((e as CustomEvent<string>).detail || "Checkout is not available right now. Please try again soon.");
+    window.addEventListener("bys:checkout-error", onErr as EventListener);
+    return () => window.removeEventListener("bys:checkout-error", onErr as EventListener);
+  }, []);
 
   return <div className="min-h-dvh">
     <SiteHeader active="consultations" />
@@ -202,5 +213,6 @@ function Consultations() {
       <p className="mt-10 text-base leading-relaxed text-stone">This is not legal advice or legal representation, and no outcome is guaranteed. For legal questions, consult a licensed attorney.</p>
     </main>
     <SiteFooter />
+    {payOutcome && <PaymentSurface outcome={payOutcome} onClose={() => setPayOutcome(null)} onError={(m) => setMessage(m || "Checkout is not available right now.")} />}
   </div>;
 }
