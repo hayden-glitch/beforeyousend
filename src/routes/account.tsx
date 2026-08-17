@@ -267,7 +267,7 @@ function AccountPage() {
 
   return (
     <div className="min-h-dvh pb-16">
-      <header className="sticky top-0 z-20 min-h-16 border-b border-line/70 bg-cream/95 backdrop-blur">
+      <header className="sticky top-0 z-20 min-h-16 border-b border-line/70 bg-cream">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-5 py-2">
           <a href="/home" aria-label="Before You Send home" className="-m-1 flex min-h-11 shrink-0 items-center rounded-lg p-1">
             <img src="/logo-bys.svg" alt="" aria-hidden="true" className="h-7 w-7" />
