@@ -79,6 +79,9 @@ export type AnalyticsEvent =
   | "sortpile_content_filed"   // meta: { folder }           — a text-read paper filed from its own content
   | "plan_chip_click"
   | "quota_cta_click"
+  | "quota_wall_shown"           // meta: { plan }          — signed-in 402 quota wall rendered (two-option offer)
+  | "quota_wall_topup_click"     // meta: { plan }          — Top-Up card CTA tapped on the quota wall
+  | "quota_wall_ultimate_click"  // meta: { plan }          — Ultimate card CTA tapped on the quota wall
   | "feedback_helped_calm"
   | "feedback_good_read"
   | "feedback_not_for_me"
@@ -481,6 +484,7 @@ const AD_MEASUREMENT_EVENTS = new Set<AnalyticsEvent>([
   "special_offer_shown", "special_offer_accepted", "special_offer_dismissed",
   "trial_modal_shown", "trial_modal_yes", "trial_modal_no", "trial_started",
   "quota_cta_click", "plan_chip_click",
+  "quota_wall_shown", "quota_wall_topup_click", "quota_wall_ultimate_click",
   "mode_switched", "analyze_started", "analyze_completed",
   "attach_locked_tap", "steady_sheet_shown", "attach_added", "attach_removed",
 ]);
