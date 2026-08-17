@@ -293,11 +293,11 @@ function Dashboard(){
    };
    (async()=>{
      try{
-       let res=await apply(await fetch("/api/auth/me"));
+       let res=await apply(await fetch("/api/auth/me",{signal:AbortSignal.timeout(8000)}));
        if(res==="retry"){
          await new Promise(r2=>setTimeout(r2,1500));
          if(cancelled)return;
-         res=await apply(await fetch("/api/auth/me"));
+         res=await apply(await fetch("/api/auth/me",{signal:AbortSignal.timeout(8000)}));
        }
        if(cancelled)return;
        settle(res);
@@ -305,7 +305,7 @@ function Dashboard(){
        try{
          await new Promise(r2=>setTimeout(r2,1500));
          if(cancelled)return;
-         settle(await apply(await fetch("/api/auth/me")));
+         settle(await apply(await fetch("/api/auth/me",{signal:AbortSignal.timeout(8000)})));
        }catch{
          if(!cancelled)setAuthState("error");
        }

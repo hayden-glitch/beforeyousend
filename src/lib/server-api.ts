@@ -1693,12 +1693,16 @@ async function handleSignup(req) {
     return json3({ error: "Enter a valid email address." }, 400);
   if (password.length < 8)
     return json3({ error: "Use at least 8 characters." }, 400);
-  // H3b: signup mints sessions, so it shares the confirm-link rate limits
-  // (per email + per IP, durable in Neon) — no account-spray without a wall.
+  // H3b: signup mints sessions, so it shares the confirm-link rate limits'
+  // shape (per email + per IP, durable in Neon) — but on its OWN buckets
+  // (P0 login fix 2026-08-17): the shared confirm:ip bucket (5/10min) was
+  // exhausting mobile CGNAT carrier-IP pools and 429-ing real signups. Signup
+  // gets signup:ip at 20/10min (still a spray wall; login is unlimited), and
+  // the per-email cap stays 3/10min to stop account-spray per address.
   const ip = clientIp(req);
-  if (await confirmRateHit(`confirm:email:${email}`, 3, 600000))
+  if (await confirmRateHit(`signup:email:${email}`, 3, 600000))
     return json3({ error: "Too many requests — please wait a few minutes and try again." }, 429);
-  if (await confirmRateHit(`confirm:ip:${ip}`, 5, 600000))
+  if (await confirmRateHit(`signup:ip:${ip}`, 20, 600000))
     return json3({ error: "Too many requests — please wait a few minutes and try again." }, 429);
   const intake = sanitizeIntake(body.intake);
   const users = await readUsers();

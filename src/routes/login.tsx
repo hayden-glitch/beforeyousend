@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { hasSensitiveQuery, isCleanQueryParam, track, trackFunnelOnce, trackSignupConversion } from "~/lib/analytics";
 import { ensureCaptureVariant, type CaptureVariant } from "~/lib/captureVariant";
 import { EMAIL_RE } from "~/lib/api";
-import { authMeOnce, type AuthState } from "~/lib/checkin";
+import { authMeOnce, invalidateAuthCache, type AuthState } from "~/lib/checkin";
 import { markLoginIntakeActive, maybeStartTrial } from "~/lib/trial";
 import { seoHead } from "~/lib/seo";
 export const Route = createFileRoute("/login")({
@@ -37,14 +37,23 @@ function Login(){
   const [pw,setPw]=useState("");
   const [err,setErr]=useState("");const [forgotOpen,setForgotOpen]=useState(false);
   const [busy,setBusy]=useState(false);
-  // Auth-state gate (owner bug report 2026-08-13): the whole card is gated on
-  // the /me check; while it resolves, a quiet static shell renders (no
-  // "One moment…" loading-only surface — §13). Cached at module scope in
-  // checkin.ts (one fetch per page load).
+  const busyRef=useRef(false); // same-tick re-entrancy guard (double-tap before re-render)
+  // P0 (login dead-gate fix 2026-08-17): the form renders UNCONDITIONALLY —
+  // real inputs are in the SSR HTML from first paint, so there is no
+  // auth-gated skeleton window where taps are dead. The /me check below only
+  // drives the signed-in BOUNCE (a post-/me effect, decoupled from render).
   const [auth,setAuth]=useState<null|AuthState>(null);
-  // The card content only renders once the auth state is known AND the visitor
-  // is logged out — signed-in users (any tier) bounce to next;/home instead.
-  const authReady=auth!==null && !auth.signedIn;
+  // Hydration latch: the submit button stays disabled with its visible label
+  // until React hydrates, so a pre-hydration tap can't fire a native form
+  // GET. Typing IS safe pre-hydration: the inputs are uncontrolled
+  // (defaultValue) and the submit handlers read the DOM refs.
+  const [hydrated,setHydrated]=useState(false);
+  // Uncontrolled input refs — the DOM truth for what the user typed (survives
+  // hydration). The state mirrors below exist only for the 409→sign-in
+  // prefill, validation copy, and the submit body.
+  const emailRef=useRef<HTMLInputElement>(null);
+  const pwRef=useRef<HTMLInputElement>(null);
+  useEffect(()=>{ setHydrated(true); },[]);
   // TikTok ad clicks land here (/login?ttclid=…) — route them to the paste-box
   // landing so ads hit the same use-first experience, keeping ttclid in the URL
   // for the TikTok pixel on /. Only when there is no ?next= destination.
@@ -108,7 +117,14 @@ function Login(){
       window.location.assign(dest);
       return;
     }
-    if (dest === "/home") { await nav({ to: "/home" }); }
+    if (dest === "/home") {
+      // P1 (login dead-gate fix 2026-08-17): the /home lazy chunk (~88KB) can
+      // fail to import on a flaky connection — that rejection must NOT surface
+      // as a server error after the account + session ALREADY exist. Hard-
+      // navigate to /home instead (same fallback as the else-branch below).
+      try { await nav({ to: "/home" }); }
+      catch { window.location.assign("/home"); }
+    }
     else {
       try { await router.navigate({ href: dest }); }
       catch { window.location.assign(dest); }
@@ -145,34 +161,59 @@ function Login(){
     if(!auth?.signedIn) return;
     void goToNext();
   },[auth,goToNext]);
-  // TrialModal suppression (owner 2026-08-13, preserved): the moment the login
-  // card renders for a logged-out visitor, mark the session flag trial.ts
-  // checks at fire time — /login is a continuation surface, never a second
-  // ask (the trial still starts quietly at account creation via
-  // maybeStartTrial). The flag lives for the whole tab session.
+  // TrialModal suppression (owner 2026-08-13, preserved): /login is a
+  // continuation surface, never a second ask — the trial still starts quietly
+  // at account creation via maybeStartTrial. P0 fix 2026-08-17: the form now
+  // renders for EVERY visitor immediately (no auth gate), so mark the flag at
+  // mount unconditionally — a signed-in visitor bounces moments later anyway
+  // and never needs the trial modal here. The flag lives for the whole tab.
   useEffect(()=>{
-    if(authReady) markLoginIntakeActive();
-  },[authReady]);
+    markLoginIntakeActive();
+  },[]);
   // §13 context: the heading + sub explain WHY the account matters based on
   // where the visitor is coming from — continuing checkout, saving a completed
-  // free review, or a plain sign-in. The captured nextRef is read once; the
-  // destination itself is never altered.
-  const dest=nextRef.current;
-  const purchaseCtx=!!dest && (dest.startsWith("/pricing")||dest.startsWith("/consultations"));
-  const reviewCtx=!!dest && dest.startsWith("/home");
+  // free review, or a plain sign-in. P0 fix 2026-08-17: computed once in a
+  // post-mount effect into `ctx` (NOT read from nextRef during render) so the
+  // SSR HTML and the first hydration render match — no hydration mismatch, and
+  // the form is real on first paint with a generic heading that upgrades to
+  // the contextual one right after mount.
+  const [ctx,setCtx]=useState<"purchase"|"review"|"plain">("plain");
+  useEffect(()=>{
+    const d=nextRef.current;
+    setCtx(!!d && (d.startsWith("/pricing")||d.startsWith("/consultations")) ? "purchase" : !!d && d.startsWith("/home") ? "review" : "plain");
+  },[]);
+  const purchaseCtx=ctx==="purchase";
+  const reviewCtx=ctx==="review";
   function switchMode(m:"signup"|"signin"){ setMode(m); setErr(""); }
   async function submitSignup(e:React.FormEvent){
     e.preventDefault();
-    const value=email.trim();
-    if(!value){ setErr("Enter your email to create your free account."); return; }
-    if(!EMAIL_RE.test(value)){ setErr("That email doesn't look right — double-check it."); return; }
-    if(pw.length<8){ setErr("Use at least 8 characters."); return; }
+    if(busyRef.current) return; // P1: re-entrancy guard (same-tick double-fire)
+    busyRef.current=true;
+    // Read the DOM truth (refs) — the state mirrors can lag pre-hydration.
+    const value=(emailRef.current?.value ?? email).trim();
+    if(!value){ setErr("Enter your email to create your free account."); busyRef.current=false; return; }
+    if(!EMAIL_RE.test(value)){ setErr("That email doesn't look right — double-check it."); busyRef.current=false; return; }
+    const pwValue=pwRef.current?.value ?? pw;
+    if(pwValue.length<8){ setErr("Use at least 8 characters."); busyRef.current=false; return; }
     setBusy(true); setErr("");
     trackFunnelOnce("signup_started", { source: "direct" });
     try {
-      const r=await fetch("/api/auth/signup",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",body:JSON.stringify({email:value,password:pw})});
+      const r=await fetch("/api/auth/signup",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",body:JSON.stringify({email:value,password:pwValue})});
       const j=await r.json().catch(()=>({}));
-      if(!r.ok){ setErr(j.error||"Could not create your account right now — try again in a minute."); setBusy(false); return; }
+      if(!r.ok){
+        if(r.status===409){
+          // Returning-dad fix (P0 batch 2026-08-17): the server behavior is
+          // UNCHANGED (never adopts an existing confirmed account) — but the
+          // client now meets the dad where he is: auto-switch to sign-in with
+          // his email pre-filled and a calm note, instead of a wall.
+          setEmail(value);
+          setMode("signin");
+          setErr("Good news — you already have an account. Sign in below.");
+          setBusy(false); busyRef.current=false;
+          return;
+        }
+        setErr(j.error||"Could not create your account right now — try again in a minute."); setBusy(false); busyRef.current=false; return;
+      }
       // Funnel (same events as the confirm path, never double-counted):
       // email_submitted persists as email_captured with the A/B variant.
       // account_created (Google conversion tag) is marked with meta.source so
@@ -186,24 +227,34 @@ function Login(){
       // live the moment this returns, so the 24h trial starts now and the dad
       // lands in the app with it already active. No marker = instant no-op.
       try { await maybeStartTrial(); } catch { /* never blocks the redirect */ }
+      invalidateAuthCache(); // P2: the SPA session's cached /me must see the new session
+      busyRef.current=false;
       await goToNext();
     } catch {
       setErr("Could not reach the server right now — please try again.");
-      setBusy(false);
+      setBusy(false); busyRef.current=false;
     }
   }
   async function submitSignin(e:React.FormEvent){
     e.preventDefault();
+    if(busyRef.current) return; // P1: re-entrancy guard (same-tick double-fire)
+    busyRef.current=true;
     setBusy(true); setErr("");
+    track("login_attempted"); // funnel visibility — status only, never credentials
     try {
-      const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",body:JSON.stringify({email,password:pw})});
+      const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",body:JSON.stringify({email:emailRef.current?.value ?? email,password:pwRef.current?.value ?? pw})});
       const j=await r.json().catch(()=>({}));
-      if(!r.ok){ setErr(j.error||"Email or password is incorrect."); setBusy(false); return; }
+      if(!r.ok){
+        track("login_error",{status:r.status}); // HTTP status only — no PII
+        setErr(j.error||"Email or password is incorrect."); setBusy(false); busyRef.current=false; return;
+      }
       track("login_success",{next:nextRef.current!=="/home"?nextRef.current:undefined});
+      invalidateAuthCache(); // P2: the SPA session's cached /me must see the new session
+      busyRef.current=false;
       await goToNext();
     } catch {
       setErr("Could not reach the server right now — please try again.");
-      setBusy(false);
+      setBusy(false); busyRef.current=false;
     }
   }
   // Password sign-in is the ONLY sign-in path — email-based magic links are
@@ -218,25 +269,12 @@ function Login(){
       ? { h: mode==="signin" ? "Sign in" : "Keep this on your record", s: mode==="signin" ? "Welcome back." : "Your account saves your reviews and builds your record — free." }
       : { h: mode==="signin" ? "Sign in" : "Create your free account", s: mode==="signin" ? "Welcome back." : "Free to start — 5 reviews a month." };
   return <main id="main" tabIndex={-1} className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-5 py-12"><a href="/" aria-label="Before You Send home" className="-m-1 flex min-h-11 w-fit shrink-0 items-center rounded-lg p-1"><img src="/logo-bys.svg" alt="" aria-hidden="true" className="h-7 w-7" /></a><div className="card mt-10 p-7">
-    {!authReady ? (
-      /* Quiet static shell (§13) — no "One moment…" loading-only surface.
-         Shapes mirror the form below so the swap to real fields is
-         imperceptible; nothing animates. */
-      <div aria-busy="true" aria-label="Loading" className="login-shell">
-        <div className="h-7 w-2/3 rounded-lg bg-cream-deep" />
-        <div className="mt-2 h-4 w-full rounded-lg bg-cream-deep/70" />
-        <div className="mt-7 h-12 w-full rounded-[10px] border border-line bg-cream-deep/50" />
-        <div className="mt-5 h-12 w-full rounded-[10px] border border-line bg-cream-deep/50" />
-        <div className="mt-5 h-12 w-full rounded-[10px] bg-cream-deep/80" />
-      </div>
-    ) : (
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{head.h}</h1>
-        <p className="mt-2 text-base leading-relaxed text-stone">{head.s}</p>
-        {mode==="signup" ? <div><form onSubmit={submitSignup} className="mt-6"><label className="field-label" htmlFor="signup-email">Email</label><input id="signup-email" type="email" inputMode="email" autoComplete="email" autoFocus required value={email} onChange={e=>{setEmail(e.target.value);setErr("")}} className="input" placeholder="you@example.com"/><label className="field-label mt-5" htmlFor="signup-password">Password</label><input id="signup-password" type="password" autoComplete="new-password" minLength={8} required value={pw} onChange={e=>{setPw(e.target.value);setErr("")}} className="input" placeholder="At least 8 characters"/><button disabled={busy} className="btn-primary mt-5 w-full">{busy?"Creating your account…":purchaseCtx?"Continue to checkout":"Get my free account"}</button>{err&&<p role="alert" className="mt-3 text-base text-red-800">{err}</p>}</form><p className="mt-4 text-center text-base text-stone">Your account, ready in 10 seconds.</p></div>
-        : <div><form onSubmit={submitSignin} className="mt-7"><label className="field-label" htmlFor="login-email">Email</label><input id="login-email" type="email" autoComplete="email" required value={email} onChange={e=>{setEmail(e.target.value);setErr("")}} className="input" placeholder="you@example.com"/><label className="field-label mt-5" htmlFor="login-password">Password</label><input id="login-password" type="password" autoComplete="current-password" required value={pw} onChange={e=>{setPw(e.target.value);setErr("")}} className="input" placeholder="Your password"/><button disabled={busy} className="btn-primary mt-6 w-full">{busy?"Signing in…":"Sign in"}</button><button type="button" onClick={()=>setForgotOpen(!forgotOpen)} className="mt-2 flex min-h-11 w-full items-center justify-center text-center text-sm font-semibold text-forest underline">Forgot password?</button>{forgotOpen&&<p className="mt-2 rounded-xl bg-cream-deep px-4 py-3 text-center text-sm leading-relaxed text-stone">Email-based reset isn't set up yet. If you're still signed in on a phone or browser, open <span className="font-semibold">Account → Change password</span> — you can set a new one there. <a href="mailto:Co-Parenting@BeforeYouSend.com?subject=Password%20reset" className="underline underline-offset-2">Or email support</a>.</p>}{err&&<p role="alert" className="mt-3 text-base text-red-800">{err}</p>}</form></div>}
-        <div className="mt-6 border-t border-line pt-5 text-center text-base text-stone">{mode==="signup"?<>Already have an account? <button type="button" onClick={()=>switchMode("signin")} className="inline-block py-[10px] font-semibold text-forest underline">Sign in</button></>:<>New here? <button type="button" onClick={()=>switchMode("signup")} className="inline-block py-[10px] font-semibold text-forest underline">Create your free account</button></>}</div>
-      </div>
-    )}
+    <div>
+      <h1 className="text-2xl font-bold tracking-tight text-ink">{head.h}</h1>
+      <p className="mt-2 text-base leading-relaxed text-stone">{head.s}</p>
+      {mode==="signup" ? <div><form onSubmit={submitSignup} className="mt-6"><label className="field-label" htmlFor="signup-email">Email</label><input id="signup-email" ref={emailRef} type="email" inputMode="email" autoComplete="email" autoFocus required defaultValue={email} onChange={e=>{setEmail(e.target.value);setErr("")}} className="input" placeholder="you@example.com"/><label className="field-label mt-5" htmlFor="signup-password">Password</label><input id="signup-password" ref={pwRef} type="password" autoComplete="new-password" minLength={8} required defaultValue={pw} onChange={e=>{setPw(e.target.value);setErr("")}} className="input" placeholder="At least 8 characters"/><button disabled={!hydrated||busy} className="btn-primary mt-5 w-full">{busy?"Creating your account…":purchaseCtx?"Continue to checkout":"Get my free account"}</button>{err&&<p role="alert" className="mt-3 text-base text-red-800">{err}</p>}</form><p className="mt-4 text-center text-base text-stone">Your account, ready in 10 seconds.</p></div>
+        : <div><form onSubmit={submitSignin} className="mt-7"><label className="field-label" htmlFor="login-email">Email</label><input id="login-email" ref={emailRef} type="email" autoComplete="email" required defaultValue={email} onChange={e=>{setEmail(e.target.value);setErr("")}} className="input" placeholder="you@example.com"/><label className="field-label mt-5" htmlFor="login-password">Password</label><input id="login-password" ref={pwRef} type="password" autoComplete="current-password" required defaultValue={pw} onChange={e=>{setPw(e.target.value);setErr("")}} className="input" placeholder="Your password"/><button disabled={!hydrated||busy} className="btn-primary mt-6 w-full">{busy?"Signing in…":"Sign in"}</button><button type="button" onClick={()=>setForgotOpen(!forgotOpen)} className="mt-2 flex min-h-11 w-full items-center justify-center text-center text-sm font-semibold text-forest underline">Forgot password?</button>{forgotOpen&&<p className="mt-2 rounded-xl bg-cream-deep px-4 py-3 text-center text-sm leading-relaxed text-stone">Email-based reset isn't set up yet. If you're still signed in on a phone or browser, open <span className="font-semibold">Account → Change password</span> — you can set a new one there. <a href="mailto:Co-Parenting@BeforeYouSend.com?subject=Password%20reset" className="underline underline-offset-2">Or email support</a>.</p>}{err&&<p role="alert" className="mt-3 text-base text-red-800">{err}</p>}</form></div>}
+      <div className="mt-6 border-t border-line pt-5 text-center text-base text-stone">{mode==="signup"?<>Already have an account? <button type="button" onClick={()=>switchMode("signin")} className="inline-block py-[10px] font-semibold text-forest underline">Sign in</button></>:<>New here? <button type="button" onClick={()=>switchMode("signup")} className="inline-block py-[10px] font-semibold text-forest underline">Create your free account</button></>}</div>
+    </div>
   </div><p className="mt-8 text-center text-sm leading-relaxed text-taupe">Your drafts stay private. Not legal advice.</p></main>;
 }

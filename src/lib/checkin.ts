@@ -158,12 +158,33 @@ export function markCheckinDismissed(): void {
 // signed-out: the /login gate must show the intake, never break the funnel.
 type MePayload = { user: { profile?: { tier?: string } } | null };
 let mePayloadPromise: Promise<MePayload> | null = null;
+// P0 (login dead-gate fix 2026-08-17): the /me fetch is bounded — a stalled
+// connection must resolve signed-out in 8s instead of leaving the /login form
+// (or any auth-gated consumer) waiting forever. AbortSignal.timeout rejects the
+// fetch; the .catch below already degrades it to { user: null }, so the form
+// renders and the funnel stays alive. Guarded for browsers without
+// AbortSignal.timeout (degrades to no timeout — same as before the fix).
+function meSignal(): AbortSignal | undefined {
+  try {
+    return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+      ? AbortSignal.timeout(8000)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 function mePayload(): Promise<MePayload> {
   if (typeof window === "undefined") return Promise.resolve({ user: null });
-  mePayloadPromise ||= fetch("/api/auth/me", { credentials: "include" })
+  mePayloadPromise ||= fetch("/api/auth/me", { credentials: "include", signal: meSignal() })
     .then((r) => (r.ok ? r.json() : { user: null }))
     .catch(() => ({ user: null }));
   return mePayloadPromise;
+}
+/** Drop the cached /me payload after login/signup so the SPA session's next
+ *  auth read is fresh (the promise is module-cached; without this, a user who
+ *  just created an account could still read "signed out" until reload). */
+export function invalidateAuthCache(): void {
+  mePayloadPromise = null;
 }
 export function isPaidUser(): Promise<boolean> {
   return mePayload().then((j) => {

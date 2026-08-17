@@ -38,6 +38,8 @@ export type AnalyticsEvent =
   | "email_confirmed"
   | "account_created"
   | "signup_details_removed"  // confirm error state — dad removed his captured details
+  | "login_attempted"     // sign-in attempt began (meta: {} — credentials NEVER persisted)
+  | "login_error"         // sign-in attempt failed — meta: { status } — HTTP status only, no PII
   | "login_success"
   | "pricing_viewed"
   | "consultation_viewed"
@@ -476,7 +478,7 @@ const AD_PARAMS = ["ttclid","gclid","gbraid","wbraid","gad_source","gad_campaign
 const AD_MEASUREMENT_EVENTS = new Set<AnalyticsEvent>([
   "landing_page_visit", "landing_module_click", "hero_view", "hero_cta_click",
   "review_started", "review_completed", "review_failed",
-  "email_submitted", "account_created", "login_success", "password_set",
+  "email_submitted", "account_created", "login_attempted", "login_error", "login_success", "password_set",
   "pricing_viewed", "consultation_viewed", "checkout_started",
   "subscription_purchased", "topup_purchased", "sortpile_purchase",
   "attorney_prep_pack_purchase", "record_review_purchase", "consultation_purchased",
