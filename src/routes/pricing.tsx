@@ -4,7 +4,8 @@ import { isCleanQueryParam, track, trackFunnelOnce } from "~/lib/analytics";
 import { recordSurface, markPurchasedThisSession, offerAccepted, purchasedThisSession, valueDelivered } from "~/lib/offer";
 import { IconCheck, IconChevronDown } from "~/components/icons";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
-import { consultationMoney } from "~/lib/prices";
+import CheckoutStep, { type CheckoutStepItem } from "~/components/CheckoutStep";
+import { consultationMoney, checkoutStepInfo } from "~/lib/prices";
 import { scrollBehavior } from "~/lib/motion";
 import { seoHead } from "~/lib/seo";
 import { setTrialOpenPending } from "~/lib/trial";
@@ -105,6 +106,8 @@ function Pricing() {
   const [isAnnual, setAnnual] = useState(false); // Monthly is the default (owner direction)
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
+  // Smooth-payment slice: one focused checkout step after a deliberate CTA pick.
+  const [stepItem, setStepItem] = useState<CheckoutStepItem | null>(null);
   const [isUltimate, setIsUltimate] = useState(false);
   const [attorneyPrepOwned, setAttorneyPrepOwned] = useState(false);
   // Record Review entitlement shape from /api/auth/me: { entitled, kind:
@@ -328,6 +331,23 @@ function Pricing() {
     }
     setBusy("");
   }
+  // Smooth-payment slice: every deliberate paid CTA opens ONE focused checkout
+  // step (plan/product + exact price + wallet/card) instead of jumping straight
+  // to hosted Checkout. The card path inside the step calls checkout() above —
+  // the hosted flow is unchanged and remains the fallback everywhere.
+  type CheckoutPlan = PlanKey | "topup" | "consultation" | "gift" | "sortpile" | "attorney_prep_pack" | "record_review";
+  function openCheckoutStep(plan: CheckoutPlan, interval: Interval = "month") {
+    // One ask at a time: never stack a payment sheet over another sheet.
+    if (typeof document !== "undefined" && document.querySelector(".bys-sheet")) return;
+    setMsg("");
+    setStepItem({
+      plan,
+      interval,
+      ...checkoutStepInfo(plan, interval, { intro: plan === "ultimate" && interval === "month" && !checkinActive }),
+      offer: plan === "ultimate" && interval === "month" && !checkinActive,
+      checkin: checkinActive && interval === "month",
+    });
+  }
 
   const price = (p: PlanKey) => (isAnnual ? annual[p] : monthly[p]);
 
@@ -380,7 +400,7 @@ function Pricing() {
       if (recordReview?.entitled) {
         return <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>;
       }
-      return <button onClick={() => checkout("record_review")} className="btn-ghost mt-4 w-full">Buy Record Review</button>;
+      return <button onClick={() => openCheckoutStep("record_review")} className="btn-ghost mt-4 w-full">Buy Record Review</button>;
     }
     if (isUltimate && included) {
       return <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Already included in Ultimate ✓</span>;
@@ -388,11 +408,11 @@ function Pricing() {
     if (n === "Attorney Prep Pack" && attorneyPrepOwned) {
       return <span className="mt-4 inline-block w-fit rounded-[10px] border border-forest/25 bg-forest px-4 py-2 text-sm font-semibold text-cream">Attorney Prep Pack unlocked ✓</span>;
     }
-    if (n === "Sort My Pile") return <button onClick={() => checkout("sortpile")} className="btn-ghost mt-4 w-full">Buy Sort My Pile</button>;
-    if (n === "Review Top-Up") return <button onClick={() => checkout("topup")} className="btn-ghost mt-4 w-full">Buy Review Top-Up</button>;
-    if (n === "Gift a Month") return <button onClick={() => checkout("gift")} className="btn-ghost mt-4 w-full">Buy Gift a Month</button>;
-    if (n === "Attorney Prep Pack") return <button onClick={() => checkout("attorney_prep_pack")} className="btn-ghost mt-4 w-full">Buy Attorney Prep Pack</button>;
-    return <button onClick={() => checkout("consultation")} className="btn-ghost mt-4 w-full">Buy One Conversation</button>;
+    if (n === "Sort My Pile") return <button onClick={() => openCheckoutStep("sortpile")} className="btn-ghost mt-4 w-full">Buy Sort My Pile</button>;
+    if (n === "Review Top-Up") return <button onClick={() => openCheckoutStep("topup")} className="btn-ghost mt-4 w-full">Buy Review Top-Up</button>;
+    if (n === "Gift a Month") return <button onClick={() => openCheckoutStep("gift")} className="btn-ghost mt-4 w-full">Buy Gift a Month</button>;
+    if (n === "Attorney Prep Pack") return <button onClick={() => openCheckoutStep("attorney_prep_pack")} className="btn-ghost mt-4 w-full">Buy Attorney Prep Pack</button>;
+    return <button onClick={() => openCheckoutStep("consultation")} className="btn-ghost mt-4 w-full">Buy One Conversation</button>;
   }
 
   // GPT cleanup (2026-08-16): the 24-hour trial is an EXPLICIT inline action on
@@ -558,7 +578,7 @@ function Pricing() {
                   )}
                   <div className="mt-auto pt-5">
                     <button
-                      onClick={(e) => { e.stopPropagation(); checkout(key, isAnnual ? "year" : "month"); }}
+                      onClick={(e) => { e.stopPropagation(); openCheckoutStep(key, isAnnual ? "year" : "month"); }}
                       className={`w-full ${rec ? "btn-primary" : "btn-ghost"}`}
                     >
                       {busy === `${key}${isAnnual ? "year" : "month"}` ? "Opening checkout…" : `Start ${meta.name}`}
@@ -591,7 +611,7 @@ function Pricing() {
           <div className="card mt-6 border-forest/25 p-6 text-center">
             <p className="text-base font-semibold text-ink">Still deciding? Ultimate at the launch price — $19.99/mo × 3.</p>
             <p className="mt-1.5 text-base leading-relaxed text-stone">Everything included, then $24.99/mo. Cancel anytime.</p>
-            <button onClick={() => checkout("ultimate", "month")} className="btn-primary mt-4">
+            <button onClick={() => openCheckoutStep("ultimate", "month")} className="btn-primary mt-4">
               {busy === "ultimatemonth" ? "Opening checkout…" : "Get Ultimate — $19.99/mo × 3"}
             </button>
           </div>
@@ -780,13 +800,31 @@ function Pricing() {
       {!purchased && !deepTab && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-cream/95 px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur md:hidden">
           <button
-            onClick={() => (selected ? checkout(selected, isAnnual ? "year" : "month") : scrollToPlans())}
+            onClick={() => (selected ? openCheckoutStep(selected, isAnnual ? "year" : "month") : scrollToPlans())}
             className="btn-primary min-h-12 w-full text-base"
           >
             {selected && busy === `${selected}${isAnnual ? "year" : "month"}` ? "Opening checkout…" : stickyLabel}
           </button>
         </div>
       )}
+      {/* Smooth-payment slice: one focused checkout step after a deliberate CTA.
+          Card path = the existing hosted Checkout (checkout() above) — unchanged
+          fallback. Custom wallet path = /api/checkout/custom (test-mode only). */}
+      <CheckoutStep
+        open={!!stepItem}
+        item={stepItem}
+        onClose={() => setStepItem(null)}
+        onCard={(plan, interval) => {
+          setStepItem(null);
+          checkout(plan as Parameters<typeof checkout>[0], interval);
+        }}
+        onAuthRequired={(m) => {
+          setStepItem(null);
+          setNeedLogin(true);
+          setNeedLoginHref(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+          setMsg(m || "Sign in to start checkout — your purchase is linked to your account.");
+        }}
+      />
     </div>
   );
 }

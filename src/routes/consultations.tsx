@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { isCleanQueryParam, track } from "~/lib/analytics";
 import { recordSurface, markPurchasedThisSession } from "~/lib/offer";
 import { SiteFooter, SiteHeader } from "~/components/SiteChrome";
+import CheckoutStep from "~/components/CheckoutStep";
 import { consultationCents, consultationMemberMoney, consultationMoney } from "~/lib/prices";
 import { seoHead } from "~/lib/seo";
 
@@ -129,6 +130,14 @@ function Consultations() {
       else { setMessage("Checkout is not available right now. Please try again soon."); setBusy(false); }
     } catch { setMessage("Checkout is not available right now. Please try again soon."); setBusy(false); }
   }
+  // Smooth-payment slice: one focused checkout step after the deliberate CTA.
+  // Card path = the hosted Checkout above (unchanged fallback); wallet path =
+  // /api/checkout/custom (test-mode only).
+  const [stepOpen, setStepOpen] = useState(false);
+  function openCheckoutStep() {
+    if (typeof document !== "undefined" && document.querySelector(".bys-sheet")) return;
+    setStepOpen(true);
+  }
 
   return <div className="min-h-dvh">
     <SiteHeader active="consultations" />
@@ -158,7 +167,7 @@ function Consultations() {
           <span className="font-display text-4xl font-semibold text-ink">${money(consultationCents)}</span>
           <span className="text-base text-stone">one time · no subscription required</span>
         </div>
-        <button onClick={checkout} disabled={busy} className="btn-primary mt-7 w-full text-lg sm:w-auto">{busy ? "Opening checkout…" : `Book your consultation — ${consultationMoney}`}</button>
+        <button onClick={openCheckoutStep} disabled={busy} className="btn-primary mt-7 w-full text-lg sm:w-auto">{busy ? "Opening checkout…" : `Book your consultation — ${consultationMoney}`}</button>
         <p className="mt-3 text-sm text-stone">Ultimate Co-Parent members get 20% off additional consultations ({consultationMemberMoney}) and priority scheduling.</p>
         <p className="mt-3 text-sm text-stone">Not therapy, and not legal advice — practical perspective, organized around your situation.</p>
         {message && <p role="status" className="mt-4 rounded-xl bg-cream-deep px-5 py-4 text-base text-stone">{message}</p>}
@@ -202,5 +211,29 @@ function Consultations() {
       <p className="mt-10 text-base leading-relaxed text-stone">This is not legal advice or legal representation, and no outcome is guaranteed. For legal questions, consult a licensed attorney.</p>
     </main>
     <SiteFooter />
+    {/* Smooth-payment slice: one focused checkout step. Card path = the hosted
+        Checkout above (unchanged fallback); wallet path = /api/checkout/custom
+        (test-mode only). */}
+    <CheckoutStep
+      open={stepOpen}
+      item={{
+        plan: "consultation",
+        interval: "month",
+        name: "One Conversation",
+        priceLabel: `${consultationMoney} · one-time`,
+        terms: "45 minutes, one time — no subscription required.",
+      }}
+      onClose={() => setStepOpen(false)}
+      onCard={() => {
+        setStepOpen(false);
+        checkout();
+      }}
+      onAuthRequired={(m) => {
+        setStepOpen(false);
+        setNeedLogin(true);
+        setNeedLoginHref(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+        setMessage(m || "Sign in to book — your consultation is linked to your account.");
+      }}
+    />
   </div>;
 }

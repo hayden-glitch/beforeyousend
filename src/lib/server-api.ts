@@ -4097,6 +4097,130 @@ async function handleCheckout(req) {
   }));
   return json3({ url: session.url, plan, interval, offer: isIntro, checkin: isCheckin });
 }
+// ---- Smooth custom checkout (PREVIEW-ONLY slice, TEST-MODE ONLY) ----
+// ui_mode:"custom" Checkout Session -> returns ONLY client_secret (+ the exact
+// return_url the client must pass to confirmPayment). Two independent guards:
+// (1) BYS_PAYMENTS_QA_GUARD blocks session creation in public previews
+// entirely (qaPaymentsBlocked above); (2) test-mode-only detection refuses to
+// run against the live restricted key. The existing /api/checkout (hosted
+// Checkout) is untouched and remains the fallback path everywhere.
+function customCheckoutKeyMode(sk) {
+  if (!sk)
+    return "none";
+  return /^(sk|rk)_test_/.test(sk) ? "test" : "live";
+}
+// Mirrors the hosted success_url semantics so a custom return lands on the
+// SAME checkout=success&session_id= URL the existing confirm/scrub effects
+// already handle (pricing + consultations). {CHECKOUT_SESSION_ID} is replaced
+// by Stripe when it redirects.
+function customReturnUrl(origin, plan, interval, successPath) {
+  const withInterval = plan === "consultation" || SUBSCRIPTION_PLANS.includes(plan);
+  return `${origin}${successPath}?checkout=success&plan=${plan}${withInterval ? `&interval=${interval}` : ""}&session_id={CHECKOUT_SESSION_ID}`;
+}
+// One-time products (topup / sortpile / attorney / record review) in custom
+// mode — same minimal metadata + user stamp as oneTimeCheckoutParams.
+function customOneTimeParams(o) {
+  return stampCheckoutParams(o.userId, {
+    mode: "payment",
+    line_items: [{ price: o.priceId, quantity: 1 }],
+    managed_payments: { enabled: false },
+    ui_mode: "custom",
+    return_url: o.returnUrl,
+    metadata: { plan: o.plan, ...(o.credits ? { credits: o.credits } : {}) }
+  });
+}
+// Subscriptions + consultation in custom mode — same minimal metadata and
+// promo markers (offer/checkin) as buildSubscriptionParams.
+function customSubscriptionParams(o) {
+  const meta = { plan: o.plan, user_id: o.userId };
+  if (!o.consultation)
+    meta.interval = o.interval;
+  if (o.offer)
+    meta.offer = "true";
+  if (o.checkin)
+    meta.checkin = "true";
+  const params = {
+    mode: o.consultation ? "payment" : "subscription",
+    line_items: [{ price: o.priceId, quantity: 1 }],
+    managed_payments: { enabled: false },
+    ui_mode: "custom",
+    return_url: o.returnUrl,
+    client_reference_id: o.userId,
+    metadata: meta
+  };
+  if (o.coupon)
+    params.discounts = [{ coupon: o.coupon }];
+  return params;
+}
+async function handleCustomCheckout(req) {
+  // Guard 1 — preview safety: with BYS_PAYMENTS_QA_GUARD on, NEVER create any
+  // Stripe session from a public preview (same contract as /api/checkout).
+  const qb = qaPaymentsBlocked();
+  if (qb)
+    return qb;
+  if (!process.env.STRIPE_SECRET_KEY)
+    return json3({ error: "Payments are not enabled yet — checkout will be active soon." }, 503);
+  const sk = process.env.STRIPE_SECRET_KEY;
+  // Guard 2 — test-mode-only: the wallet slice must never run against the
+  // live restricted key. Only a test-mode key (sk_test_ / rk_test_) may build
+  // custom sessions; otherwise the client falls back to hosted Checkout.
+  if (customCheckoutKeyMode(sk) !== "test")
+    return json3({ error: "Custom checkout is not available in this environment yet.", custom_unavailable: true }, 503);
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return json3({ error: "Invalid request." }, 400);
+  }
+  let plan = String(body?.plan || "");
+  if (plan === "subscription")
+    plan = "command";
+  const interval = body?.interval === "year" ? "year" : "month";
+  // Same pre-pay account invariant as /api/checkout: every entitlement-bearing
+  // session is stamped with the resolved user (client_reference_id +
+  // metadata.user_id) so the browser confirm and the verified webhook can only
+  // grant to the account that owns the checkout.
+  const sessionUser = getSession(req);
+  if (!sessionUser)
+    return json3({ error: LOGIN_REQUIRED_MSG, login_required: true }, 401);
+  const stripe = new Stripe(sk, { apiVersion: "2025-02-24.acacia" });
+  const origin = new URL(req.url).origin;
+  if (plan === "topup" || plan === "sortpile" || plan === "attorney_prep_pack" || plan === "record_review") {
+    const priceId = await resolveStripePrice(stripe, plan, "month");
+    const session = await stripe.checkout.sessions.create(customOneTimeParams({
+      plan,
+      priceId,
+      userId: sessionUser.userId,
+      returnUrl: customReturnUrl(origin, plan, "month", "/pricing"),
+      ...(plan === "topup" ? { credits: "10" } : {})
+    }));
+    if (!session.client_secret)
+      return json3({ error: "Checkout is not available right now." }, 500);
+    return json3({ client_secret: session.client_secret, return_url: session.return_url || customReturnUrl(origin, plan, "month", "/pricing"), plan, interval: "month" });
+  }
+  if (plan !== "consultation" && !SUBSCRIPTION_PLANS.includes(plan))
+    return json3({ error: "Choose a valid plan." }, 400);
+  const isCheckin = body?.checkin === true;
+  const isIntro = plan === "ultimate" && interval === "month" && body?.offer === true && !isCheckin;
+  const priceId = isIntro ? await resolveStripePrice(stripe, "ultimate", "month", { cents: Number(process.env.PRICE_ULTIMATE_INTRO_USD_CENTS || 1999), productName: "Before You Send Ultimate Co-Parent", cacheKey: "ultimate:intro" }) : await resolveStripePrice(stripe, plan, interval);
+  const successPath = plan === "consultation" ? "/consultations" : "/pricing";
+  const coupon = isCheckin ? await resolveCheckinCoupon(stripe, plan === "consultation") : undefined;
+  const retUrl = customReturnUrl(origin, plan, interval, successPath);
+  const session = await stripe.checkout.sessions.create(customSubscriptionParams({
+    plan,
+    interval,
+    userId: sessionUser.userId,
+    priceId,
+    returnUrl: retUrl,
+    offer: isIntro,
+    checkin: isCheckin,
+    consultation: plan === "consultation",
+    coupon
+  }));
+  if (!session.client_secret)
+    return json3({ error: "Checkout is not available right now." }, 500);
+  return json3({ client_secret: session.client_secret, return_url: session.return_url || retUrl, plan, interval, offer: isIntro, checkin: isCheckin });
+}
 function tierFromCheckoutSession(session) {
   const mp = session.metadata?.plan;
   if (mp === "steady" || mp === "command" || mp === "ultimate")
@@ -5270,6 +5394,9 @@ export async function handleApiRequest(req: Request): Promise<Response | null> {
     return handleAccountDelete(req);
   if (pathname === "/api/checkout" && method === "POST")
     return handleCheckout(req);
+  // Smooth custom checkout slice (test-mode-only; guarded + fallback to hosted).
+  if (pathname === "/api/checkout/custom" && method === "POST")
+    return handleCustomCheckout(req);
   if (pathname === "/api/checkout/confirm" && method === "POST")
     return handleCheckoutConfirm(req);
   if (pathname === "/api/stripe/webhook" && method === "POST")
@@ -5375,6 +5502,11 @@ export const __trackB = {
   oneTimeCheckoutParams,
   stampCheckoutParams,
   qaPaymentsBlocked,
+  handleCustomCheckout,
+  customCheckoutKeyMode,
+  customOneTimeParams,
+  customSubscriptionParams,
+  customReturnUrl,
   periodEndFromInvoice,
   setStaleReclaimHooks(h: StaleReclaimHook | null) { trackBStaleReclaimHook = h; },
   LOGIN_REQUIRED_MSG
