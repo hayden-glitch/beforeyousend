@@ -1522,10 +1522,14 @@ export async function getTrial(userId:string):Promise<any|null>{
   const rows=await json(files.trials);
   return rows.find((x:any)=>x.userId===userId)||null;
 }
-export async function startTrial(userId:string,source:string):Promise<{row:any,created:boolean}>{
+export async function startTrial(userId:string,source:string,expiresAt?:string):Promise<{row:any,created:boolean}>{
   await ready();const sql=db();
   if(sql){
-    const r=await sql`INSERT INTO bys_trials(user_id,expires_at,source) VALUES(${userId}, now() + interval '24 hours', ${source}) ON CONFLICT (user_id) DO NOTHING RETURNING user_id AS "userId",started_at AS "startedAt",expires_at AS "expiresAt",source`;
+    // Optional caller-supplied expiry (card-up-front trial, 2026-08-17: the
+    // row mirrors the 7-day trial end); default remains now()+24h (legacy
+    // cardless trial). The user_id PK keeps this ONE trial per person, ever —
+    // a second card trial for the same account is a no-op (race-safe).
+    const r=await sql`INSERT INTO bys_trials(user_id,expires_at,source) VALUES(${userId}, COALESCE(${expiresAt || null}::timestamptz, now() + interval '24 hours'), ${source}) ON CONFLICT (user_id) DO NOTHING RETURNING user_id AS "userId",started_at AS "startedAt",expires_at AS "expiresAt",source`;
     if((r as any[]).length>0)return {row:(r as any[])[0],created:true};
     const existing=await sql`SELECT user_id AS "userId",started_at AS "startedAt",expires_at AS "expiresAt",source FROM bys_trials WHERE user_id=${userId}`;
     return {row:(existing as any[])[0]||null,created:false};
@@ -1533,7 +1537,7 @@ export async function startTrial(userId:string,source:string):Promise<{row:any,c
   const rows=await json(files.trials);
   const existing=rows.find((x:any)=>x.userId===userId);
   if(existing)return {row:existing,created:false};
-  const t={userId,startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+86400000).toISOString(),source};
+  const t={userId,startedAt:new Date().toISOString(),expiresAt:new Date(expiresAt?new Date(expiresAt).getTime():Date.now()+86400000).toISOString(),source};
   rows.push(t);await put(files.trials,rows);return {row:t,created:true};
 }
 // ---- Record Review (one-time $29.50 + Ultimate 1/year allowance) -----------

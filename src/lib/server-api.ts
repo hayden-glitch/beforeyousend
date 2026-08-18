@@ -4078,6 +4078,13 @@ function customSubscriptionParams(o) {
   if (!o.consultation) meta.interval = o.interval;
   if (o.offer) meta.offer = "true";
   if (o.checkin) meta.checkin = "true";
+  // Card-up-front 7-day trial (owner 2026-08-17): same markers as the hosted
+  // builder so webhook/confirm resolution is identical for both surfaces.
+  const isTrial = o.trial === true && !o.consultation;
+  if (isTrial) {
+    meta.trial = "true";
+    if (o.trialEnd) meta.trial_end = o.trialEnd;
+  }
   const params = {
     mode: o.consultation ? "payment" : "subscription",
     line_items: [{ price: o.priceId, quantity: 1 }],
@@ -4087,6 +4094,13 @@ function customSubscriptionParams(o) {
     client_reference_id: o.userId,
     metadata: meta
   };
+  if (isTrial) {
+    params.payment_method_collection = "always";
+    params.subscription_data = {
+      trial_period_days: 7,
+      metadata: { trial: "true", trial_days: 7 }
+    };
+  }
   if (o.coupon) params.discounts = [{ coupon: o.coupon }];
   return params;
 }
@@ -4133,6 +4147,16 @@ function buildSubscriptionParams(o) {
   if (!o.consultation) meta.interval = o.interval;
   if (o.offer) meta.offer = "true";
   if (o.checkin) meta.checkin = "true";
+  // Card-up-front 7-day trial (owner 2026-08-17): collect a card at checkout
+  // (payment_method_collection:"always" so the first interval being a trial
+  // still requires a payment method), attach the 7-day trial period, and bake
+  // a deterministic trial_end into metadata (webhook/confirm resolution reads
+  // it so tierRenewsAt is EXACT — trial start + 7 days, not now+interval).
+  const isTrial = o.trial === true && !o.consultation;
+  if (isTrial) {
+    meta.trial = "true";
+    if (o.trialEnd) meta.trial_end = o.trialEnd;
+  }
   const params = {
     mode: o.consultation ? "payment" : "subscription",
     line_items: [{ price: o.priceId, quantity: 1 }],
@@ -4142,6 +4166,13 @@ function buildSubscriptionParams(o) {
     success_url: `${o.origin}${o.successPath}?checkout=success&plan=${o.plan}&interval=${o.interval}&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${o.origin}${o.cancelPath}?checkout=cancelled`
   };
+  if (isTrial) {
+    params.payment_method_collection = "always";
+    params.subscription_data = {
+      trial_period_days: 7,
+      metadata: { trial: "true", trial_days: 7 }
+    };
+  }
   if (o.coupon) params.discounts = [{ coupon: o.coupon }];
   return params;
 }
@@ -4212,6 +4243,34 @@ async function handleCheckout(req) {
       return json3({ error: "Choose a valid plan." }, 400);
     const isCheckin = body?.checkin === true;
     const isIntro = plan === "ultimate" && interval === "month" && body?.offer === true && !isCheckin;
+    // Card-up-front 7-day trial (owner 2026-08-17): subscription plans only,
+    // never combined with the Special Offer intro schedule ($19.99x3 stays a
+    // separate, opt-in path). trial_end is baked at creation so the webhook /
+    // confirm grant uses a deterministic value (trial start + 7 days).
+    const isTrial = body?.trial === true && plan !== "consultation" && !isIntro && !isCheckin;
+    if (isTrial) {
+      // One trial per person, ever (same bys_trials PK the legacy cardless
+      // trial uses — 2026-08-17). A paid tier blocks outright; a SPENT trial
+      // row blocks; an ACTIVE cardless trial row may still ADOPT the card
+      // trial (approved edge case: no double count, the tier grant wins and
+      // clears trialUntil). Read failures degrade to allow — the grant path
+      // is still entitlement-safe, this is a prevention gate only.
+      try {
+        const trialUsers = await readUsers();
+        const tu = trialUsers?.find((x2) => x2.id === sessionUser.userId);
+        if (tu) {
+          const paidTier2 = tu.profile?.tier === "steady" || tu.profile?.tier === "command" || tu.profile?.tier === "ultimate";
+          if (paidTier2)
+            return json3({ error: "You already have full access — no trial needed." }, 409);
+          const prior = await getTrial(tu.id);
+          if (prior && !(prior.expiresAt && new Date(prior.expiresAt).getTime() > Date.now()))
+            return json3({ error: "You've already used your free trial." }, 409);
+        }
+      } catch (_err) {
+        console.warn("[checkout] trial eligibility read failed:", _err);
+      }
+    }
+    const trialEnd = isTrial ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : undefined;
     const priceId = isIntro ? await resolveStripePrice(stripe, "ultimate", "month", { cents: Number(process.env.PRICE_ULTIMATE_INTRO_USD_CENTS || 1999), productName: "Before You Send Ultimate Co-Parent", cacheKey: "ultimate:intro" }) : await resolveStripePrice(stripe, plan, interval);
     const successPath = plan === "consultation" ? "/consultations" : "/pricing";
     const cancelPath = plan === "consultation" ? "/consultations" : "/pricing";
@@ -4231,9 +4290,11 @@ async function handleCheckout(req) {
       offer: isIntro,
       checkin: isCheckin,
       consultation: plan === "consultation",
+      trial: isTrial,
+      trialEnd,
       coupon
     }), idemKey ? { idempotencyKey: idemKey } : undefined);
-    return json3({ ...(await checkoutResponse(stripe, session, customSubscriptionParams({ plan, interval, userId: sessionUser.userId, priceId, returnUrl: customReturnUrl(origin, plan, interval, successPath), offer: isIntro, checkin: isCheckin, consultation: plan === "consultation", coupon }), idemKey)), plan, interval, offer: isIntro, checkin: isCheckin });
+    return json3({ ...(await checkoutResponse(stripe, session, customSubscriptionParams({ plan, interval, userId: session.userId, priceId, returnUrl: customReturnUrl(origin, plan, interval, successPath), offer: isIntro, checkin: isCheckin, consultation: plan === "consultation", trial: isTrial, trialEnd, coupon }), idemKey)), plan, interval, offer: isIntro, checkin: isCheckin, trial: isTrial, trialEnd });
   } catch (err) {
     return safeCheckoutError(err);
   }
@@ -4500,8 +4561,20 @@ async function fulfillCheckoutSession(opts) {
   const mapped = tierFromCheckoutSession(session);
   if (!mapped)
     return { error: "We couldn't match that session to a plan.", status: 400 };
+  // Card-up-front 7-day trial (owner 2026-08-17): a trial checkout completes
+  // with payment_status="no_payment_required" (nothing charged at trial start)
+  // but the checkout.session.completed webhook / browser confirm still fire —
+  // the grant is the TIER ACCESS for the trial window. tierRenewsAt must be the
+  // exact trial end (metadata.trial_end baked at session creation), NOT
+  // now + interval (that math would bill the trial as a full paid period). The
+  // first real charge arrives at trial end via invoice.paid and advances
+  // tierRenewsAt normally.
+  const isTrialGrant = session.metadata?.trial === "true";
   const renews = new Date(now);
-  if (mapped.interval === "year")
+  if (isTrialGrant) {
+    const te = session.metadata?.trial_end ? new Date(String(session.metadata.trial_end)).getTime() : 0;
+    renews.setTime(Number.isFinite(te) && te > 0 ? te : now + 7 * 24 * 60 * 60 * 1000);
+  } else if (mapped.interval === "year")
     renews.setFullYear(renews.getFullYear() + 1);
   else
     renews.setMonth(renews.getMonth() + 1);
@@ -4514,9 +4587,26 @@ async function fulfillCheckoutSession(opts) {
     stripeCustomerId: typeof session.customer === "string" ? session.customer : (session.customer?.id || ""),
     stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : (session.subscription?.id || "")
   });
+  // Edge case (scoping): a user who ALSO holds a cardless trialUntil adopts the
+  // card trial — profile.tier wins in userTier, and the stale cardless window
+  // is cleared so the two trials can never stack or double-count.
+  if (isTrialGrant && u.profile?.trialUntil) {
+    try { await updateUserProfile(u.id, { trialUntil: null }); } catch (_err) { console.warn("[checkout] trialUntil clear failed:", _err); }
+  }
+  // Durable one-trial-per-person marker (same PK as the legacy cardless
+  // trial): a NEW user's card trial writes a bys_trials row (source
+  // card_trial, expires at the exact trial end) so a later attempt to start
+  // another trial of ANY kind is honestly blocked. A user who ALREADY holds a
+  // cardless row keeps it (the ON CONFLICT no-op); their adoption of the card
+  // trial was already validated above.
+  if (isTrialGrant) {
+    try { await startTrial(u.id, "card_trial", renews.toISOString()); } catch (_err) { console.warn("[checkout] card trial marker write failed:", _err); }
+  }
   // Server-side funnel record (owner dashboard "paid" step). Exactly-once via
   // the claim + a 5-minute vid-level dedupe. Attribution rides when available.
-  {
+  // TRIAL GRANTS DO NOT FIRE "paid" — nothing was charged; the paid event is
+  // reserved for real money landing (trial-end invoice.paid / direct purchase).
+  if (!isTrialGrant) {
     const paidVid2 = paidVid || vid;
     const recent = await paidEventRecent(paidVid2).catch(() => false);
     if (!recent) {
@@ -4529,9 +4619,9 @@ async function fulfillCheckoutSession(opts) {
       }).catch((err) => console.warn("[checkout] paid event failed:", err));
     }
   }
-  logPurchaseCompleted("subscription", mapped.tier, mapped.interval);
+  logPurchaseCompleted(isTrialGrant ? "trial" : "subscription", mapped.tier, mapped.interval);
   let introOffer = false;
-  if (session.metadata?.offer === "true") {
+  if (!isTrialGrant && session.metadata?.offer === "true") {
     try {
       const sched = await createIntroSchedule(stripe, session);
       introOffer = !!sched;
@@ -4541,7 +4631,7 @@ async function fulfillCheckoutSession(opts) {
       console.error("[checkout] intro schedule creation failed:", err);
     }
   }
-  return await finalize({ kind: "subscription", tier: mapped.tier, interval: mapped.interval }, { ok: true, tier: mapped.tier, interval: mapped.interval, paymentStatus: session.payment_status, introOffer });
+  return await finalize({ kind: isTrialGrant ? "trial" : "subscription", tier: mapped.tier, interval: mapped.interval }, { ok: true, tier: mapped.tier, interval: mapped.interval, paymentStatus: session.payment_status, introOffer, trial: isTrialGrant });
 }
 async function handleCheckoutConfirm(req) {
   if (!process.env.STRIPE_SECRET_KEY)
@@ -4562,7 +4652,12 @@ async function handleCheckoutConfirm(req) {
   } catch {
     return json3({ error: "We couldn't find that checkout session." }, 404);
   }
-  if (session.payment_status !== "paid")
+  // Card-up-front 7-day trial (owner 2026-08-17): a trial checkout completes
+  // with payment_status "no_payment_required" — nothing was charged, but the
+  // tier grant is still owed for the 7-day window. Allow those through; the
+  // fulfill branch below grants without charging. Anything else unpaid = 402.
+  const isTrialCheckout = session.mode === "subscription" && session.metadata?.trial === "true";
+  if (session.payment_status !== "paid" && !isTrialCheckout)
     return json3({ error: "This purchase hasn't completed yet — nothing has been charged." }, 402);
   const users = await readUsers();
   // Resolve the account: cookie session first; then fall back to the user id we
@@ -4655,8 +4750,11 @@ async function handleStripeWebhook(req) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
-      // Card-only checkout completes paid; anything else is not grantable yet.
-      if (session.payment_status !== "paid") {
+      // Card-up-front 7-day trial (owner 2026-08-17): a trial checkout completes
+      // with payment_status "no_payment_required" — it IS grantable (the tier
+      // for the trial window, nothing charged). Everything else must be paid.
+      const trialCheckout = session.mode === "subscription" && session.metadata?.trial === "true";
+      if (session.payment_status !== "paid" && !trialCheckout) {
         console.log("[webhook] checkout session not paid yet — no-op");
         return json3({ ok: true });
       }

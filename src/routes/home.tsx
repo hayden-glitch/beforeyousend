@@ -5,7 +5,6 @@ import { track } from "~/lib/analytics";
 import { readCaptureVariant } from "~/lib/captureVariant";
 import { useReviewTyping } from "~/lib/useReviewTyping";
 import { markValueDelivered, recordSurface } from "~/lib/offer";
-import { maybeStartTrial } from "~/lib/trial";
 import { paymentSurfaceAvailable, runCheckout, type CheckoutOpening } from "~/lib/checkout";
 import PaymentSurface from "~/components/PaymentSurface";
 import ReviewResults, { type ResultBlock } from "~/components/ReviewResults";
@@ -491,10 +490,10 @@ function Dashboard(){
  // teaser renders — lets the owner measure teaser→pricing lift.
  const teaserFired=useRef(false);
  useEffect(()=>{if(tier==="free"&&momentum&&momentum.weekCount>0&&!teaserFired.current){teaserFired.current=true;track("digest_locked_shown",{plan:tier})}},[tier,momentum]);
- // 24-hour free trial: dashboard fallback auto-start. If a trial-intent marker
- // survived to here (capture completed through a path that never hit /confirm's
- // done state), start the trial now — idempotent + quiet, one per person ever.
- useEffect(()=>{ void maybeStartTrial(); },[]);
+ // 24-hour cardless trial AUTO-START REMOVED (owner 2026-08-17): new signups
+ // enter the free tier without an automatic trial; the 7-day card-up-front
+ // trial is offered on the pricing plan cards instead. The legacy TrialModal
+ // (explicit signed-in opt-in) remains the cardless fallback.
  // "The Organizer" promo (100% since 2026-08-12 D3 — every free dad gets the
  // live trial panel from the Document Organizer card; paid/suite tiers see the
  // real Organizer). organizer_promo_shown fires when the eligible card is on

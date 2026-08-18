@@ -285,24 +285,27 @@ function Pricing() {
   // resolution, intent persistence, login routing, and the in-flight ref
   // lock. This page only maps its CTAs onto it (busy label + surface error).
   // No per-component 401/busy/continuation behavior remains here.
-  async function checkout(plan: PlanKey | "topup" | "consultation" | "gift" | "sortpile" | "attorney_prep_pack" | "record_review", interval: Interval = "month", source: CheckoutSource = "pricing") {
+  async function checkout(plan: PlanKey | "topup" | "consultation" | "gift" | "sortpile" | "attorney_prep_pack" | "record_review", interval: Interval = "month", source: CheckoutSource = "pricing", trial = false) {
     // Round-6 funnel: plan/interval identifiers only — no sensitive data.
     // checkout_started is fired ONCE per real attempt by the coordinator
     // (10 rapid taps = 1 attempt; no event spam, honest counts).
     trackFunnelOnce("funnel_started", { entry: "pricing" });
-    track("funnel_option_selected", { plan, interval });
+    track("funnel_option_selected", { plan, interval, ...(trial ? { trial: true } : {}) });
     // Monthly Ultimate always carries the launch intro rate (3 months at
     // $19.99) — the same honest deal the Special Offer modal offers, stated
     // on the card. With the Check-In offer active, the coupon replaces the
-    // intro schedule.
-    const offer = plan === "ultimate" && interval === "month" && !checkinActive;
-    const checkin = checkinActive && interval === "month";
+    // intro schedule. The 7-day card trial (trial=true) stays SEPARATE — it
+    // never combines with the intro schedule or the Check-In coupon (owner
+    // direction 2026-08-17: the Special Offer is opt-in, not auto-combined).
+    const offer = plan === "ultimate" && interval === "month" && !checkinActive && !trial;
+    const checkin = checkinActive && interval === "month" && !trial;
     const outcome = await runCheckout({
       plan: plan as CheckoutPlan,
       interval,
       source: checkin ? "checkin" : source,
       offer,
       checkin,
+      trial,
       setBusy: (b) => setBusy(b ? `${plan}${interval}` : ""),
       onError: setMsg,
     });
@@ -361,7 +364,13 @@ function Pricing() {
   }
 
   const planName = (k: PlanKey) => PLAN_META[k].name;
-  const stickyLabel = selected ? `Get ${planName(selected)} · ${money(price(selected))}/${isAnnual ? "yr" : "mo"}` : "Choose a plan";
+  // Sticky mobile bar: for a first-time free-tier user the plan CTA is the
+  // 7-day card trial (owner 2026-08-17) — same honest price, trial first.
+  const stickyLabel = selected
+    ? (myTier === "free"
+        ? `Start free trial (card required) · ${money(price(selected))}/${isAnnual ? "yr" : "mo"}`
+        : `Get ${planName(selected)} · ${money(price(selected))}/${isAnnual ? "yr" : "mo"}`)
+    : "Choose a plan";
 
   // One-time action renderer — shared by the mobile disclosure rows and the
   // desktop card grid so the entitlement/guard logic (Record Review allowance,
@@ -552,11 +561,20 @@ function Pricing() {
                   )}
                   <div className="mt-auto pt-5">
                     <button
-                      onClick={(e) => { e.stopPropagation(); checkout(key, isAnnual ? "year" : "month"); }}
+                      onClick={(e) => { e.stopPropagation(); checkout(key, isAnnual ? "year" : "month", "pricing", myTier === "free"); }}
                       className={`w-full ${rec ? "btn-primary" : "btn-ghost"}`}
                     >
-                      {busy === `${key}${isAnnual ? "year" : "month"}` ? "Opening checkout…" : `Start ${meta.name}`}
+                      {busy === `${key}${isAnnual ? "year" : "month"}` ? "Opening checkout…" : (myTier === "free" ? "Start free trial (card required)" : `Start ${meta.name}`)}
                     </button>
+                    {/* Card-up-front 7-day trial disclosure (owner sign-off,
+                        2026-08-17, exact copy; $X filled per plan/interval).
+                        The card step additionally shows Stripe's own $0-then-$X
+                        breakdown, so the amount is never a surprise. */}
+                    {myTier === "free" && (
+                      <p className="mt-2.5 text-xs leading-relaxed text-taupe">
+                        Free trial — a card is required to start so there's nothing to do later. You won't be charged today. When your 7-day trial ends you'll be charged {money(price(key))} (then {money(price(key))}/{isAnnual ? "yr" : "mo"} after). Cancel anytime before it ends and you'll never be charged.
+                      </p>
+                    )}
                   </div>
                 </article>
               );
@@ -774,7 +792,7 @@ function Pricing() {
       {!purchased && !deepTab && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-cream px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:hidden">
           <button
-            onClick={() => (selected ? checkout(selected, isAnnual ? "year" : "month", "sticky") : scrollToPlans())}
+            onClick={() => (selected ? checkout(selected, isAnnual ? "year" : "month", "sticky", myTier === "free") : scrollToPlans())}
             className="btn-primary min-h-12 w-full text-base"
           >
             {selected && busy === `${selected}${isAnnual ? "year" : "month"}` ? "Opening checkout…" : stickyLabel}

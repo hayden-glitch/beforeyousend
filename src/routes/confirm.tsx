@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { track, trackFunnelOnce, trackSignupConversion } from "~/lib/analytics";
 import { EMAIL_RE } from "~/lib/api";
-import { maybeStartTrial } from "~/lib/trial";
 import { loadLoginIntake, clearLoginIntake } from "~/lib/checkin";
 export const Route = createFileRoute("/confirm")({
   head: () => ({
@@ -99,14 +98,10 @@ function Confirm(){
     })();
     return ()=>{ alive=false; };
   },[]);
-  // 24-hour free trial (owner 2026-08-13): a visitor who tapped "Yes, try it
-  // free" while anonymous carries a trial-intent marker through the email
-  // capture. The moment the account is confirmed the session is live, so this
-  // auto-starts the trial — the dad lands in the app with it already active.
-  // Idempotent + quiet: no marker = no-op; 409 (already used/active) clears it.
-  useEffect(()=>{
-    if(state==="done"){ void maybeStartTrial(); }
-  },[state]);
+  // 24-hour cardless trial auto-grant REMOVED for new signups (owner 2026-08-17):
+  // new accounts enter the free tier (no card, no auto trial); the 7-day
+  // card-up-front trial is offered at the pricing plan cards instead. The
+  // legacy TrialModal remains as an explicit signed-in fallback.
   async function resend(e:React.FormEvent){
     e.preventDefault();
     const value=email.trim();
