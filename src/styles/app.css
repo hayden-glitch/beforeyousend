@@ -1,0 +1,1204 @@
+@import "tailwindcss";
+/* ============================================================
+   FULL-SITE VISUAL REBUILD (owner directive 5304729186 §1)
+   ONE calm dark system — every public route and signed-in surface
+   inherits it. Tailwind v4 utility names stay IDENTICAL
+   (bg-cream, text-ink, border-line, bg-forest, text-cream, …) but
+   each token resolves through runtime --bys-* variables; the whole
+   palette below is the single dark layer. The __root head script
+   may still set data-theme="forest|midnight|sand" (legacy theme
+   switcher) — those attribute blocks no longer exist, so every
+   value resolves to this one system. No light themes remain.
+
+   Palette per §1: near-black warm charcoal page, deep forest /
+   black-green working surfaces, warm bone primary type, muted
+   gray-green secondary type, soft forest-mint accent (readable as
+   text on dark AND as a button surface with dark ink), subtle
+   bronze for rare accents, red reserved for the Panic strike,
+   destructive states and true errors. Depth comes from tonal
+   layers, quiet low-contrast borders, broad soft shadows and one
+   very-low-opacity ambient gradient — not brightness or glows.
+   ============================================================ */
+
+/* Typography (final-prod-candidate D2, spec §6): SANS-FIRST product system.
+   Fraunces is gone — no @font-face, no preload, no font download. The
+   --font-display token now resolves to the same system stack as --font-sans
+   (kept as a token so every existing `font-display` utility class across the
+   app simply becomes sans — brand, hero, pricing, login, legal headings,
+   final CTA). Serif is reserved for the one rare editorial accent on the
+   landing final CTA (.editorial — Georgia italic). */
+
+@theme {
+  --color-cream: var(--bys-bg);
+  --color-cream-deep: var(--bys-bg-soft);
+  --color-card: var(--bys-card);
+  --color-elevated: var(--bys-elevated);
+  --color-ink: var(--bys-ink);
+  --color-stone: var(--bys-muted);
+  --color-taupe: var(--bys-muted-2);
+  --color-forest: var(--bys-accent);
+  --color-forest-deep: var(--bys-accent-deep);
+  --color-forest-soft: var(--bys-accent-soft);
+  --color-bronze: var(--bys-bronze);
+  --color-line: var(--bys-line);
+  --color-red-50: var(--bys-danger-50);
+  --color-red-300: var(--bys-danger-300);
+  --color-red-800: var(--bys-danger);
+  --color-red-900: var(--bys-danger);
+  --color-amber-50: var(--bys-amber-50);
+  --color-amber-500: var(--bys-amber-500);
+  --color-amber-900: var(--bys-amber-900);
+  --shadow-card: var(--bys-shadow-card);
+  --shadow-pop: var(--bys-shadow-pop);
+  --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ---- THE DARK SYSTEM (the only system) ----
+   Four surface levels: page → recessed → primary working → elevated.
+   Radii: 8–14px working surfaces, 8–12px buttons (see components). */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bys-bg: #0d110f; /* page — near-black warm charcoal */
+  --bys-bg-soft: #131815; /* recessed */
+  --bys-card: #181f1b; /* primary working — deep forest / black-green */
+  --bys-elevated: #212b25; /* elevated modal / drawer */
+
+  /* Type — warm bone primary, muted gray-green secondary */
+  --bys-ink: #ebe6da;
+  --bys-muted: #9aa79d;
+  --bys-muted-2: #7d8a80;
+
+  /* Accent — soft forest mint (text on dark ≥4.5:1; surface with ink text) */
+  --bys-accent: #8fc7b2;
+  --bys-accent-deep: #a9d8c4;
+  --bys-accent-soft: #6fa58d;
+
+  /* Bronze — rare accent only (hairlines, subtle focus trim) */
+  --bys-bronze: #c9a87c;
+
+  /* Danger — red reserved for the Panic strike, destructive, errors */
+  --bys-danger: #d9605a;
+  --bys-danger-50: #2a1514;
+  --bys-danger-300: #e88d85;
+
+  --bys-amber-50: #241a08;
+  --bys-amber-500: #d9a04b;
+  --bys-amber-900: #f2d9a0;
+
+  /* Quiet low-contrast borders; broad soft shadows */
+  --bys-line: #222a25;
+  --bys-shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 4px 20px rgba(0, 0, 0, 0.35);
+  --bys-shadow-pop: 0 18px 48px rgba(0, 0, 0, 0.55);
+
+  /* One ambient gradient at very low opacity — no competing glows */
+  --bys-ambient: radial-gradient(52% 42% at 80% -4%, rgba(143, 199, 178, 0.07), transparent 70%),
+    radial-gradient(48% 38% at 6% 106%, rgba(201, 168, 124, 0.05), transparent 70%);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-cream font-sans text-ink antialiased;
+    font-size: 16px;
+    line-height: 1.6;
+    background-image: var(--bys-ambient);
+    background-repeat: no-repeat;
+  }
+  /* Never allow horizontal overflow from long words or wide children. */
+  img,
+  svg,
+  video,
+  pre,
+  code {
+    max-width: 100%;
+  }
+  ::selection {
+    background: var(--bys-accent);
+    color: var(--bys-bg);
+  }
+  :focus-visible {
+    outline: 2px solid var(--bys-accent-soft);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  button,
+  a,
+  input,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 16px; /* ≥16px so iOS never auto-zooms on focus */
+  }
+  /* Cursor blink during streaming — pure CSS, no animation library. */
+  @keyframes bys-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+  .stream-caret::after {
+    content: "▍";
+    margin-left: 2px;
+    color: var(--bys-accent-soft);
+    animation: bys-blink 1s step-end infinite;
+  }
+  /* Co-Parent Check-In: 120ms slide/fade between question steps. */
+  @keyframes bys-checkin-fade {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .bys-checkin-step {
+    animation: bys-checkin-fade 120ms ease-out;
+  }
+  /* Record Health (organizer-expansion spec §1, Slice 1) — one calm ~600ms
+     reveal when the snapshot opens: 30-day dots pop left→right (24ms stagger,
+     150ms each, capped at 600ms), the % number rises 8px + fades, and the
+     finding cards fade-slide up staggered. Transform/opacity only; the ring
+     fill is STATIC (renders at its final value immediately — no stroke-
+     dashoffset animation, which would be fake motion on a real number). The
+     global prefers-reduced-motion rule zeroes everything. */
+  @keyframes bys-health-dot-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.2);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  .bys-health-dot {
+    animation: bys-health-dot-pop 150ms ease-out both;
+  }
+  @keyframes bys-health-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .bys-health-pct {
+    animation: bys-health-rise 300ms ease-out both;
+  }
+  @keyframes bys-health-card-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .bys-health-card {
+    animation: bys-health-card-in 300ms ease-out both;
+  }
+  /* Wizard A — sequenced results reveal (Design A, "Paste → Payoff"):
+     on stream completion the payoff lands in one calm moment instead of a
+     dump. The score card settles in first (mount-time fade/rise), the three
+     rewrite cards settle in a ~120ms stagger, then the analysis sections
+     unfold with the first one auto-open. Transform/opacity only — the settle
+     is deliberately transform-only so streamed content is never flashed or
+     re-mounted; the global prefers-reduced-motion rule zeroes everything. */
+  @keyframes bys-wizard-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes bys-wizard-settle {
+    from {
+      transform: translateY(8px);
+    }
+    to {
+      transform: none;
+    }
+  }
+  .bys-wizard-in {
+    animation: bys-wizard-in 260ms ease-out;
+  }
+  .bys-wizard-settle {
+    animation: bys-wizard-settle 200ms ease-out;
+  }
+  /* Two-mode AI Co-Parent (2026-08-11): 200ms opacity/transform settle when the
+     mode-dependent label/placeholder/submit/footer/status copy swaps between
+     "Review a message" and "Analyze a situation". Transform-only (translateY +
+     opacity — never layout); keyed remounts play it once per mode change; the
+     global prefers-reduced-motion rule zeroes it instantly. */
+  @keyframes bys-mode-settle-kf {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .bys-mode-settle {
+    animation: bys-mode-settle-kf 200ms ease-out;
+  }
+  /* D2 review results — calm streaming indication (5304729186 §4): one small
+     dot breathing at ~1.6s, opacity only, next to the working line. No bright
+     spinner; the global prefers-reduced-motion rule zeroes it instantly. */
+  @keyframes bys-stream-pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  .bys-stream-pulse {
+    animation: bys-stream-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@layer components {
+  /* Buttons: 8–12px radii (§1). Accent surfaces pair with ink text —
+     "text-cream" resolves to the dark page color on mint, keeping
+     every existing bg-forest text-cream pair readable in dark. */
+  .btn-primary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[10px] bg-forest px-7 py-3.5 text-base font-semibold text-cream transition-colors duration-150 select-none;
+  }
+  .btn-primary:hover {
+    @apply bg-forest-soft;
+  }
+  .btn-primary:active {
+    transform: scale(0.98);
+  }
+  .btn-primary:disabled {
+    @apply cursor-not-allowed opacity-60;
+    transform: none;
+  }
+
+  .btn-ghost {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[10px] border border-line bg-card px-5 py-3 text-base font-medium text-forest transition-colors duration-150 select-none;
+  }
+  .btn-ghost:hover {
+    @apply border-forest/30 bg-cream-deep;
+  }
+  .btn-ghost:active {
+    transform: scale(0.98);
+  }
+
+  .btn-copy {
+    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[10px] border border-line bg-cream px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
+  }
+  .btn-copy:active {
+    transform: scale(0.97);
+  }
+  .btn-copy--done {
+    @apply border-forest bg-forest text-cream;
+  }
+
+  .chip {
+    @apply inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-line bg-card px-4 py-2.5 text-base font-medium text-forest transition-colors duration-150 select-none;
+  }
+  .chip:active {
+    transform: scale(0.98);
+  }
+  .chip:hover {
+    @apply border-forest/30 bg-cream-deep;
+  }
+
+  .field-label {
+    @apply mb-2 block text-base font-semibold text-ink;
+  }
+
+  /* ---- App-shell component polish (app-redesign-spec §4, dark) ---- */
+  .input {
+    @apply min-h-12 w-full rounded-xl border border-line bg-cream px-4 py-3 text-base text-ink placeholder:text-taupe focus:border-forest-soft focus:outline-none;
+  }
+  /* /login quiet auth shell (§13) — static placeholder shapes that mirror the
+     signup card; no spinner, no "One moment…" loading-only surface. */
+  .login-shell {
+    min-height: 16rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .card {
+    @apply rounded-[14px] border border-line bg-card shadow-card;
+    /* D6 P1 fix: allow flex/grid card items to shrink below their content
+       min-content (the pricing plan cards + one-time packs). Safe for plain
+       block cards (min-width auto already computes to 0 there). */
+    min-width: 0;
+  }
+  /* ---- Pricing plan glow (owner UI cleanup 2026-08-16) ----
+     A soft living blue backdrop behind each paid plan card. One diffuse
+     radial blob (gradient falloff — NO filter:blur, no per-frame repaint)
+     drifting VERY slowly with compositor-friendly transform/opacity only.
+     The dark card stays the foreground; the glow reads as slow reflected
+     light around the card edges. Cool tones progress lighter across plans:
+     Steady → deep blue-teal, Command Center → clearer blue, Ultimate →
+     slightly brighter icy blue. Depth, not spectacle: no neon outline, no
+     pulsing, no flashing, no repeating loop. prefers-reduced-motion gets a
+     tasteful static field (the global reduced-motion rule would also zero
+     this, but an explicit static state is deterministic). */
+  .plan-card {
+    position: relative;
+  }
+  .plan-card::before {
+    content: "";
+    position: absolute;
+    top: -18%;
+    right: -8%;
+    bottom: -14%;
+    left: -8%;
+    z-index: -1;
+    border-radius: 2.4rem;
+    background: radial-gradient(
+      56% 58% at 50% 46%,
+      var(--plan-glow, rgba(74, 118, 168, 0.34)),
+      transparent 74%
+    );
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+    animation: plan-glow-drift 22s ease-in-out infinite alternate;
+    will-change: transform, opacity;
+    pointer-events: none;
+  }
+  .plan-card-steady::before {
+    --plan-glow: rgba(52, 98, 110, 0.38); /* muted deep blue-teal */
+  }
+  .plan-card-command::before {
+    --plan-glow: rgba(74, 126, 178, 0.44); /* clearer blue — the recommended anchor */
+  }
+  .plan-card-ultimate::before {
+    --plan-glow: rgba(122, 166, 206, 0.48); /* brighter, icy */
+  }
+  @keyframes plan-glow-drift {
+    from {
+      transform: translate3d(-2%, -1.5%, 0) scale(1);
+      opacity: 0.46;
+    }
+    to {
+      transform: translate3d(2%, 1.8%, 0) scale(1.08);
+      opacity: 0.62;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .plan-card::before {
+      animation: none;
+      opacity: 0.5;
+    }
+  }
+  .icon-btn {
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] text-forest transition-colors duration-150 hover:bg-cream-deep active:scale-[0.97];
+  }
+  .bys-sheet {
+    animation: bys-sheet-in 240ms cubic-bezier(0.32, 0.72, 0.35, 1.02);
+  }
+  @keyframes bys-sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* User menu (owner-batch DESIGN 2): calm fade-in, opacity only — no
+     slide/scale; the global prefers-reduced-motion rule zeroes it instantly. */
+  .bys-menu-fade {
+    animation: bys-menu-fade 120ms ease-out;
+  }
+  @keyframes bys-menu-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .bys-grabber {
+    width: 2.25rem;
+    height: 4px;
+    margin: 0 auto 0.5rem;
+    border-radius: 9999px;
+    background: var(--bys-line);
+  }
+  /* Capture-moment redesign (P3): a calm one-shot attention cue for the
+     capture ask (mobile sheet / desktop card) when no email lands within ~6s.
+     A slow settle, never urgency. Reduced-motion users get none — the global
+     media rule zeroes every animation. */
+  .bys-capture-nudge {
+    animation: bys-capture-nudge 1600ms ease-out;
+  }
+  @keyframes bys-capture-nudge {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--bys-accent) 32%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 16px color-mix(in srgb, var(--bys-accent) 0%, transparent);
+    }
+  }
+  /* Organizer FRONT A: 1.6s amber ring on the refiled row / target folder card
+     ("Filed under Finances › Receipts." lands with a soft glow, no yanking). */
+  .bys-needs-sorting-flash {
+    animation: bys-needs-sorting-flash 1600ms ease-out;
+  }
+  @keyframes bys-needs-sorting-flash {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--bys-amber-500) 55%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 16px color-mix(in srgb, var(--bys-amber-500) 0%, transparent);
+    }
+  }
+  /* 5-Paper Trial (2026-08-12): calm forest ring on the just-filed trial card
+     ("First one filed." lands with a soft glow, same pattern as above). */
+  .bys-trial-just-added {
+    animation: bys-trial-just-added 1600ms ease-out;
+  }
+  @keyframes bys-trial-just-added {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--bys-accent) 40%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 16px color-mix(in srgb, var(--bys-accent) 0%, transparent);
+    }
+  }
+}
+
+/* ---- Hero state — the required Panic animation (spec §4, final-prod D2) ----
+   Sequence (driven by data-phase on the container, JS timers):
+     panic (word readable 2800ms) → x1 (first X diagonal draws 600ms)
+     → x2 (pause 200ms, second diagonal draws 600ms) → crossed (hold 900ms)
+     → resolve (panic word fades out 1500ms, X fades) → calm word in (600ms
+     crossfade); calm words rotate every 4000ms with a 600ms crossfade;
+     Panic. re-enters every 5th rotation and is always resolved by the red X.
+   "Panic." is an inline SVG text with a subtle static displacement filter
+   (grease-pencil wobble — adult, not cartoonish; zero font download). Both
+   calm words + the panic SVG share one grid cell: the cell is always sized by
+   the panic SVG's 5.6em width (wider than any calm word) so there is NO
+   layout shift at any phase. The block is aria-hidden; the H1 carries the
+   stable semantic phrase. prefers-reduced-motion renders the resolved calm
+   state immediately (no timers, no X) — the global reduced-motion rule also
+   zeroes every transition. */
+/* ---- Landing hero — fixed-anchor rolling word + "before you send." ----
+   Two stacked lines (owner 2026-08-16, round 2):
+     line 1: one fixed-size rolling-word stage (width = longest word, height =
+             one headline line). Every word is absolutely positioned at the
+             SAME top-left anchor, left-aligned — no centering by word width,
+             no horizontal movement, no layout reflow at any swap (CLS 0).
+     line 2: "before you send." — always present, completely stationary.
+   "Panic," (white grease-pencil SVG, crayon displacement filter) holds
+   ~2.8s, then a red hand-drawn X crosses it out (stroke 1 600ms → pause
+   200ms → stroke 2 600ms → hold 900ms → resolve 1500ms) and the calm
+   rotation begins (Think → Breathe → Pause → Respond → Steady → Clear,
+   4s each, 600ms crossfade); Panic re-enters with its X ceremony every
+   cycle. The comma exists ONLY inside "Panic,". The X lives in the panic
+   word's own box so it stays co-located at every width. The block is
+   aria-hidden; the sr-only H1 carries the stable semantic phrase.
+   prefers-reduced-motion renders "Pause" + "before you send." immediately
+   (no timers, no X) — the global reduced-motion rule also zeroes every
+   transition. Shared headline typography sits on .hero-headline so the
+   rolling stage and the fixed line always render at the same size. */
+.hero-roll {
+  position: relative;
+  display: block;
+  /* Fixed stage: as wide as the longest word ("Breathe"/"Respond" at weight
+     800) and one headline line tall. Constant for every phase and word, so
+     the fixed line below and the composer never move. */
+  width: 8.5ch;
+  height: 1.1em;
+}
+.hero-roll > * {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.hero-roll-word {
+  display: block;
+  opacity: 0;
+  transition: opacity 600ms ease;
+  color: var(--bys-accent);
+  white-space: nowrap;
+}
+.hero-roll-word.on {
+  opacity: 1;
+}
+.hero-fixed {
+  margin-top: 0.02em;
+  color: var(--bys-ink);
+}
+.hero-panic-wrap {
+  width: 3.4em;
+  height: 1.1em;
+}
+.hero-panic-svg {
+  width: 3.4em;
+  height: 1.1em;
+  overflow: visible;
+  /* Perf (D10): the panic text carries a feTurbulence filter; without a
+     promoted layer every opacity fade re-rasterizes it on the main
+     thread. Promoting it caches the filtered layer so the §4 fades run
+     on the compositor. */
+  will-change: opacity;
+}
+.hero-panic-text {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  /* viewBox 340×110 at element 3.4em×1.1em = 0.01em/unit → font-size 100
+     units renders the text at exactly 1em (same size as the calm words). */
+  font-size: 100px;
+  fill: var(--bys-ink);
+}
+.hero-roll[data-phase="resolve"] .hero-panic-wrap {
+  opacity: 0;
+  transition: opacity 1500ms ease;
+}
+.hero-roll[data-phase="calm"] .hero-panic-wrap {
+  opacity: 0;
+}
+.hero-roll .hero-x-wrap {
+  position: absolute;
+  /* X overlay box: a PLAIN div (not the SVG — Chrome ignores CSS width on
+     this SVG, treating it as 100% of its containing block; verified
+     2026-08-16), 5.6em wide centered on the 3.4em panic word so the
+     diagonal strokes cross the full word incl. the comma at every width. */
+  left: -1.1em;
+  top: -0.11em;
+  width: 5.6em;
+  height: 1.32em;
+  pointer-events: none;
+}
+.hero-roll .hero-x {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.hero-roll .hero-x line {
+  stroke: var(--bys-danger);
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  fill: none;
+}
+.hero-roll .hero-x .s1,
+.hero-roll .hero-x .s2 {
+  stroke-dasharray: 480;
+  stroke-dashoffset: 480;
+  transition: stroke-dashoffset 600ms ease-in-out;
+}
+.hero-roll[data-phase="x1"] .hero-x .s1 {
+  stroke-dashoffset: 0;
+}
+.hero-roll[data-phase="x2"] .hero-x .s1,
+.hero-roll[data-phase="x2"] .hero-x .s2,
+.hero-roll[data-phase="crossed"] .hero-x .s1,
+.hero-roll[data-phase="crossed"] .hero-x .s2,
+.hero-roll[data-phase="resolve"] .hero-x .s1,
+.hero-roll[data-phase="resolve"] .hero-x .s2 {
+  stroke-dashoffset: 0;
+}
+.hero-roll[data-phase="resolve"] .hero-x,
+.hero-roll[data-phase="calm"] .hero-x {
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+/* ---- Landing — single product scene (final-prod-candidate D2, comp A
+   "The Workbench" structure on the dark BYS palette). 1180px composition,
+   narrow reading measures, composer as the central working plane. The
+   headline column sits ABOVE-LEFT of the composer on desktop (owner
+   2026-08-16); on mobile it stacks above, left-aligned. ---- */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  text-align: left;
+  padding: 40px 0 18px;
+}
+@media (min-width: 920px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.18fr);
+    column-gap: 52px;
+    align-items: center;
+  }
+}
+.hero-headline {
+  min-width: 0;
+  /* Shared headline typography (owner 2026-08-16 round 2): the rolling-word
+     stage and the stationary "before you send." line both inherit this, so
+     the two lines always render at the same size and the total hero height
+     is constant at every width and phase. */
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-size: clamp(2rem, 5.4vw, 3.6rem);
+  line-height: 1.1;
+  color: var(--bys-ink);
+}
+.hero-copy {
+  margin-top: 12px;
+  font-size: clamp(1rem, 2vw, 1.14rem);
+  color: var(--bys-muted);
+  max-width: 34ch;
+  line-height: 1.5;
+}
+.hero .workplane {
+  width: 100%;
+  max-width: 760px;
+  margin-top: 26px;
+}
+@media (min-width: 920px) {
+  .hero .workplane {
+    margin-top: 0;
+    justify-self: end;
+  }
+}
+.trust-line {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13.5px;
+  color: var(--bys-muted);
+  flex-wrap: wrap;
+}
+.trust-line .sep {
+  color: var(--bys-muted-2);
+}
+.trust-line a {
+  color: var(--bys-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--bys-line);
+}
+.trust-line a:hover {
+  color: var(--bys-ink);
+  text-decoration-color: var(--bys-accent-soft);
+}
+.hero-second {
+  grid-column: 1 / -1;
+  text-align: center;
+  margin-top: 26px;
+  padding-bottom: 6px;
+}
+.hero-second a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--bys-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.hero-second a:hover {
+  color: var(--bys-ink);
+}
+
+/* Product narrative — one connected chain (message → better response →
+   organized record → useful preparation), §8. Real product data shapes,
+   no decorative illustration, no matching cards. */
+.narrative {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 60px 0 20px;
+}
+.narrative h2 {
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  text-align: center;
+}
+.narrative .lede {
+  text-align: center;
+  color: var(--bys-muted);
+  margin-top: 8px;
+  font-size: 15.5px;
+  max-width: 52ch;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.5;
+}
+.chain {
+  display: grid;
+  grid-template-columns: 1fr 44px 1fr 44px 1fr;
+  align-items: stretch;
+  margin-top: 36px;
+}
+.chain-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bys-card);
+  border: 1px solid var(--bys-line);
+  border-radius: 10px;
+  padding: 18px;
+  box-shadow: var(--bys-shadow-card);
+  /* D6 P1 fix: the chain steps are grid items — allow them to shrink below
+     their content min-content so the single-column chain fits 320/375. */
+  min-width: 0;
+}
+.chain-step .k {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bys-accent);
+}
+.chain-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bys-muted-2);
+}
+.chain-arrow svg {
+  width: 26px;
+  height: 26px;
+}
+.msg-draft {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--bys-muted);
+}
+.msg-draft .strike {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--bys-danger) 70%, transparent);
+  text-decoration-thickness: 2px;
+}
+.msg-calm {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--bys-ink);
+  font-weight: 500;
+}
+.ledger-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  border-top: 1px solid var(--bys-line);
+  padding-top: 8px;
+}
+.ledger-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.ledger-row .d {
+  color: var(--bys-muted-2);
+  font-size: 12px;
+  width: 56px;
+  flex-shrink: 0;
+}
+.ledger-row .t {
+  color: var(--bys-ink);
+  flex: 1;
+  min-width: 0; /* D6 P1 fix: nowrap flex child must be allowed to shrink —
+                   its full-text min-content was forcing 373px chain steps
+                   (home) and 411px pricing cards (Command Center ledger). */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ledger-row .k2 {
+  color: var(--bys-muted);
+  font-size: 12px;
+}
+.summary-line {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--bys-muted);
+}
+.summary-line b {
+  color: var(--bys-ink);
+  font-weight: 600;
+}
+.summary-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--bys-line);
+  padding-top: 10px;
+  font-size: 12px;
+  color: var(--bys-muted-2);
+}
+.summary-meta .exp {
+  font-weight: 700;
+  color: var(--bys-accent);
+}
+
+/* Final CTA — one headline, one action; the ONE rare serif editorial accent
+   (§6 — Georgia italic, nothing else on the site uses serif). */
+.final-cta {
+  text-align: center;
+  padding: 64px 20px 76px;
+}
+.final-cta h2 {
+  font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.final-cta .sub {
+  margin-top: 10px;
+  color: var(--bys-muted);
+  font-size: 16px;
+}
+.final-cta .btn {
+  margin-top: 26px;
+}
+.final-cta .editorial {
+  margin-top: 26px;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--bys-muted);
+}
+
+@media (max-width: 900px) {
+  .chain {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .chain-arrow {
+    transform: rotate(90deg);
+    padding: 6px 0;
+  }
+}
+@media (max-width: 430px) {
+  .hero {
+    padding: 30px 0 16px;
+  }
+  .hero-headline {
+    font-size: 2rem;
+  }
+  .hero-copy {
+    font-size: 1.02rem;
+    margin-top: 10px;
+  }
+  .trust-line {
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  .hero-second {
+    margin-top: 22px;
+  }
+  .narrative {
+    padding-top: 46px;
+  }
+  .chain {
+    margin-top: 24px;
+  }
+}
+
+/* ---- Interactive design layer — Phase 1 (calm scroll reveals) ----
+   Foundation (Reveal.tsx): content is VISIBLE BY DEFAULT — the base state
+   renders everything fully; `.bys-reveal-in` (added once by an
+   IntersectionObserver at 25% visibility) only ADDS calm motion (rise /
+   settle / brighten), it never hides content. Reduced-motion + no-JS show
+   the settled state with zero motion (base == final keyframes). Unlayered
+   on purpose: these rules must beat Tailwind utilities for the brighten
+   overrides and the reveal transforms. All colors resolve through --bys-*
+   tokens so Forest / Midnight / Sand all render correctly. */
+
+/* 1. The Cooling Message — a hot draft lifts away, dots think, the calm
+      reply settles in. One ~3s sequence, played once, then it settles. */
+.bys-cool-stage {
+  position: relative;
+  margin-top: 1rem;
+}
+.bys-cool-calm {
+  position: relative;
+  z-index: 0;
+}
+.bys-cool-hot {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  opacity: 0;
+}
+.bys-cool-typing {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  transform: translateY(-50%);
+  opacity: 0;
+}
+.bys-reveal-in .bys-cool-hot {
+  animation: bys-cool-hot-seq 3000ms ease-in-out forwards;
+}
+.bys-reveal-in .bys-cool-typing {
+  animation: bys-cool-typing-seq 3000ms ease-in-out forwards;
+}
+.bys-reveal-in .bys-cool-calm {
+  animation: bys-cool-calm-seq 3000ms ease-in-out forwards;
+}
+@keyframes bys-cool-hot-seq {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  7% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  42% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  56% {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.98);
+  }
+}
+@keyframes bys-cool-typing-seq {
+  0%,
+  50% {
+    opacity: 0;
+  }
+  57% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes bys-cool-calm-seq {
+  0%,
+  66% {
+    transform: translateY(12px);
+  }
+  84% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.bys-cool-typing .bys-dot {
+  animation: bys-dot-blink 900ms ease-in-out infinite;
+}
+.bys-cool-typing .bys-dot:nth-child(2) {
+  animation-delay: 150ms;
+}
+.bys-cool-typing .bys-dot:nth-child(3) {
+  animation-delay: 300ms;
+}
+@keyframes bys-dot-blink {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+/* Organizer trial busy dots (calm — transform/opacity only; the global
+   prefers-reduced-motion rule zeroes them instantly). */
+.bys-filing-dots .bys-dot {
+  animation: bys-dot-blink 900ms ease-in-out infinite;
+}
+.bys-filing-dots .bys-dot:nth-child(2) {
+  animation-delay: 150ms;
+}
+.bys-filing-dots .bys-dot:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+/* 2. Three Tones — cards rise staggered; each sample line settles after. */
+.bys-tone-card {
+  transform: translateY(18px);
+  transition: transform 700ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+.bys-tone-line {
+  transform: translateY(6px);
+  transition: transform 520ms ease-out;
+}
+.bys-reveal-in .bys-tone-card,
+.bys-reveal-in .bys-tone-line {
+  transform: none;
+}
+.bys-tones-item:nth-child(1) .bys-tone-card {
+  transition-delay: 0ms;
+}
+.bys-tones-item:nth-child(1) .bys-tone-line {
+  transition-delay: 480ms;
+}
+.bys-tones-item:nth-child(2) .bys-tone-card {
+  transition-delay: 130ms;
+}
+.bys-tones-item:nth-child(2) .bys-tone-line {
+  transition-delay: 610ms;
+}
+.bys-tones-item:nth-child(3) .bys-tone-card {
+  transition-delay: 260ms;
+}
+.bys-tones-item:nth-child(3) .bys-tone-line {
+  transition-delay: 740ms;
+}
+
+/* 3. Control Room — five module tiles rise in sequence; live modules
+      brighten (glow) as they land, coming-soon modules stay dim with
+      their honest "Coming soon" chip. */
+.bys-cr-grid > .bys-cr-tile {
+  transform: translateY(14px);
+  transition:
+    transform 700ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    translate 300ms ease,
+    border-color 800ms ease,
+    background-color 800ms ease;
+}
+.bys-reveal-in .bys-cr-grid > .bys-cr-tile {
+  transform: none;
+}
+.bys-cr-grid > .bys-cr-tile:nth-child(1) {
+  transition-delay: 60ms;
+}
+.bys-cr-grid > .bys-cr-tile:nth-child(2) {
+  transition-delay: 180ms;
+}
+.bys-cr-grid > .bys-cr-tile:nth-child(3) {
+  transition-delay: 300ms;
+}
+.bys-cr-grid > .bys-cr-tile:nth-child(4) {
+  transition-delay: 420ms;
+}
+.bys-cr-grid > .bys-cr-tile:nth-child(5) {
+  transition-delay: 540ms;
+}
+/* Tiles are links now (landing → app modules): the hover lift responds
+   immediately instead of waiting out the reveal stagger. */
+.bys-cr-grid > .bys-cr-tile:hover {
+  transition-delay: 0ms;
+}
+.bys-cr-tile .bys-tile-ic,
+.bys-cr-tile .bys-tile-lb,
+.bys-cr-tile .bys-tile-chip {
+  transition-property: background-color, color;
+  transition-duration: 800ms;
+  transition-timing-function: ease;
+  transition-delay: inherit;
+}
+.bys-reveal-in .bys-cr-live {
+  border-color: color-mix(in srgb, var(--bys-accent) 45%, transparent);
+  background-color: color-mix(in srgb, var(--bys-accent) 9%, var(--bys-card));
+}
+.bys-reveal-in .bys-cr-live .bys-tile-ic {
+  background-color: color-mix(in srgb, var(--bys-accent) 14%, transparent);
+  color: var(--bys-accent);
+}
+.bys-reveal-in .bys-cr-live .bys-tile-lb {
+  color: var(--bys-ink);
+}
+.bys-reveal-in .bys-cr-live .bys-tile-chip {
+  background-color: var(--bys-accent);
+  color: var(--bys-bg);
+}
+
+/* ---- Accessibility ---- */
+/* Skip-to-content link: hidden until focused (standard a11y pattern). */
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  transform: translateY(-300%);
+  @apply inline-flex min-h-11 items-center rounded-[10px] bg-forest px-5 text-base font-semibold text-cream;
+  box-shadow: var(--bys-shadow-pop);
+}
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+/* The skip target itself shouldn't draw an outline ring around all of main. */
+main[id]:focus {
+  outline: none;
+}
+/* Trust pages: the `prose` utility is a no-op (typography plugin not
+   installed) — give the article's lists explicit, consistent styling. */
+.prose ul {
+  list-style: disc;
+  padding-left: 1.4rem;
+  margin: 0.25rem 0 0.75rem;
+}
+.prose li {
+  margin-top: 0.5rem;
+  padding-left: 0.25rem;
+  line-height: 1.6;
+}
+.prose li::marker {
+  color: var(--bys-accent-soft);
+}
+.prose h2 {
+  @apply font-display text-2xl font-semibold text-forest;
+  margin-top: 1.5rem;
+}
+/* prefers-reduced-motion: no motion for users who ask for none. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .stream-caret::after {
+    animation: none;
+  }
+  .btn-primary:active,
+  .btn-ghost:active,
+  .btn-copy:active,
+  .chip:active {
+    transform: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

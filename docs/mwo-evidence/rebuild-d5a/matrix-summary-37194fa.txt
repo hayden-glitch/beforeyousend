@@ -1,0 +1,63 @@
+FLAG home 320 [('FAQ', 31, 44)] 0 0
+FLAG home 375 [('FAQ', 31, 44)] 0 0
+FLAG home 390 [('FAQ', 31, 44)] 0 0
+FLAG home 393 [('FAQ', 31, 44)] 0 0
+FLAG home 430 [('FAQ', 31, 44)] 0 0
+FLAG home 768 [('FAQ', 31, 44)] 0 0
+FLAG home 1024 [('FAQ', 31, 44)] 0 0
+FLAG home 1440 [('FAQ', 31, 44)] 0 0
+FLAG login 320 [('Before You Send.', 280, 32)] 0 0
+FLAG login 375 [('Before You Send.', 335, 32)] 0 0
+FLAG login 390 [('Before You Send.', 350, 32)] 0 0
+FLAG login 393 [('Before You Send.', 353, 32)] 0 0
+FLAG login 430 [('Before You Send.', 390, 32)] 0 0
+FLAG login 768 [('Before You Send.', 472, 32)] 0 0
+FLAG login 1024 [('Before You Send.', 472, 32)] 0 0
+FLAG login 1440 [('Before You Send.', 472, 32)] 0 0
+FLAG pricing 320 [('FAQ', 31, 44)] 25 2
+FLAG pricing 375 [('FAQ', 31, 44)] 0 1
+FLAG pricing 390 [('FAQ', 31, 44)] 0 1
+FLAG pricing 393 [('FAQ', 31, 44)] 0 1
+FLAG pricing 430 [('FAQ', 31, 44)] 0 1
+FLAG pricing 768 [('FAQ', 31, 44)] 0 0
+FLAG pricing|annual 768 [('FAQ', 31, 44)] 0 0
+FLAG pricing 1024 [('FAQ', 31, 44)] 0 0
+FLAG pricing|annual 1024 [('FAQ', 31, 44)] 0 0
+FLAG pricing 1440 [('FAQ', 31, 44)] 0 0
+FLAG pricing|annual 1440 [('FAQ', 31, 44)] 0 0
+FLAG consultations 320 [('FAQ', 31, 44)] 0 0
+FLAG consultations 375 [('FAQ', 31, 44)] 0 0
+FLAG consultations 390 [('FAQ', 31, 44)] 0 0
+FLAG consultations 393 [('FAQ', 31, 44)] 0 0
+FLAG consultations 430 [('FAQ', 31, 44)] 0 0
+FLAG consultations 768 [('FAQ', 31, 44)] 0 0
+FLAG consultations 1024 [('FAQ', 31, 44)] 0 0
+FLAG consultations 1440 [('FAQ', 31, 44)] 0 0
+FLAG trust 320 [('FAQ', 31, 44)] 0 0
+FLAG trust 375 [('FAQ', 31, 44)] 0 0
+FLAG trust 390 [('FAQ', 31, 44)] 0 0
+FLAG trust 393 [('FAQ', 31, 44)] 0 0
+FLAG trust 430 [('FAQ', 31, 44)] 0 0
+FLAG trust 768 [('FAQ', 31, 44)] 0 0
+FLAG trust 1024 [('FAQ', 31, 44)] 0 0
+FLAG trust 1440 [('FAQ', 31, 44)] 0 0
+FLAG privacy 320 [('support', 61, 19), ('email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG privacy 375 [('support', 61, 19), ('email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG privacy 390 [('support', 61, 19), ('email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG privacy 393 [('support', 61, 19), ('email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG privacy 430 [('support', 61, 19), ('email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG privacy 768 [('support', 61, 19), ('email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG privacy 1024 [('support', 61, 19), ('email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG privacy 1440 [('support', 61, 19), ('email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG terms 320 [('Email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG terms 375 [('Email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG terms 390 [('Email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG terms 393 [('Email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG terms 430 [('FAQ', 31, 44)] 0 0
+FLAG terms 768 [('Email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG terms 1024 [('Email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG terms 1440 [('Email us', 68, 19), ('FAQ', 31, 44)] 0 0
+FLAG faq 320 [('FAQ', 31, 44)] 0 0
+FLAG faq 375 [('FAQ', 31, 44)] 0 0
+FLAG faq 390 [('FAQ', 31, 44)] 0 0
+total 62 flagged 62

@@ -1,0 +1,1722 @@
+[
+  {
+    "width": 320,
+    "rows": 28,
+    "stageUniq": [
+      "16,89,189,35"
+    ],
+    "fixedXYUniq": [
+      "16,125"
+    ],
+    "workXYWUniq": [
+      "16,305,288"
+    ],
+    "calmAnchorUniq": [
+      "16,89"
+    ],
+    "calmWordRectUniq": [
+      "16,89,96,35",
+      "16,89,139,35"
+    ],
+    "wordsSeen": [
+      "Think",
+      "Breathe"
+    ],
+    "overflowSamples": 0,
+    "commaOutsideValues": [
+      0
+    ],
+    "xCoversPanic": "YES",
+    "xCoverSamples": 8,
+    "xWrapSamples": [
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "x2",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      }
+    ],
+    "panicBBoxes": [
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      }
+    ],
+    "phaseSeq": [
+      "panic",
+      "x1",
+      "x2",
+      "crossed",
+      "resolve",
+      "calm"
+    ]
+  },
+  {
+    "width": 375,
+    "rows": 28,
+    "stageUniq": [
+      "16,89,189,35"
+    ],
+    "fixedXYUniq": [
+      "16,125"
+    ],
+    "workXYWUniq": [
+      "16,245,343"
+    ],
+    "calmAnchorUniq": [
+      "16,89"
+    ],
+    "calmWordRectUniq": [
+      "16,89,96,35",
+      "16,89,139,35"
+    ],
+    "wordsSeen": [
+      "Think",
+      "Breathe"
+    ],
+    "overflowSamples": 0,
+    "commaOutsideValues": [
+      0
+    ],
+    "xCoversPanic": "YES",
+    "xCoverSamples": 8,
+    "xWrapSamples": [
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "x2",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      }
+    ],
+    "panicBBoxes": [
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      }
+    ],
+    "phaseSeq": [
+      "panic",
+      "x1",
+      "x2",
+      "crossed",
+      "resolve",
+      "calm"
+    ]
+  },
+  {
+    "width": 390,
+    "rows": 28,
+    "stageUniq": [
+      "16,89,189,35"
+    ],
+    "fixedXYUniq": [
+      "16,125"
+    ],
+    "workXYWUniq": [
+      "16,245,358"
+    ],
+    "calmAnchorUniq": [
+      "16,89"
+    ],
+    "calmWordRectUniq": [
+      "16,89,96,35",
+      "16,89,139,35"
+    ],
+    "wordsSeen": [
+      "Think",
+      "Breathe"
+    ],
+    "overflowSamples": 0,
+    "commaOutsideValues": [
+      0
+    ],
+    "xCoversPanic": "YES",
+    "xCoverSamples": 8,
+    "xWrapSamples": [
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "x2",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      }
+    ],
+    "panicBBoxes": [
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      }
+    ],
+    "phaseSeq": [
+      "panic",
+      "x1",
+      "x2",
+      "crossed",
+      "resolve",
+      "calm"
+    ]
+  },
+  {
+    "width": 393,
+    "rows": 28,
+    "stageUniq": [
+      "16,89,189,35"
+    ],
+    "fixedXYUniq": [
+      "16,125"
+    ],
+    "workXYWUniq": [
+      "16,245,361"
+    ],
+    "calmAnchorUniq": [
+      "16,89"
+    ],
+    "calmWordRectUniq": [
+      "16,89,96,35",
+      "16,89,139,35"
+    ],
+    "wordsSeen": [
+      "Think",
+      "Breathe"
+    ],
+    "overflowSamples": 0,
+    "commaOutsideValues": [
+      0
+    ],
+    "xCoversPanic": "YES",
+    "xCoverSamples": 8,
+    "xWrapSamples": [
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "x2",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      }
+    ],
+    "panicBBoxes": [
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      }
+    ],
+    "phaseSeq": [
+      "panic",
+      "x1",
+      "x2",
+      "crossed",
+      "resolve",
+      "calm"
+    ]
+  },
+  {
+    "width": 430,
+    "rows": 28,
+    "stageUniq": [
+      "16,89,189,35"
+    ],
+    "fixedXYUniq": [
+      "16,125"
+    ],
+    "workXYWUniq": [
+      "16,245,398"
+    ],
+    "calmAnchorUniq": [
+      "16,89"
+    ],
+    "calmWordRectUniq": [
+      "16,89,96,35",
+      "16,89,139,35"
+    ],
+    "wordsSeen": [
+      "Think",
+      "Breathe"
+    ],
+    "overflowSamples": 0,
+    "commaOutsideValues": [
+      0
+    ],
+    "xCoversPanic": "YES",
+    "xCoverSamples": 8,
+    "xWrapSamples": [
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "x2",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -19,
+          "y": 85,
+          "w": 179,
+          "h": 42
+        },
+        "pt": {
+          "x": 16,
+          "y": 88,
+          "w": 105,
+          "h": 38
+        },
+        "covers": true
+      }
+    ],
+    "panicBBoxes": [
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 16,
+          "y": 89,
+          "w": 189,
+          "h": 35
+        }
+      }
+    ],
+    "phaseSeq": [
+      "panic",
+      "x1",
+      "x2",
+      "crossed",
+      "resolve",
+      "calm"
+    ]
+  },
+  {
+    "width": 768,
+    "rows": 28,
+    "stageUniq": [
+      "24,99,245,46"
+    ],
+    "fixedXYUniq": [
+      "24,145"
+    ],
+    "workXYWUniq": [
+      "24,277,720"
+    ],
+    "calmAnchorUniq": [
+      "24,99"
+    ],
+    "calmWordRectUniq": [
+      "24,99,125,46",
+      "24,99,180,46"
+    ],
+    "wordsSeen": [
+      "Think",
+      "Breathe"
+    ],
+    "overflowSamples": 0,
+    "commaOutsideValues": [
+      0
+    ],
+    "xCoversPanic": "YES",
+    "xCoverSamples": 8,
+    "xWrapSamples": [
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -22,
+          "y": 94,
+          "w": 232,
+          "h": 55
+        },
+        "pt": {
+          "x": 24,
+          "y": 98,
+          "w": 136,
+          "h": 48
+        },
+        "covers": true
+      },
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -22,
+          "y": 94,
+          "w": 232,
+          "h": 55
+        },
+        "pt": {
+          "x": 24,
+          "y": 98,
+          "w": 136,
+          "h": 48
+        },
+        "covers": true
+      },
+      {
+        "phase": "x2",
+        "xw": {
+          "x": -22,
+          "y": 94,
+          "w": 232,
+          "h": 55
+        },
+        "pt": {
+          "x": 24,
+          "y": 98,
+          "w": 136,
+          "h": 48
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -22,
+          "y": 94,
+          "w": 232,
+          "h": 55
+        },
+        "pt": {
+          "x": 24,
+          "y": 98,
+          "w": 136,
+          "h": 48
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -22,
+          "y": 94,
+          "w": 232,
+          "h": 55
+        },
+        "pt": {
+          "x": 24,
+          "y": 98,
+          "w": 136,
+          "h": 48
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -22,
+          "y": 94,
+          "w": 232,
+          "h": 55
+        },
+        "pt": {
+          "x": 24,
+          "y": 98,
+          "w": 136,
+          "h": 48
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -22,
+          "y": 94,
+          "w": 232,
+          "h": 55
+        },
+        "pt": {
+          "x": 24,
+          "y": 98,
+          "w": 136,
+          "h": 48
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -22,
+          "y": 94,
+          "w": 232,
+          "h": 55
+        },
+        "pt": {
+          "x": 24,
+          "y": 98,
+          "w": 136,
+          "h": 48
+        },
+        "covers": true
+      }
+    ],
+    "panicBBoxes": [
+      {
+        "phase": "panic",
+        "p": {
+          "x": 24,
+          "y": 99,
+          "w": 245,
+          "h": 46
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 24,
+          "y": 99,
+          "w": 245,
+          "h": 46
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 24,
+          "y": 99,
+          "w": 245,
+          "h": 46
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 24,
+          "y": 99,
+          "w": 245,
+          "h": 46
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 24,
+          "y": 99,
+          "w": 245,
+          "h": 46
+        }
+      }
+    ],
+    "phaseSeq": [
+      "panic",
+      "x1",
+      "x2",
+      "crossed",
+      "resolve",
+      "calm"
+    ]
+  },
+  {
+    "width": 1024,
+    "rows": 28,
+    "stageUniq": [
+      "24,187,327,61"
+    ],
+    "fixedXYUniq": [
+      "24,249"
+    ],
+    "workXYWUniq": [
+      "500,99,500"
+    ],
+    "calmAnchorUniq": [
+      "24,187"
+    ],
+    "calmWordRectUniq": [
+      "24,187,167,61",
+      "24,187,240,61"
+    ],
+    "wordsSeen": [
+      "Think",
+      "Breathe"
+    ],
+    "overflowSamples": 0,
+    "commaOutsideValues": [
+      0
+    ],
+    "xCoversPanic": "YES",
+    "xCoverSamples": 8,
+    "xWrapSamples": [
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -37,
+          "y": 181,
+          "w": 310,
+          "h": 73
+        },
+        "pt": {
+          "x": 24,
+          "y": 186,
+          "w": 182,
+          "h": 64
+        },
+        "covers": true
+      },
+      {
+        "phase": "x1",
+        "xw": {
+          "x": -37,
+          "y": 181,
+          "w": 310,
+          "h": 73
+        },
+        "pt": {
+          "x": 24,
+          "y": 186,
+          "w": 182,
+          "h": 64
+        },
+        "covers": true
+      },
+      {
+        "phase": "x2",
+        "xw": {
+          "x": -37,
+          "y": 181,
+          "w": 310,
+          "h": 73
+        },
+        "pt": {
+          "x": 24,
+          "y": 186,
+          "w": 182,
+          "h": 64
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -37,
+          "y": 181,
+          "w": 310,
+          "h": 73
+        },
+        "pt": {
+          "x": 24,
+          "y": 186,
+          "w": 182,
+          "h": 64
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": -37,
+          "y": 181,
+          "w": 310,
+          "h": 73
+        },
+        "pt": {
+          "x": 24,
+          "y": 186,
+          "w": 182,
+          "h": 64
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -37,
+          "y": 181,
+          "w": 310,
+          "h": 73
+        },
+        "pt": {
+          "x": 24,
+          "y": 186,
+          "w": 182,
+          "h": 64
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -37,
+          "y": 181,
+          "w": 310,
+          "h": 73
+        },
+        "pt": {
+          "x": 24,
+          "y": 186,
+          "w": 182,
+          "h": 64
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": -37,
+          "y": 181,
+          "w": 310,
+          "h": 73
+        },
+        "pt": {
+          "x": 24,
+          "y": 186,
+          "w": 182,
+          "h": 64
+        },
+        "covers": true
+      }
+    ],
+    "panicBBoxes": [
+      {
+        "phase": "panic",
+        "p": {
+          "x": 24,
+          "y": 187,
+          "w": 327,
+          "h": 61
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 24,
+          "y": 187,
+          "w": 327,
+          "h": 61
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 24,
+          "y": 187,
+          "w": 327,
+          "h": 61
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 24,
+          "y": 187,
+          "w": 327,
+          "h": 61
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 24,
+          "y": 187,
+          "w": 327,
+          "h": 61
+        }
+      }
+    ],
+    "phaseSeq": [
+      "panic",
+      "x1",
+      "x2",
+      "crossed",
+      "resolve",
+      "calm"
+    ]
+  },
+  {
+    "width": 1440,
+    "rows": 28,
+    "stageUniq": [
+      "154,184,341,63"
+    ],
+    "fixedXYUniq": [
+      "154,248"
+    ],
+    "workXYWUniq": [
+      "701,99,585"
+    ],
+    "calmAnchorUniq": [
+      "154,184"
+    ],
+    "calmWordRectUniq": [
+      "154,184,174,63",
+      "154,184,250,63"
+    ],
+    "wordsSeen": [
+      "Think",
+      "Breathe"
+    ],
+    "overflowSamples": 0,
+    "commaOutsideValues": [
+      0
+    ],
+    "xCoversPanic": "YES",
+    "xCoverSamples": 8,
+    "xWrapSamples": [
+      {
+        "phase": "x1",
+        "xw": {
+          "x": 91,
+          "y": 177,
+          "w": 323,
+          "h": 76
+        },
+        "pt": {
+          "x": 154,
+          "y": 182,
+          "w": 189,
+          "h": 67
+        },
+        "covers": true
+      },
+      {
+        "phase": "x1",
+        "xw": {
+          "x": 91,
+          "y": 177,
+          "w": 323,
+          "h": 76
+        },
+        "pt": {
+          "x": 154,
+          "y": 182,
+          "w": 189,
+          "h": 67
+        },
+        "covers": true
+      },
+      {
+        "phase": "x2",
+        "xw": {
+          "x": 91,
+          "y": 177,
+          "w": 323,
+          "h": 76
+        },
+        "pt": {
+          "x": 154,
+          "y": 182,
+          "w": 189,
+          "h": 67
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": 91,
+          "y": 177,
+          "w": 323,
+          "h": 76
+        },
+        "pt": {
+          "x": 154,
+          "y": 182,
+          "w": 189,
+          "h": 67
+        },
+        "covers": true
+      },
+      {
+        "phase": "crossed",
+        "xw": {
+          "x": 91,
+          "y": 177,
+          "w": 323,
+          "h": 76
+        },
+        "pt": {
+          "x": 154,
+          "y": 182,
+          "w": 189,
+          "h": 67
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": 91,
+          "y": 177,
+          "w": 323,
+          "h": 76
+        },
+        "pt": {
+          "x": 154,
+          "y": 182,
+          "w": 189,
+          "h": 67
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": 91,
+          "y": 177,
+          "w": 323,
+          "h": 76
+        },
+        "pt": {
+          "x": 154,
+          "y": 182,
+          "w": 189,
+          "h": 67
+        },
+        "covers": true
+      },
+      {
+        "phase": "resolve",
+        "xw": {
+          "x": 91,
+          "y": 177,
+          "w": 323,
+          "h": 76
+        },
+        "pt": {
+          "x": 154,
+          "y": 182,
+          "w": 189,
+          "h": 67
+        },
+        "covers": true
+      }
+    ],
+    "panicBBoxes": [
+      {
+        "phase": "panic",
+        "p": {
+          "x": 154,
+          "y": 184,
+          "w": 341,
+          "h": 63
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 154,
+          "y": 184,
+          "w": 341,
+          "h": 63
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 154,
+          "y": 184,
+          "w": 341,
+          "h": 63
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 154,
+          "y": 184,
+          "w": 341,
+          "h": 63
+        }
+      },
+      {
+        "phase": "panic",
+        "p": {
+          "x": 154,
+          "y": 184,
+          "w": 341,
+          "h": 63
+        }
+      }
+    ],
+    "phaseSeq": [
+      "panic",
+      "x1",
+      "x2",
+      "crossed",
+      "resolve",
+      "calm"
+    ]
+  }
+]
