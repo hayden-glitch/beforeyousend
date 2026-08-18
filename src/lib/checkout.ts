@@ -55,14 +55,18 @@ export type CheckoutSource =
   | "quota_wall";
 
 /** Finite, non-sensitive purchase intent. Fields ONLY: plan/interval/source/
- *  offer/checkin/intentId — never free text, never check-in answers, never
- *  document/draft data, never customer data, never Stripe identifiers. */
+ *  offer/checkin/trial/intentId — never free text, never check-in answers,
+ *  never document/draft data, never customer data, never Stripe identifiers. */
 export interface CheckoutIntent {
   plan: CheckoutPlan;
   interval: CheckoutInterval;
   source: CheckoutSource;
   offer: boolean;
   checkin: boolean;
+  /** Card-up-front 7-day trial (owner 2026-08-17): the checkout is a
+   *  subscription trial — card collected at checkout, first charge at trial
+   *  end. Never combined with the Special Offer intro (offer stays separate). */
+  trial: boolean;
   intentId: string;
 }
 
@@ -107,6 +111,7 @@ export interface CheckoutOptions {
   source: CheckoutSource;
   offer?: boolean;
   checkin?: boolean;
+  trial?: boolean;
   /** Where to return after the login round-trip. Default: current path+query. */
   continuation?: string;
   /** Synchronous busy toggler on the tapped CTA (caller sets busy BEFORE
@@ -146,6 +151,7 @@ export function sanitizeIntent(raw: unknown): CheckoutIntent | null {
     source: o.source,
     offer: o.offer === true,
     checkin: o.checkin === true,
+    trial: o.trial === true,
     intentId: o.intentId,
   };
 }
@@ -231,7 +237,8 @@ export async function runCheckout(opts: CheckoutOptions): Promise<CheckoutOutcom
   const source = opts.source;
   const offer = opts.offer === true;
   const checkin = opts.checkin === true;
-  const intent: CheckoutIntent = { plan, interval, source, offer, checkin, intentId: makeIntentId() };
+  const trial = opts.trial === true;
+  const intent: CheckoutIntent = { plan, interval, source, offer, checkin, trial, intentId: makeIntentId() };
   // Funnel: ONE checkout_started per real attempt (10 taps = 1 attempt, so no
   // event spam; shape matches the previous callers: plan/interval + source
   // only for check-in, offer marker only when the intro applies).
@@ -240,6 +247,7 @@ export async function runCheckout(opts: CheckoutOptions): Promise<CheckoutOutcom
     interval,
     ...(source === "checkin" ? { source: "checkin" } : {}),
     ...(offer ? { offer: true } : {}),
+    ...(trial ? { trial: true } : {}),
   });
   try {
     // Rule 3: resolve auth BEFORE any Stripe call.
@@ -257,7 +265,7 @@ export async function runCheckout(opts: CheckoutOptions): Promise<CheckoutOutcom
     const r = await fetch(plan === "gift" ? "/api/gifts" : "/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan, interval, intentId: intent.intentId, ...(offer ? { offer: true } : {}), ...(checkin ? { checkin: true } : {}) }),
+      body: JSON.stringify({ plan, interval, intentId: intent.intentId, ...(offer ? { offer: true } : {}), ...(checkin ? { checkin: true } : {}), ...(trial ? { trial: true } : {}) }),
     });
     const d = await r.json().catch(() => ({}));
     if (d.url || d.mode === "custom") {
@@ -376,6 +384,7 @@ export function useCheckoutIntentResumer(): void {
         source: intent.source,
         offer: intent.offer,
         checkin: intent.checkin,
+        trial: intent.trial,
         continuation: window.location.pathname + window.location.search,
         onError: dispatchCheckoutError,
       }).then((outcome) => {

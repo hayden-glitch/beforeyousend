@@ -4,7 +4,7 @@ import { hasSensitiveQuery, isCleanQueryParam, track, trackFunnelOnce, trackSign
 import { ensureCaptureVariant, type CaptureVariant } from "~/lib/captureVariant";
 import { EMAIL_RE } from "~/lib/api";
 import { authMeOnce, invalidateAuthCache, type AuthState } from "~/lib/checkin";
-import { markLoginIntakeActive, maybeStartTrial } from "~/lib/trial";
+import { markLoginIntakeActive } from "~/lib/trial";
 import { seoHead } from "~/lib/seo";
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -23,8 +23,8 @@ export const Route = createFileRoute("/login")({
 // created INSTANTLY (POST /api/auth/signup — no email-wait, no confirm hop).
 // Sensitive return-path security is preserved EXACTLY (§27 gates 4/5): the
 // nextRef capture, the URL scrub, the sensitivity-aware hard navigation, and
-// the signed-in bounce below are untouched. The trial starts quietly at
-// account creation via maybeStartTrial (same as before).
+// the signed-in bounce below are untouched. New accounts enter the FREE tier
+// (no auto trial since 2026-08-17); the 7-day card trial is on /pricing.
 function Login(){
   const nav=useNavigate();
   const router=useRouter();
@@ -162,8 +162,9 @@ function Login(){
     void goToNext();
   },[auth,goToNext]);
   // TrialModal suppression (owner 2026-08-13, preserved): /login is a
-  // continuation surface, never a second ask — the trial still starts quietly
-  // at account creation via maybeStartTrial. P0 fix 2026-08-17: the form now
+  // continuation surface, never a second ask — new-signup auto trials were
+  // removed 2026-08-17 (free tier on signup), so nothing starts quietly here.
+  // P0 fix 2026-08-17: the form now
   // renders for EVERY visitor immediately (no auth gate), so mark the flag at
   // mount unconditionally — a signed-in visitor bounces moments later anyway
   // and never needs the trial modal here. The flag lives for the whole tab.
@@ -222,11 +223,10 @@ function Login(){
       track("account_created",{source:"direct"});
       trackFunnelOnce("signup_completed", { source: "direct" });
       trackSignupConversion({email:j.user?.email||value,transactionId:j.user?.id});
-      // Trial auto-start (owner 2026-08-13): the trial-intent marker's grant
-      // moves from /confirm to right after the DIRECT signup — the session is
-      // live the moment this returns, so the 24h trial starts now and the dad
-      // lands in the app with it already active. No marker = instant no-op.
-      try { await maybeStartTrial(); } catch { /* never blocks the redirect */ }
+      // 24h cardless trial auto-start REMOVED (owner 2026-08-17): new signups
+      // land in the free tier — no card, no auto trial. The 7-day card-up-front
+      // trial is offered on the pricing plan cards; the legacy TrialModal stays
+      // as the explicit signed-in cardless fallback.
       invalidateAuthCache(); // P2: the SPA session's cached /me must see the new session
       busyRef.current=false;
       await goToNext();
