@@ -5012,15 +5012,30 @@ async function handleMetrics(req: Request) {
   const counts:any = Object.fromEntries((summary.funnel || []).map((x:any) => [x.name, Number(x.count)]));
   // Strict funnel steps — the acquisition path is signup-first (ads land on
   // /login and create an account there), so the funnel is page_view →
-  // review_completed → email captured → account created → checkout → paid.
-  // Fix 7 (audit 85fbc48d): the acquisition path is intake-first — ads land on
-  // /login, answer 3 Co-Parent Check-In questions, then sign up — so the intake
-  // stages are visible in the funnel; review_started marks the use-first entry.
-  const steps = ["page_view","login_intake_started","login_intake_completed","email_captured","account_created","review_started","checkout_started","paid"];
+  // login events → email captured → account created → checkout → paid.
+  // Fix (2026-08-18): the intake stages were removed from /login and never
+  // fire, so they showed a permanent 0 — replaced with the live login events
+  // from the P0 login fix (login_attempted/login_error/login_success).
+  // login_error and login_success are parallel outcomes of an attempt (not a
+  // chain), so they share login_attempted as their base; after that the
+  // funnel is step-to-step.
+  const stepDefs: { name: string; base?: string }[] = [
+    { name: "page_view" },
+    { name: "login_attempted" },
+    { name: "login_error", base: "login_attempted" },
+    { name: "login_success", base: "login_attempted" },
+    { name: "email_captured" },
+    { name: "account_created" },
+    { name: "review_started" },
+    { name: "checkout_started" },
+    { name: "paid" },
+  ];
   const MIN_SAMPLE = 20;
-  const funnel = steps.map((name, i) => {
+  const funnel = stepDefs.map((def, i) => {
+    const name = def.name;
     const count = counts[name] || 0;
-    const base = i === 0 ? null : (counts[steps[i-1]] || 0);
+    const baseName = def.base || (i === 0 ? null : stepDefs[i - 1].name);
+    const base = baseName == null ? null : (counts[baseName] || 0);
     let rate = 0, drop = 0, sampleTooSmall = false;
     if (i === 0) {
       rate = 100;
