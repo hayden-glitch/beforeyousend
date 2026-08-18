@@ -80,8 +80,8 @@ const LABELS: Record<string, string> = {
   page_view: "Page view",
   review_started: "Review started",
   review_completed: "Review completed",
-  login_intake_started: "Intake started",
-  login_intake_completed: "Intake completed",
+  login_attempted: "Login attempted",
+  login_error: "Login error",
   funnel_started: "Funnel started",
   funnel_step_viewed: "Funnel step viewed",
   funnel_option_selected: "Option selected",
@@ -671,7 +671,7 @@ function OwnerPage() {
                   {!funnel.length ? <p className="text-xs text-stone">No events today yet.</p> : null}
                 </div>
                 <p className="mt-3 rounded-xl border border-line/60 bg-cream p-3 text-xs leading-relaxed text-stone">
-                  Reviews completed is a separate path — ads land on /login (intake), so 0 reviews with N signups is expected.
+                  Reviews completed is a separate path — ads land on /login, so 0 reviews with N signups is expected.
                   Percentages appear once a step's base reaches a real sample.
                 </p>
               </section>
